@@ -1,0 +1,20 @@
+{
+  "name": "ropas",
+  "version": "0.0.1",
+  "private": true,
+  "description": "ERP SaaS multi-tenant para tienda de ropa, integrado con ENKI",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,magenta \"pnpm --dir backend dev\" \"pnpm --dir frontend dev\"",
+    "build": "pnpm --dir backend build && pnpm --dir frontend build",
+    "lint": "pnpm --dir backend lint && pnpm --dir frontend lint",
+    "test": "pnpm --dir backend test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

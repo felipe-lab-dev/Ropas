@@ -1,0 +1,138 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+/* ─────────────────────────────────────────────────────────
+   Design tokens — Ropas (brutal premium)
+   ───────────────────────────────────────────────────────── */
+@theme inline {
+  --color-bg: hsl(var(--bg));
+  --color-surface: hsl(var(--surface));
+  --color-surface-2: hsl(var(--surface-2));
+  --color-border: hsl(var(--border));
+  --color-text: hsl(var(--text));
+  --color-text-muted: hsl(var(--text-muted));
+
+  --color-brand: hsl(var(--brand-primary));
+  --color-brand-hover: hsl(var(--brand-primary-hover));
+  --color-accent: hsl(var(--brand-accent));
+  --color-success: hsl(var(--brand-success));
+  --color-danger: hsl(var(--brand-danger));
+  --color-warning: hsl(var(--brand-warning));
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --font-sans: var(--font-geist-sans), 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), 'JetBrains Mono', monospace;
+  --font-display: var(--font-geist-sans), sans-serif;
+}
+
+:root {
+  --bg: 0 0% 100%;
+  --surface: 220 14% 96%;
+  --surface-2: 220 13% 91%;
+  --border: 220 13% 86%;
+  --text: 220 13% 12%;
+  --text-muted: 220 9% 46%;
+
+  --brand-primary: 280 95% 55%;
+  --brand-primary-hover: 280 95% 48%;
+  --brand-accent: 70 95% 60%;
+  --brand-success: 150 70% 42%;
+  --brand-danger: 355 85% 58%;
+  --brand-warning: 35 95% 55%;
+
+  --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.04);
+  --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.08);
+  --shadow-lg: 0 12px 32px hsl(0 0% 0% / 0.12);
+  --shadow-glow: 0 0 32px hsl(var(--brand-primary) / 0.35);
+}
+
+[data-theme="dark"] {
+  --bg: 240 10% 3.9%;
+  --surface: 240 5.9% 9%;
+  --surface-2: 240 4.8% 14%;
+  --border: 240 3.7% 20%;
+  --text: 0 0% 98%;
+  --text-muted: 240 5% 65%;
+
+  --brand-primary: 280 95% 65%;
+  --brand-primary-hover: 280 95% 70%;
+  --brand-accent: 70 95% 60%;
+  --brand-success: 150 65% 55%;
+  --brand-danger: 355 85% 65%;
+  --brand-warning: 35 95% 60%;
+
+  --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.3);
+  --shadow-md: 0 4px 16px hsl(0 0% 0% / 0.4);
+  --shadow-lg: 0 16px 48px hsl(0 0% 0% / 0.55);
+  --shadow-glow: 0 0 48px hsl(var(--brand-primary) / 0.45);
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  html {
+    font-size: var(--base-font-size, 14px);
+    font-family: var(--font-sans);
+  }
+  body {
+    background-color: hsl(var(--bg));
+    color: hsl(var(--text));
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background-color: hsl(var(--brand-primary) / 0.3);
+    color: hsl(var(--text));
+  }
+}
+
+@layer utilities {
+  .glow-brand {
+    box-shadow: var(--shadow-glow);
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+  .grid-pattern {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.4) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.4) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+  }
+}
+
+/* Animaciones */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--surface-2)) 0%,
+    hsl(var(--surface)) 50%,
+    hsl(var(--surface-2)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
