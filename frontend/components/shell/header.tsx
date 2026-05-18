@@ -1,14 +1,30 @@
 'use client';
 
 import * as React from 'react';
-import { Search, Sun, Moon, LogOut } from 'lucide-react';
+import { Search, Sun, Moon, LogOut, ChevronRight } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useApariencia } from '@/lib/store/apariencia';
 import { useSesion } from '@/lib/store/sesion';
 import { useConfigSaas } from '@/lib/store/config-saas';
 import { Button } from '@/components/ui/button';
-import { iniciales } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { CommandPalette } from './command-palette';
+import { cn } from '@/lib/utils';
+
+const TITULOS: Record<string, string> = {
+  '/bienvenida': 'Inicio',
+  '/dashboard': 'Dashboard',
+  '/productos': 'Productos',
+  '/pos': 'Punto de Venta',
+  '/ventas': 'Ventas',
+  '/inventario': 'Inventario',
+  '/caja': 'Caja',
+  '/clientes': 'Clientes',
+  '/sucursales': 'Sucursales',
+  '/reportes': 'Reportes',
+  '/configuracion': 'Configuración',
+};
 
 export function Header() {
   const tema = useApariencia(s => s.tema);
@@ -17,6 +33,7 @@ export function Header() {
   const limpiar = useSesion(s => s.limpiar);
   const config = useConfigSaas(s => s.config);
   const router = useRouter();
+  const pathname = usePathname();
   const [paletteOpen, setPaletteOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -35,52 +52,95 @@ export function Header() {
     router.push('/login');
   };
 
+  const tituloActual = React.useMemo(() => {
+    const key = Object.keys(TITULOS).find(k => pathname.startsWith(k));
+    return key ? TITULOS[key] : '';
+  }, [pathname]);
+
   return (
     <>
-      <header className="h-14 border-b border-[hsl(var(--border))] bg-[hsl(var(--surface))]/60 backdrop-blur-xl sticky top-0 z-30 flex items-center px-6 gap-4">
+      <header className="h-14 border-b border-[hsl(var(--border))] surface-glass sticky top-0 z-30 flex items-center px-6 gap-4">
+        {/* Breadcrumb / título */}
+        <div className="flex items-center gap-2 text-sm min-w-0">
+          <span className="text-[hsl(var(--text-muted))] font-medium">Ropas</span>
+          {tituloActual && (
+            <>
+              <ChevronRight className="size-3.5 text-[hsl(var(--text-muted))]" />
+              <motion.span
+                key={tituloActual}
+                initial={{ opacity: 0, x: -4 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.18 }}
+                className="font-semibold truncate"
+              >
+                {tituloActual}
+              </motion.span>
+            </>
+          )}
+        </div>
+
+        {/* Búsqueda Ctrl+K */}
         <button
           onClick={() => setPaletteOpen(true)}
-          className="flex items-center gap-3 px-3 h-9 rounded-md bg-[hsl(var(--surface-2))] hover:bg-[hsl(var(--surface-2))]/70 border border-[hsl(var(--border))] transition-colors min-w-[280px] text-sm text-[hsl(var(--text-muted))]"
+          className="flex items-center gap-3 px-3.5 h-9 rounded-lg bg-[hsl(var(--surface-2))]/70 hover:bg-[hsl(var(--surface-2))] border border-[hsl(var(--border))] transition-all min-w-[280px] max-w-[420px] text-sm text-[hsl(var(--text-muted))] hover:border-[hsl(var(--brand-primary))]/40 ml-4"
         >
           <Search className="size-4" />
-          <span className="flex-1 text-left">Buscar… (Ctrl+K)</span>
+          <span className="flex-1 text-left">Buscar módulos, productos, ventas…</span>
           <kbd className="ml-auto rounded border border-[hsl(var(--border))] bg-[hsl(var(--surface))] px-1.5 py-0.5 text-[10px] font-mono">
-            ⌘K
+            Ctrl K
           </kbd>
         </button>
 
         <div className="ml-auto flex items-center gap-3">
           {config && (
-            <div className="flex items-center gap-2 text-xs">
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="hidden md:flex items-center gap-2 text-xs"
+            >
               <span className="text-[hsl(var(--text-muted))]">{config.tenant.nombre}</span>
-              <span className="rounded-full bg-[hsl(var(--brand-accent))]/15 text-[hsl(var(--brand-accent))] px-2 py-0.5 font-semibold">
+              <span className="rounded-full bg-gradient-to-r from-[hsl(var(--brand-primary))]/15 to-[hsl(var(--brand-accent))]/15 text-[hsl(var(--brand-primary))] px-2.5 py-0.5 font-semibold border border-[hsl(var(--brand-primary))]/20">
                 {config.plan.nombre}
               </span>
-            </div>
+            </motion.div>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
+          <button
             onClick={() => setTema(tema === 'dark' ? 'light' : 'dark')}
+            className="size-9 rounded-lg grid place-items-center hover:bg-[hsl(var(--surface-2))] transition-colors text-[hsl(var(--text-muted))] hover:text-[hsl(var(--brand-primary))]"
             aria-label="Cambiar tema"
           >
-            {tema === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
-          </Button>
+            <AnimatePresence mode="wait">
+              {tema === 'dark' ? (
+                <motion.span
+                  key="sun"
+                  initial={{ rotate: -45, opacity: 0 }}
+                  animate={{ rotate: 0, opacity: 1 }}
+                  exit={{ rotate: 45, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="inline-flex"
+                >
+                  <Sun className="size-4 text-[hsl(var(--brand-accent))]" />
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="moon"
+                  initial={{ rotate: 45, opacity: 0 }}
+                  animate={{ rotate: 0, opacity: 1 }}
+                  exit={{ rotate: -45, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="inline-flex"
+                >
+                  <Moon className="size-4" />
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </button>
 
           {usuario && (
-            <div className="flex items-center gap-2 pl-3 border-l border-[hsl(var(--border))]">
-              <div className="size-8 rounded-full bg-gradient-to-br from-[hsl(var(--brand-primary))] to-[hsl(var(--brand-accent))] grid place-items-center text-white text-xs font-bold">
-                {iniciales(usuario.nombre)}
-              </div>
-              <div className="text-xs">
-                <div className="font-medium">{usuario.nombre}</div>
-                <div className="text-[hsl(var(--text-muted))]">{usuario.rol}</div>
-              </div>
-              <Button variant="ghost" size="icon-sm" onClick={cerrar} aria-label="Cerrar sesión">
-                <LogOut className="size-3.5" />
-              </Button>
-            </div>
+            <Button variant="ghost" size="icon-sm" onClick={cerrar} aria-label="Cerrar sesión" className="hover:text-[hsl(var(--brand-danger))]">
+              <LogOut className="size-4" />
+            </Button>
           )}
         </div>
       </header>

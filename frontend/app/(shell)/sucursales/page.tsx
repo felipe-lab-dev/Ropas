@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { obtener } from '@/lib/api/client';
+import { PageHeader } from '@/components/ui/page-header';
 
 interface Sucursal {
   id: string; codigo: string; nombre: string;
@@ -22,13 +23,11 @@ export default function SucursalesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Sucursales</h1>
-          <p className="text-[hsl(var(--text-muted))]">Tiendas físicas con stock independiente.</p>
-        </div>
-        <Button size="lg"><Plus className="size-4" /> Nueva sucursal</Button>
-      </div>
+      <PageHeader
+        titulo="Sucursales"
+        descripcion="Tiendas físicas con stock independiente."
+        acciones={<Button size="lg"><Plus className="size-4" /> Nueva sucursal</Button>}
+      />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {isLoading ? (

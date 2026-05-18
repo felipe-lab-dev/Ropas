@@ -26,7 +26,7 @@ function cargarEnv() {
   }
 }
 
-interface Args { code: string; nombre: string; admin: string; password?: string }
+interface Args { code: string; nombre: string; admin: string; dni?: string; password?: string }
 
 function parseArgs(): Args {
   const a = process.argv.slice(2);
@@ -38,10 +38,10 @@ function parseArgs(): Args {
   const nombre = get('nombre');
   const admin = get('admin') ?? `admin@${code}.local`;
   if (!code || !nombre) {
-    console.error('Uso: --code <codigo> --nombre "Nombre legible" [--admin email] [--password pass]');
+    console.error('Uso: --code <codigo> --nombre "Nombre legible" [--admin email] [--dni 12345678] [--password pass]');
     process.exit(1);
   }
-  return { code, nombre, admin, password: get('password') };
+  return { code, nombre, admin, dni: get('dni'), password: get('password') };
 }
 
 const CATEGORIAS_BASE = [
@@ -58,7 +58,7 @@ const CATEGORIAS_BASE = [
 const PERMISOS_ADMIN = ['*'];
 const MODULOS = [
   'productos', 'inventario', 'ventas', 'caja', 'clientes',
-  'proveedores', 'compras', 'reportes', 'usuarios', 'configuracion',
+  'proveedores', 'compras', 'contabilidad', 'reportes', 'usuarios', 'configuracion',
 ];
 
 async function main() {
@@ -83,8 +83,11 @@ async function main() {
     await aplicarDdl(prismaPublic, schema);
     console.log(`  ✓ Tablas aplicadas`);
 
-    await sembrar(prismaPublic, schema, args.admin, passwordHash);
+    await sembrar(prismaPublic, schema, args.admin, passwordHash, args.dni);
     console.log(`  ✓ Seed (rol admin, sucursal principal, categorías base, usuario admin)`);
+
+    await sembrarPlanCuentas(prismaPublic, schema);
+    console.log(`  ✓ Plan de cuentas PCGE`);
 
     await prismaPublic.tenant.upsert({
       where: { codigo: args.code },
@@ -133,6 +136,7 @@ async function sembrar(
   schema: string,
   email: string,
   passwordHash: string,
+  dni: string | undefined,
 ): Promise<void> {
   const permisos = PERMISOS_ADMIN.map(p => `'${p}'`).join(',');
 
@@ -149,9 +153,10 @@ async function sembrar(
     ON CONFLICT (codigo) DO NOTHING
   `);
 
+  const dniSql = dni ? `'${dni}'` : 'NULL';
   await prisma.$executeRawUnsafe(`
-    INSERT INTO "${schema}".usuarios (id, nombre, email, password_hash, rol_id, activo, creado_en, actualizado_en)
-    SELECT gen_random_uuid(), 'Administrador', '${email}', '${passwordHash}', r.id, true, now(), now()
+    INSERT INTO "${schema}".usuarios (id, nombre, email, dni, password_hash, rol_id, activo, creado_en, actualizado_en)
+    SELECT gen_random_uuid(), 'Administrador', '${email}', ${dniSql}, '${passwordHash}', r.id, true, now(), now()
     FROM "${schema}".roles r WHERE r.nombre = 'Administrador'
     ON CONFLICT (email) DO NOTHING
   `);
@@ -161,6 +166,24 @@ async function sembrar(
       INSERT INTO "${schema}".categorias (id, nombre, slug, orden, icono, creado_en, actualizado_en)
       VALUES (gen_random_uuid(), '${c.nombre}', '${c.slug}', ${c.orden}, '${c.icono}', now(), now())
       ON CONFLICT (nombre) DO NOTHING
+    `);
+  }
+}
+
+async function sembrarPlanCuentas(prisma: PrismaClient, schema: string): Promise<void> {
+  // Import dinámico para evitar acoplar el script al build del backend.
+  const { PLAN_CUENTAS } = await import('../src/modules/contabilidad/plan-cuentas.seed');
+  for (const c of PLAN_CUENTAS) {
+    const padre = c.padreCodigo ? `'${c.padreCodigo}'` : 'NULL';
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".plan_cuentas
+        (id, codigo, nombre, nivel, padre_codigo, naturaleza, tipo, acepta_movimiento, activa, creado_en, actualizado_en)
+      VALUES
+        (gen_random_uuid(), '${c.codigo}', $$${c.nombre}$$, ${c.nivel}, ${padre},
+         '${c.naturaleza}'::"${schema}".naturaleza_cuenta,
+         '${c.tipo}'::"${schema}".tipo_cuenta,
+         ${c.aceptaMovimiento}, true, now(), now())
+      ON CONFLICT (codigo) DO NOTHING
     `);
   }
 }
@@ -198,6 +221,7 @@ function ddlStatements(s: string): string[] {
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       nombre VARCHAR(120) NOT NULL,
       email VARCHAR(160) UNIQUE NOT NULL,
+      dni VARCHAR(20) UNIQUE,
       password_hash VARCHAR(120) NOT NULL,
       rol_id UUID NOT NULL REFERENCES "${s}".roles(id),
       sucursal_defecto UUID,
@@ -406,6 +430,178 @@ function ddlStatements(s: string): string[] {
       recibido_en TIMESTAMP NOT NULL DEFAULT now()
     )`,
     `CREATE INDEX IF NOT EXISTS venta_pagos_idx ON "${s}".venta_pagos(venta_id)`,
+
+    // ─────────────────────── COMPRAS Y PROVEEDORES ─────────────────────
+    `DO $$ BEGIN CREATE TYPE "${s}".condicion_pago AS ENUM ('contado','credito_15','credito_30','credito_60','credito_otro'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN CREATE TYPE "${s}".tipo_comprobante_compra AS ENUM ('factura','boleta','nota_ingreso','guia_remision','recibo_honorarios','otro'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN CREATE TYPE "${s}".estado_compra AS ENUM ('borrador','recibida','anulada'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN CREATE TYPE "${s}".estado_pago_compra AS ENUM ('pendiente','parcial','pagada','vencida'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+
+    `CREATE TABLE IF NOT EXISTS "${s}".proveedores (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tipo_documento "${s}".tipo_documento NOT NULL DEFAULT 'ruc',
+      documento VARCHAR(20) NOT NULL,
+      razon_social VARCHAR(200) NOT NULL,
+      nombre_comercial VARCHAR(160),
+      contacto VARCHAR(120),
+      email VARCHAR(160),
+      telefono VARCHAR(40),
+      direccion VARCHAR(240),
+      ciudad VARCHAR(120),
+      condicion_pago "${s}".condicion_pago NOT NULL DEFAULT 'contado',
+      dias_credito INTEGER NOT NULL DEFAULT 0,
+      cuenta_bancaria VARCHAR(60),
+      activo BOOLEAN NOT NULL DEFAULT true,
+      notas TEXT,
+      total_comprado DECIMAL(14,2) NOT NULL DEFAULT 0,
+      deuda_actual DECIMAL(14,2) NOT NULL DEFAULT 0,
+      ultima_compra_en TIMESTAMP,
+      tags TEXT[] NOT NULL DEFAULT '{}',
+      creado_en TIMESTAMP NOT NULL DEFAULT now(),
+      actualizado_en TIMESTAMP NOT NULL DEFAULT now(),
+      eliminado_en TIMESTAMP,
+      UNIQUE (tipo_documento, documento)
+    )`,
+    `CREATE INDEX IF NOT EXISTS proveedores_eliminado_idx ON "${s}".proveedores(eliminado_en)`,
+
+    `CREATE TABLE IF NOT EXISTS "${s}".compras (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      numero VARCHAR(20) UNIQUE NOT NULL,
+      proveedor_id UUID NOT NULL REFERENCES "${s}".proveedores(id),
+      sucursal_id UUID NOT NULL REFERENCES "${s}".sucursales(id),
+      tipo_comprobante "${s}".tipo_comprobante_compra NOT NULL,
+      serie VARCHAR(10) NOT NULL,
+      numero_comprobante VARCHAR(20) NOT NULL,
+      fecha_emision DATE NOT NULL,
+      fecha_recepcion DATE NOT NULL,
+      moneda VARCHAR(3) NOT NULL DEFAULT 'PEN',
+      tipo_cambio DECIMAL(10,4) NOT NULL DEFAULT 1,
+      subtotal DECIMAL(14,2) NOT NULL,
+      igv DECIMAL(14,2) NOT NULL DEFAULT 0,
+      otros_impuestos DECIMAL(14,2) NOT NULL DEFAULT 0,
+      descuento DECIMAL(14,2) NOT NULL DEFAULT 0,
+      total DECIMAL(14,2) NOT NULL,
+      estado "${s}".estado_compra NOT NULL DEFAULT 'borrador',
+      estado_pago "${s}".estado_pago_compra NOT NULL DEFAULT 'pendiente',
+      condicion_pago "${s}".condicion_pago NOT NULL DEFAULT 'contado',
+      fecha_vencimiento DATE,
+      total_pagado DECIMAL(14,2) NOT NULL DEFAULT 0,
+      notas TEXT,
+      usuario_id UUID NOT NULL,
+      anulada_en TIMESTAMP,
+      motivo_anulacion TEXT,
+      creado_en TIMESTAMP NOT NULL DEFAULT now(),
+      actualizado_en TIMESTAMP NOT NULL DEFAULT now(),
+      eliminado_en TIMESTAMP,
+      UNIQUE (proveedor_id, tipo_comprobante, serie, numero_comprobante)
+    )`,
+    `CREATE INDEX IF NOT EXISTS compras_sucursal_idx ON "${s}".compras(sucursal_id, fecha_emision)`,
+    `CREATE INDEX IF NOT EXISTS compras_estado_pago_idx ON "${s}".compras(estado_pago, fecha_vencimiento)`,
+    `CREATE INDEX IF NOT EXISTS compras_eliminado_idx ON "${s}".compras(eliminado_en)`,
+
+    `CREATE TABLE IF NOT EXISTS "${s}".compra_items (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      compra_id UUID NOT NULL REFERENCES "${s}".compras(id) ON DELETE CASCADE,
+      variante_id UUID NOT NULL REFERENCES "${s}".variantes(id),
+      descripcion VARCHAR(240) NOT NULL,
+      cantidad INTEGER NOT NULL,
+      costo_unitario DECIMAL(14,4) NOT NULL,
+      descuento DECIMAL(14,2) NOT NULL DEFAULT 0,
+      subtotal DECIMAL(14,2) NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS compra_items_idx ON "${s}".compra_items(compra_id)`,
+
+    `CREATE TABLE IF NOT EXISTS "${s}".pagos_compra (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      compra_id UUID NOT NULL REFERENCES "${s}".compras(id) ON DELETE CASCADE,
+      medio "${s}".medio_pago NOT NULL,
+      monto DECIMAL(14,2) NOT NULL,
+      referencia VARCHAR(120),
+      fecha_pago DATE NOT NULL,
+      sesion_caja_id UUID,
+      usuario_id UUID NOT NULL,
+      notas TEXT,
+      creado_en TIMESTAMP NOT NULL DEFAULT now(),
+      eliminado_en TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS pagos_compra_idx ON "${s}".pagos_compra(compra_id)`,
+
+    // ─────────────────────── CONTABILIDAD ───────────────────────────────
+    `DO $$ BEGIN CREATE TYPE "${s}".naturaleza_cuenta AS ENUM ('deudora','acreedora'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN CREATE TYPE "${s}".tipo_cuenta AS ENUM ('activo','pasivo','patrimonio','ingreso','gasto','costo','orden'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN CREATE TYPE "${s}".estado_periodo AS ENUM ('abierto','cerrado'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN CREATE TYPE "${s}".estado_asiento AS ENUM ('asentado','anulado','revertido'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN CREATE TYPE "${s}".tipo_operacion_sunat AS ENUM (
+      'venta_gravada','venta_exonerada','venta_inafecta','venta_exportacion',
+      'compra_gravada','compra_no_gravada','compra_importacion',
+      'pago_proveedor','cobro_cliente',
+      'apertura_caja','cierre_caja','gasto_caja',
+      'ajuste_inventario','nota_credito','nota_debito',
+      'asiento_manual','asiento_cierre'
+    ); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+
+    `CREATE TABLE IF NOT EXISTS "${s}".plan_cuentas (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      codigo VARCHAR(12) UNIQUE NOT NULL,
+      nombre VARCHAR(200) NOT NULL,
+      nivel INTEGER NOT NULL,
+      padre_codigo VARCHAR(12),
+      naturaleza "${s}".naturaleza_cuenta NOT NULL,
+      tipo "${s}".tipo_cuenta NOT NULL,
+      acepta_movimiento BOOLEAN NOT NULL DEFAULT true,
+      activa BOOLEAN NOT NULL DEFAULT true,
+      creado_en TIMESTAMP NOT NULL DEFAULT now(),
+      actualizado_en TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS plan_cuentas_padre_idx ON "${s}".plan_cuentas(padre_codigo)`,
+    `CREATE INDEX IF NOT EXISTS plan_cuentas_tipo_idx ON "${s}".plan_cuentas(tipo)`,
+
+    `CREATE TABLE IF NOT EXISTS "${s}".periodos_contables (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      anio INTEGER NOT NULL,
+      mes INTEGER NOT NULL,
+      estado "${s}".estado_periodo NOT NULL DEFAULT 'abierto',
+      cerrado_en TIMESTAMP,
+      cerrado_por_id UUID,
+      creado_en TIMESTAMP NOT NULL DEFAULT now(),
+      UNIQUE (anio, mes)
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS "${s}".asientos_contables (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      numero VARCHAR(30) UNIQUE NOT NULL,
+      periodo_id UUID NOT NULL REFERENCES "${s}".periodos_contables(id),
+      fecha DATE NOT NULL,
+      glosa VARCHAR(400) NOT NULL,
+      tipo_operacion "${s}".tipo_operacion_sunat NOT NULL,
+      origen_tipo VARCHAR(40),
+      origen_id UUID,
+      total_debe DECIMAL(14,2) NOT NULL,
+      total_haber DECIMAL(14,2) NOT NULL,
+      moneda VARCHAR(3) NOT NULL DEFAULT 'PEN',
+      tipo_cambio DECIMAL(10,4) NOT NULL DEFAULT 1,
+      estado "${s}".estado_asiento NOT NULL DEFAULT 'asentado',
+      reversa_de_id UUID,
+      usuario_id UUID NOT NULL,
+      creado_en TIMESTAMP NOT NULL DEFAULT now(),
+      actualizado_en TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS asientos_periodo_idx ON "${s}".asientos_contables(periodo_id, fecha)`,
+    `CREATE INDEX IF NOT EXISTS asientos_origen_idx ON "${s}".asientos_contables(origen_tipo, origen_id)`,
+
+    `CREATE TABLE IF NOT EXISTS "${s}".asiento_detalles (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      asiento_id UUID NOT NULL REFERENCES "${s}".asientos_contables(id) ON DELETE CASCADE,
+      cuenta_codigo VARCHAR(12) NOT NULL REFERENCES "${s}".plan_cuentas(codigo),
+      glosa VARCHAR(240),
+      debe DECIMAL(14,2) NOT NULL DEFAULT 0,
+      haber DECIMAL(14,2) NOT NULL DEFAULT 0,
+      documento_tipo VARCHAR(10),
+      documento_numero VARCHAR(30),
+      orden INTEGER NOT NULL DEFAULT 0
+    )`,
+    `CREATE INDEX IF NOT EXISTS asiento_detalles_asiento_idx ON "${s}".asiento_detalles(asiento_id)`,
+    `CREATE INDEX IF NOT EXISTS asiento_detalles_cuenta_idx ON "${s}".asiento_detalles(cuenta_codigo)`,
 
     `CREATE TABLE IF NOT EXISTS "${s}".audit_log (
       id BIGSERIAL PRIMARY KEY,

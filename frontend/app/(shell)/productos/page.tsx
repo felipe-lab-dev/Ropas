@@ -14,6 +14,10 @@ import {
 } from '@/components/ui/table';
 import { obtenerPaginado } from '@/lib/api/client';
 import { formatearMoneda, formatearNumero } from '@/lib/utils';
+import { PageHeader } from '@/components/ui/page-header';
+import { Pagination } from '@/components/ui/pagination';
+import { EmptyState } from '@/components/ui/empty-state';
+import { IlustracionProductos } from '@/components/ui/empty-illustrations';
 
 interface ProductoLista {
   id: string;
@@ -51,19 +55,17 @@ export default function ProductosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Productos</h1>
-          <p className="text-[hsl(var(--text-muted))]">
-            Catálogo con variantes (talla, color, material).
-          </p>
-        </div>
-        <Button asChild size="lg">
-          <Link href="/productos/nuevo">
-            <Plus className="size-4" /> Nuevo producto
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        titulo="Productos"
+        descripcion="Catálogo con variantes (talla, color, material)."
+        acciones={
+          <Button asChild size="lg">
+            <Link href="/productos/nuevo">
+              <Plus className="size-4" /> Nuevo producto
+            </Link>
+          </Button>
+        }
+      />
 
       <div className="flex items-center gap-3">
         <div className="relative max-w-md flex-1">
@@ -83,7 +85,7 @@ export default function ProductosPage() {
         )}
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -109,11 +111,15 @@ export default function ProductosPage() {
               ))
             ) : data!.datos.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="h-32 text-center">
-                  <Package className="size-8 mx-auto text-[hsl(var(--text-muted))] mb-2" />
-                  <p className="text-sm text-[hsl(var(--text-muted))]">
-                    {debouncedBuscar ? 'Sin resultados.' : 'Aún no hay productos. Crea el primero.'}
-                  </p>
+                <TableCell colSpan={9} className="p-0">
+                  <EmptyState
+                    ilustracion={<IlustracionProductos className="w-full h-full" />}
+                    titulo={debouncedBuscar ? 'Sin resultados' : 'Aún no hay productos'}
+                    descripcion={debouncedBuscar
+                      ? 'Probá con otra búsqueda o limpiá los filtros.'
+                      : 'Crea tu primer producto con variantes de talla y color.'}
+                    accion={debouncedBuscar ? undefined : { label: '＋ Nuevo producto', href: '/productos/nuevo' }}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -191,23 +197,16 @@ export default function ProductosPage() {
             )}
           </TableBody>
         </Table>
+        {data && (
+          <Pagination
+            pagina={data.pagina}
+            totalPaginas={data.totalPaginas}
+            total={data.total}
+            limite={20}
+            onCambiar={setPagina}
+          />
+        )}
       </Card>
-
-      {data && data.totalPaginas > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-[hsl(var(--text-muted))]">
-            Página {data.pagina} de {data.totalPaginas} · {formatearNumero(data.total)} total
-          </span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)}>
-              ← Anterior
-            </Button>
-            <Button variant="outline" size="sm" disabled={pagina >= data.totalPaginas} onClick={() => setPagina(p => p + 1)}>
-              Siguiente →
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

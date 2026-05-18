@@ -27,12 +27,20 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto, ctx: TenantContext) {
-    if (!dto.email || !dto.password) {
-      throw new ErrorValidacion('Email y contraseña son requeridos');
+    if (!dto.identificador || !dto.password) {
+      throw new ErrorValidacion('Identificador y contraseña son requeridos');
     }
 
+    const ident = dto.identificador.trim();
     const usuario = await this.prisma.forTenant(ctx).usuario.findFirst({
-      where: { email: dto.email.toLowerCase(), eliminadoEn: null, activo: true },
+      where: {
+        OR: [
+          { email: ident.toLowerCase() },
+          { dni: ident },
+        ],
+        eliminadoEn: null,
+        activo: true,
+      },
       include: { rol: true },
     });
 

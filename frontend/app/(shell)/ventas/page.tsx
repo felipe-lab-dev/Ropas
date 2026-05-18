@@ -14,6 +14,11 @@ import {
 } from '@/components/ui/table';
 import { obtenerPaginado } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
+import { PageHeader } from '@/components/ui/page-header';
+import { Pagination } from '@/components/ui/pagination';
+import { FacetFilter } from '@/components/ui/facet-filter';
+import { EmptyState } from '@/components/ui/empty-state';
+import { IlustracionVentas } from '@/components/ui/empty-illustrations';
 
 interface VentaLista {
   id: string; numero: string;
@@ -35,48 +40,69 @@ const estadoColor = {
   anulada: 'danger',
 } as const;
 
+const ESTADOS_FACET = [
+  { valor: 'confirmada', label: 'Confirmada', color: 'hsl(265 55% 58%)' },
+  { valor: 'pagada', label: 'Pagada', color: 'hsl(150 55% 42%)' },
+  { valor: 'parcial', label: 'Parcial', color: 'hsl(35 90% 55%)' },
+  { valor: 'borrador', label: 'Borrador', color: 'hsl(265 12% 60%)' },
+  { valor: 'anulada', label: 'Anulada', color: 'hsl(355 75% 55%)' },
+];
+
 export default function VentasPage() {
   const [buscar, setBuscar] = React.useState('');
+  const [pagina, setPagina] = React.useState(1);
+  const [estadosSeleccionados, setEstadosSeleccionados] = React.useState<string[]>([]);
   const [debounced, setDebounced] = React.useState('');
   React.useEffect(() => {
-    const t = setTimeout(() => setDebounced(buscar), 250);
+    const t = setTimeout(() => { setDebounced(buscar); setPagina(1); }, 250);
     return () => clearTimeout(t);
   }, [buscar]);
 
+  React.useEffect(() => { setPagina(1); }, [estadosSeleccionados]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['ventas', debounced],
+    queryKey: ['ventas', debounced, pagina, estadosSeleccionados],
     queryFn: () =>
       obtenerPaginado<VentaLista>('/ventas', {
-        limite: 30, ...(debounced ? { buscar: debounced } : {}),
+        limite: 30,
+        pagina,
+        ...(debounced ? { buscar: debounced } : {}),
+        ...(estadosSeleccionados.length ? { estado: estadosSeleccionados.join(',') } : {}),
       }),
   });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Ventas</h1>
-          <p className="text-[hsl(var(--text-muted))]">
-            Historial de tickets emitidos.
-          </p>
+      <PageHeader
+        titulo="Ventas"
+        descripcion="Historial de tickets emitidos."
+        acciones={
+          <Button asChild size="lg">
+            <Link href="/pos"><Plus className="size-4" /> Nueva venta</Link>
+          </Button>
+        }
+      />
+
+      <Card className="p-4 space-y-4">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[hsl(var(--text-muted))]" />
+          <Input
+            data-busqueda
+            placeholder="Buscar por número o cliente…"
+            value={buscar}
+            onChange={e => setBuscar(e.target.value)}
+            className="pl-9"
+          />
         </div>
-        <Button asChild size="lg">
-          <Link href="/pos"><Plus className="size-4" /> Nueva venta</Link>
-        </Button>
-      </div>
-
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[hsl(var(--text-muted))]" />
-        <Input
-          data-busqueda
-          placeholder="Buscar por número o cliente…"
-          value={buscar}
-          onChange={e => setBuscar(e.target.value)}
-          className="pl-9"
+        <FacetFilter
+          titulo="Estado"
+          opciones={ESTADOS_FACET}
+          seleccionadas={estadosSeleccionados}
+          onCambiar={setEstadosSeleccionados}
         />
-      </div>
+      </Card>
 
-      <Card>
+      <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -101,9 +127,13 @@ export default function VentasPage() {
               ))
             ) : data!.datos.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center">
-                  <ShoppingCart className="size-8 mx-auto text-[hsl(var(--text-muted))] mb-2" />
-                  <p className="text-sm text-[hsl(var(--text-muted))]">No hay ventas todavía.</p>
+                <TableCell colSpan={8} className="p-0">
+                  <EmptyState
+                    ilustracion={<IlustracionVentas className="w-full h-full" />}
+                    titulo="No hay ventas todavía"
+                    descripcion="Cuando emitas tu primer ticket aparecerá aquí con su número, monto y cliente."
+                    accion={{ label: '＋ Ir al POS', href: '/pos' }}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -124,6 +154,15 @@ export default function VentasPage() {
             )}
           </TableBody>
         </Table>
+        {data && (
+          <Pagination
+            pagina={data.pagina}
+            totalPaginas={data.totalPaginas}
+            total={data.total}
+            limite={30}
+            onCambiar={setPagina}
+          />
+        )}
       </Card>
     </div>
   );

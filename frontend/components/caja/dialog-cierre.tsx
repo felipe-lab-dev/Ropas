@@ -1,0 +1,141 @@
+'use client';
+
+import * as React from 'react';
+import { Lock, AlertTriangle } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { DialogShell } from '@/components/ui/dialog-shell';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { postear, mensajeError } from '@/lib/api/client';
+import { formatearMoneda } from '@/lib/utils';
+
+interface Props {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  sesionId: string;
+  efectivoEsperado: number;
+}
+
+export function DialogCierre({ open, onOpenChange, sesionId, efectivoEsperado }: Props) {
+  const [monto, setMonto] = React.useState('');
+  const [notas, setNotas] = React.useState('');
+  const qc = useQueryClient();
+
+  const diferencia = monto ? parseFloat(monto) - efectivoEsperado : 0;
+  const tieneDiferencia = Math.abs(diferencia) >= 0.01;
+
+  const cerrar = useMutation({
+    mutationFn: () =>
+      postear(`/caja/${sesionId}/cerrar`, {
+        montoCierre: parseFloat(monto),
+        notas: notas || undefined,
+      }),
+    onSuccess: () => {
+      toast.success('Caja cerrada');
+      setMonto('');
+      setNotas('');
+      qc.invalidateQueries({ queryKey: ['caja-mi-sesion'] });
+      qc.invalidateQueries({ queryKey: ['caja-sesiones'] });
+      qc.invalidateQueries({ queryKey: ['caja-totales'] });
+      onOpenChange(false);
+    },
+    onError: e => toast.error(mensajeError(e)),
+  });
+
+  return (
+    <DialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      titulo="Cierre de caja"
+      subtitulo="Arqueo y cierre de sesión"
+      icono={<Lock className="size-5" />}
+      variante="danger"
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => cerrar.mutate()}
+            disabled={!monto || cerrar.isPending}
+          >
+            <Lock className="size-4" /> Cerrar caja
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/40 p-3">
+            <p className="text-[10px] uppercase tracking-widest text-[hsl(var(--text-muted))] font-bold">
+              Efectivo esperado
+            </p>
+            <p className="text-xl font-bold tabular-nums mt-1">
+              {formatearMoneda(efectivoEsperado)}
+            </p>
+          </div>
+          <div
+            className={`rounded-lg border p-3 ${
+              !monto
+                ? 'border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/40'
+                : tieneDiferencia
+                ? 'border-[hsl(35_90%_55%)]/40 bg-[hsl(35_90%_55%)]/10'
+                : 'border-[hsl(var(--brand-success))]/40 bg-[hsl(var(--brand-success))]/10'
+            }`}
+          >
+            <p className="text-[10px] uppercase tracking-widest text-[hsl(var(--text-muted))] font-bold">
+              Diferencia
+            </p>
+            <p
+              className={`text-xl font-bold tabular-nums mt-1 ${
+                !monto ? '' : tieneDiferencia ? 'text-[hsl(35_90%_65%)]' : 'text-[hsl(150_55%_60%)]'
+              }`}
+            >
+              {monto ? formatearMoneda(diferencia) : '—'}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="cierre-monto">Monto contado al cierre</Label>
+          <Input
+            id="cierre-monto"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            value={monto}
+            onChange={e => setMonto(e.target.value)}
+            className="text-lg font-mono"
+            autoFocus
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="cierre-notas">Notas de cierre (opcional)</Label>
+          <Textarea
+            id="cierre-notas"
+            rows={3}
+            placeholder="Observaciones del arqueo…"
+            value={notas}
+            onChange={e => setNotas(e.target.value)}
+          />
+        </div>
+
+        {monto && tieneDiferencia && (
+          <div className="flex items-start gap-2 rounded-lg border border-[hsl(35_90%_55%)]/40 bg-[hsl(35_90%_55%)]/10 p-3 text-xs text-[hsl(35_90%_75%)]">
+            <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+            <span>
+              Hay diferencia de {formatearMoneda(diferencia)}. La sesión quedará marcada como{' '}
+              <strong>con diferencia</strong> para revisión.
+            </span>
+          </div>
+        )}
+      </div>
+    </DialogShell>
+  );
+}

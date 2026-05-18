@@ -11,6 +11,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { obtenerPaginado } from '@/lib/api/client';
+import { PageHeader } from '@/components/ui/page-header';
+import { Pagination } from '@/components/ui/pagination';
+import { EmptyState } from '@/components/ui/empty-state';
+import { IlustracionInventario } from '@/components/ui/empty-illustrations';
 
 interface StockItem {
   id: string;
@@ -26,26 +30,24 @@ interface StockItem {
 
 export default function InventarioPage() {
   const [buscar, setBuscar] = React.useState('');
+  const [pagina, setPagina] = React.useState(1);
   const [debounced, setDebounced] = React.useState('');
   React.useEffect(() => {
-    const t = setTimeout(() => setDebounced(buscar), 250);
+    const t = setTimeout(() => { setDebounced(buscar); setPagina(1); }, 250);
     return () => clearTimeout(t);
   }, [buscar]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['stock', debounced],
+    queryKey: ['stock', debounced, pagina],
     queryFn: () =>
       obtenerPaginado<StockItem>('/inventario/stock', {
-        limite: 50, ...(debounced ? { buscar: debounced } : {}),
+        limite: 50, pagina, ...(debounced ? { buscar: debounced } : {}),
       }),
   });
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Inventario</h1>
-        <p className="text-[hsl(var(--text-muted))]">Stock por variante y sucursal.</p>
-      </div>
+      <PageHeader titulo="Inventario" descripcion="Stock por variante y sucursal." />
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[hsl(var(--text-muted))]" />
@@ -58,7 +60,7 @@ export default function InventarioPage() {
         />
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -83,9 +85,13 @@ export default function InventarioPage() {
               ))
             ) : data!.datos.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center">
-                  <Boxes className="size-8 mx-auto text-[hsl(var(--text-muted))] mb-2" />
-                  <p className="text-sm text-[hsl(var(--text-muted))]">Sin stock registrado todavía.</p>
+                <TableCell colSpan={8} className="p-0">
+                  <EmptyState
+                    ilustracion={<IlustracionInventario className="w-full h-full" />}
+                    titulo="Sin stock registrado"
+                    descripcion="El inventario aparecerá aquí cuando crees productos con variantes y movimientos."
+                    accion={{ label: 'Ir a Productos', href: '/productos' }}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -128,6 +134,15 @@ export default function InventarioPage() {
             )}
           </TableBody>
         </Table>
+        {data && (
+          <Pagination
+            pagina={data.pagina}
+            totalPaginas={data.totalPaginas}
+            total={data.total}
+            limite={50}
+            onCambiar={setPagina}
+          />
+        )}
       </Card>
     </div>
   );

@@ -5,9 +5,9 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-export function formatearMoneda(valor: number | string, moneda = 'BRL'): string {
+export function formatearMoneda(valor: number | string, moneda = 'PEN'): string {
   const n = typeof valor === 'string' ? parseFloat(valor) : valor;
-  return new Intl.NumberFormat('pt-BR', {
+  return new Intl.NumberFormat('es-PE', {
     style: 'currency',
     currency: moneda,
     minimumFractionDigits: 2,
@@ -15,7 +15,7 @@ export function formatearMoneda(valor: number | string, moneda = 'BRL'): string 
 }
 
 export function formatearNumero(valor: number, decimales = 0): string {
-  return new Intl.NumberFormat('pt-BR', {
+  return new Intl.NumberFormat('es-PE', {
     minimumFractionDigits: decimales,
     maximumFractionDigits: decimales,
   }).format(valor);

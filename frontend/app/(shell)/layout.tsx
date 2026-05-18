@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/shell/sidebar';
 import { Header } from '@/components/shell/header';
+import { OnboardingModal } from '@/components/shell/onboarding-modal';
 import { useSesion } from '@/lib/store/sesion';
 import { useConfigSaas } from '@/lib/store/config-saas';
 import { motion } from 'framer-motion';
@@ -49,12 +50,13 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-            className="p-8 max-w-screen-2xl mx-auto"
+            className="w-full px-4 py-6 sm:px-6 lg:px-8 lg:py-8"
           >
             {children}
           </motion.div>
         </main>
       </div>
+      <OnboardingModal />
     </div>
   );
 }

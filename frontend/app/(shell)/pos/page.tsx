@@ -40,7 +40,7 @@ export default function PosPage() {
   const [carrito, setCarrito] = React.useState<ItemCarrito[]>([]);
   const [busqueda, setBusqueda] = React.useState('');
   const [debouncedBusqueda, setDebouncedBusqueda] = React.useState('');
-  const [medioPago, setMedioPago] = React.useState<'efectivo' | 'tarjeta_debito' | 'pix'>('efectivo');
+  const [medioPago, setMedioPago] = React.useState<'efectivo' | 'tarjeta_debito' | 'yape'>('efectivo');
   const [sucursalId, setSucursalId] = React.useState<string>(usuario?.sucursalDefecto ?? '');
 
   React.useEffect(() => {
@@ -118,10 +118,20 @@ export default function PosPage() {
   return (
     <div className="grid lg:grid-cols-[1fr_440px] gap-6 -m-8 p-8 min-h-[calc(100vh-3.5rem)]">
       <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight">Punto de Venta</h1>
-          <Badge variant="accent">POS</Badge>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3"
+        >
+          <div className="size-10 rounded-xl gradient-brand-accent grid place-items-center shadow-[0_4px_16px_hsl(var(--brand-primary)/0.35)]">
+            <ShoppingCart className="size-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight leading-none">Punto de Venta</h1>
+            <p className="text-xs text-[hsl(var(--text-muted))] mt-1">Atajo: <kbd className="px-1.5 py-0.5 rounded bg-[hsl(var(--surface-2))] text-[10px] font-mono">/</kbd> para enfocar la búsqueda</p>
+          </div>
+          <Badge variant="accent" className="ml-2">POS</Badge>
+        </motion.div>
 
         <div className="flex gap-3">
           <div className="relative flex-1">
@@ -230,16 +240,25 @@ export default function PosPage() {
         </Card>
       </div>
 
-      <Card className="p-6 sticky top-20 self-start">
-        <div className="space-y-6">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))] mb-1">Total a cobrar</p>
-            <div className="text-5xl font-black tracking-tighter tabular-nums">
-              {formatearMoneda(total)}
+      <Card className="overflow-hidden sticky top-20 self-start">
+        <div className="h-1 gradient-brand-accent" />
+        <div className="p-6 space-y-6">
+          <div className="relative">
+            <div className="absolute -top-2 -left-2 -right-2 -bottom-2 rounded-2xl bg-gradient-to-br from-[hsl(var(--brand-primary))]/8 to-[hsl(var(--brand-accent))]/4 pointer-events-none" />
+            <div className="relative">
+              <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))] mb-1 font-semibold">Total a cobrar</p>
+              <motion.div
+                key={total}
+                initial={{ scale: 0.95, opacity: 0.6 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="text-5xl font-black tracking-tighter tabular-nums bg-gradient-to-br from-[hsl(var(--brand-primary))] to-[hsl(var(--brand-primary-hover))] bg-clip-text text-transparent"
+              >
+                {formatearMoneda(total)}
+              </motion.div>
+              <p className="text-xs text-[hsl(var(--text-muted))] mt-1">
+                {carrito.length} item{carrito.length === 1 ? '' : 's'} · {carrito.reduce((s, i) => s + i.cantidad, 0)} unidades
+              </p>
             </div>
-            <p className="text-xs text-[hsl(var(--text-muted))] mt-1">
-              {carrito.length} item{carrito.length === 1 ? '' : 's'} · {carrito.reduce((s, i) => s + i.cantidad, 0)} unidades
-            </p>
           </div>
 
           <div>
@@ -248,23 +267,24 @@ export default function PosPage() {
               {([
                 { value: 'efectivo', label: 'Efectivo', icon: Banknote },
                 { value: 'tarjeta_debito', label: 'Tarjeta', icon: CreditCard },
-                { value: 'pix', label: 'PIX/QR', icon: Smartphone },
+                { value: 'yape', label: 'Yape/Plin', icon: Smartphone },
               ] as const).map(opt => {
                 const activo = medioPago === opt.value;
                 const Icon = opt.icon;
                 return (
-                  <button
+                  <motion.button
                     key={opt.value}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => setMedioPago(opt.value)}
-                    className={`p-3 rounded-md border text-xs font-medium transition-all ${
+                    className={`p-3 rounded-lg border-2 text-xs font-semibold transition-all ${
                       activo
-                        ? 'border-[hsl(var(--brand-primary))] bg-[hsl(var(--brand-primary))]/10 text-[hsl(var(--brand-primary))]'
-                        : 'border-[hsl(var(--border))] hover:bg-[hsl(var(--surface-2))]'
+                        ? 'border-[hsl(var(--brand-primary))] bg-[hsl(var(--brand-primary))]/10 text-[hsl(var(--brand-primary))] shadow-[0_4px_14px_hsl(var(--brand-primary)/0.25)]'
+                        : 'border-[hsl(var(--border))] hover:border-[hsl(var(--brand-primary))]/40 hover:bg-[hsl(var(--surface-2))]/60'
                     }`}
                   >
                     <Icon className="size-5 mx-auto mb-1" />
                     {opt.label}
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>

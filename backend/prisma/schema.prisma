@@ -75,6 +75,7 @@ model Usuario {
   id              String    @id @default(uuid()) @db.Uuid
   nombre          String    @db.VarChar(120)
   email           String    @unique @db.VarChar(160)
+  dni             String?   @unique @db.VarChar(20)
   passwordHash    String    @map("password_hash") @db.VarChar(120)
   rolId           String    @map("rol_id") @db.Uuid
   rol             Rol       @relation(fields: [rolId], references: [id])
@@ -85,8 +86,9 @@ model Usuario {
   actualizadoEn   DateTime  @updatedAt @map("actualizado_en")
   eliminadoEn     DateTime? @map("eliminado_en")
 
-  ventas          Venta[]
-  sesionesCaja    SesionCaja[]
+  ventas             Venta[]
+  sesionesCaja       SesionCaja[]
+  movimientosCaja    MovimientoCaja[] @relation("MovimientosCajaCreados")
 
   @@index([eliminadoEn])
   @@map("usuarios")
@@ -444,15 +446,22 @@ enum TipoMovimientoCaja {
 }
 
 model MovimientoCaja {
-  id       String             @id @default(uuid()) @db.Uuid
-  sesionId String             @map("sesion_id") @db.Uuid
-  sesion   SesionCaja         @relation(fields: [sesionId], references: [id])
-  tipo     TipoMovimientoCaja
-  monto    Decimal            @db.Decimal(12, 2)
-  motivo   String             @db.VarChar(240)
-  creadoEn DateTime           @default(now()) @map("creado_en")
+  id            String             @id @default(uuid()) @db.Uuid
+  sesionId      String             @map("sesion_id") @db.Uuid
+  sesion        SesionCaja         @relation(fields: [sesionId], references: [id])
+  tipo          TipoMovimientoCaja
+  medio         MedioPago          @default(efectivo)
+  monto         Decimal            @db.Decimal(12, 2)
+  motivo        String             @db.VarChar(240)
+  comprobante   String?            @db.VarChar(60)
+  contraparte   String?            @db.VarChar(180)
+  creadoPorId   String?            @map("creado_por_id") @db.Uuid
+  creadoPor     Usuario?           @relation("MovimientosCajaCreados", fields: [creadoPorId], references: [id])
+  creadoEn      DateTime           @default(now()) @map("creado_en")
+  eliminadoEn   DateTime?          @map("eliminado_en")
 
-  @@index([sesionId])
+  @@index([sesionId, creadoEn])
+  @@index([sesionId, tipo])
   @@map("movimientos_caja")
 }
 
@@ -468,4 +477,293 @@ model AuditLog {
 
   @@index([modulo, creadoEn])
   @@map("audit_log")
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// COMPRAS Y PROVEEDORES
+// ─────────────────────────────────────────────────────────────────────
+
+enum CondicionPago {
+  contado
+  credito_15
+  credito_30
+  credito_60
+  credito_otro
+
+  @@map("condicion_pago")
+}
+
+enum TipoComprobanteCompra {
+  factura
+  boleta
+  nota_ingreso
+  guia_remision
+  recibo_honorarios
+  otro
+
+  @@map("tipo_comprobante_compra")
+}
+
+enum EstadoCompra {
+  borrador
+  recibida
+  anulada
+
+  @@map("estado_compra")
+}
+
+enum EstadoPagoCompra {
+  pendiente
+  parcial
+  pagada
+  vencida
+
+  @@map("estado_pago_compra")
+}
+
+model Proveedor {
+  id              String        @id @default(uuid()) @db.Uuid
+  tipoDocumento   TipoDocumento @default(ruc) @map("tipo_documento")
+  documento       String        @db.VarChar(20)
+  razonSocial     String        @map("razon_social") @db.VarChar(200)
+  nombreComercial String?       @map("nombre_comercial") @db.VarChar(160)
+  contacto        String?       @db.VarChar(120)
+  email           String?       @db.VarChar(160)
+  telefono        String?       @db.VarChar(40)
+  direccion       String?       @db.VarChar(240)
+  ciudad          String?       @db.VarChar(120)
+  condicionPago   CondicionPago @default(contado) @map("condicion_pago")
+  diasCredito     Int           @default(0) @map("dias_credito")
+  cuentaBancaria  String?       @map("cuenta_bancaria") @db.VarChar(60)
+  activo          Boolean       @default(true)
+  notas           String?       @db.Text
+  totalComprado   Decimal       @default(0) @map("total_comprado") @db.Decimal(14, 2)
+  deudaActual     Decimal       @default(0) @map("deuda_actual") @db.Decimal(14, 2)
+  ultimaCompraEn  DateTime?     @map("ultima_compra_en")
+  tags            String[]      @default([])
+  creadoEn        DateTime      @default(now()) @map("creado_en")
+  actualizadoEn   DateTime      @updatedAt @map("actualizado_en")
+  eliminadoEn     DateTime?     @map("eliminado_en")
+
+  compras         Compra[]
+
+  @@unique([tipoDocumento, documento])
+  @@index([eliminadoEn])
+  @@map("proveedores")
+}
+
+model Compra {
+  id                String                @id @default(uuid()) @db.Uuid
+  numero            String                @unique @db.VarChar(20)
+  proveedorId       String                @map("proveedor_id") @db.Uuid
+  proveedor         Proveedor             @relation(fields: [proveedorId], references: [id])
+  sucursalId        String                @map("sucursal_id") @db.Uuid
+  sucursal          Sucursal              @relation(fields: [sucursalId], references: [id])
+  tipoComprobante   TipoComprobanteCompra @map("tipo_comprobante")
+  serie             String                @db.VarChar(10)
+  numeroComprobante String                @map("numero_comprobante") @db.VarChar(20)
+  fechaEmision      DateTime              @map("fecha_emision") @db.Date
+  fechaRecepcion    DateTime              @map("fecha_recepcion") @db.Date
+  moneda            String                @default("PEN") @db.VarChar(3)
+  tipoCambio        Decimal               @default(1) @map("tipo_cambio") @db.Decimal(10, 4)
+  subtotal          Decimal               @db.Decimal(14, 2)
+  igv               Decimal               @default(0) @db.Decimal(14, 2)
+  otrosImpuestos    Decimal               @default(0) @map("otros_impuestos") @db.Decimal(14, 2)
+  descuento         Decimal               @default(0) @db.Decimal(14, 2)
+  total             Decimal               @db.Decimal(14, 2)
+  estado            EstadoCompra          @default(borrador)
+  estadoPago        EstadoPagoCompra      @default(pendiente) @map("estado_pago")
+  condicionPago     CondicionPago         @default(contado) @map("condicion_pago")
+  fechaVencimiento  DateTime?             @map("fecha_vencimiento") @db.Date
+  totalPagado       Decimal               @default(0) @map("total_pagado") @db.Decimal(14, 2)
+  notas             String?               @db.Text
+  usuarioId         String                @map("usuario_id") @db.Uuid
+  anuladaEn         DateTime?             @map("anulada_en")
+  motivoAnulacion   String?               @map("motivo_anulacion") @db.Text
+  creadoEn          DateTime              @default(now()) @map("creado_en")
+  actualizadoEn     DateTime              @updatedAt @map("actualizado_en")
+  eliminadoEn       DateTime?             @map("eliminado_en")
+
+  items             CompraItem[]
+  pagos             PagoCompra[]
+
+  @@unique([proveedorId, tipoComprobante, serie, numeroComprobante])
+  @@index([sucursalId, fechaEmision])
+  @@index([estadoPago, fechaVencimiento])
+  @@index([eliminadoEn])
+  @@map("compras")
+}
+
+model CompraItem {
+  id            String   @id @default(uuid()) @db.Uuid
+  compraId      String   @map("compra_id") @db.Uuid
+  compra        Compra   @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  varianteId    String   @map("variante_id") @db.Uuid
+  variante      Variante @relation(fields: [varianteId], references: [id])
+  descripcion   String   @db.VarChar(240)
+  cantidad      Int
+  costoUnitario Decimal  @map("costo_unitario") @db.Decimal(14, 4)
+  descuento     Decimal  @default(0) @db.Decimal(14, 2)
+  subtotal      Decimal  @db.Decimal(14, 2)
+
+  @@index([compraId])
+  @@map("compra_items")
+}
+
+model PagoCompra {
+  id            String     @id @default(uuid()) @db.Uuid
+  compraId      String     @map("compra_id") @db.Uuid
+  compra        Compra     @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  medio         MedioPago
+  monto         Decimal    @db.Decimal(14, 2)
+  referencia    String?    @db.VarChar(120)
+  fechaPago     DateTime   @map("fecha_pago") @db.Date
+  sesionCajaId  String?    @map("sesion_caja_id") @db.Uuid
+  usuarioId     String     @map("usuario_id") @db.Uuid
+  notas         String?    @db.Text
+  creadoEn      DateTime   @default(now()) @map("creado_en")
+  eliminadoEn   DateTime?  @map("eliminado_en")
+
+  @@index([compraId])
+  @@map("pagos_compra")
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// CONTABILIDAD — PCGE, asientos partida doble, libros SUNAT
+// ─────────────────────────────────────────────────────────────────────
+
+enum NaturalezaCuenta {
+  deudora
+  acreedora
+
+  @@map("naturaleza_cuenta")
+}
+
+enum TipoCuenta {
+  activo
+  pasivo
+  patrimonio
+  ingreso
+  gasto
+  costo
+  orden
+
+  @@map("tipo_cuenta")
+}
+
+enum EstadoPeriodo {
+  abierto
+  cerrado
+
+  @@map("estado_periodo")
+}
+
+enum EstadoAsiento {
+  asentado
+  anulado
+  revertido
+
+  @@map("estado_asiento")
+}
+
+enum TipoOperacionSunat {
+  venta_gravada
+  venta_exonerada
+  venta_inafecta
+  venta_exportacion
+  compra_gravada
+  compra_no_gravada
+  compra_importacion
+  pago_proveedor
+  cobro_cliente
+  apertura_caja
+  cierre_caja
+  gasto_caja
+  ajuste_inventario
+  nota_credito
+  nota_debito
+  asiento_manual
+  asiento_cierre
+
+  @@map("tipo_operacion_sunat")
+}
+
+model PlanCuenta {
+  id               String           @id @default(uuid()) @db.Uuid
+  codigo           String           @unique @db.VarChar(12)
+  nombre           String           @db.VarChar(200)
+  nivel            Int
+  padreCodigo      String?          @map("padre_codigo") @db.VarChar(12)
+  naturaleza       NaturalezaCuenta
+  tipo             TipoCuenta
+  aceptaMovimiento Boolean          @default(true) @map("acepta_movimiento")
+  activa           Boolean          @default(true)
+  creadoEn         DateTime         @default(now()) @map("creado_en")
+  actualizadoEn    DateTime         @updatedAt @map("actualizado_en")
+
+  detalles         AsientoDetalle[]
+
+  @@index([padreCodigo])
+  @@index([tipo])
+  @@map("plan_cuentas")
+}
+
+model PeriodoContable {
+  id            String        @id @default(uuid()) @db.Uuid
+  anio          Int
+  mes           Int
+  estado        EstadoPeriodo @default(abierto)
+  cerradoEn     DateTime?     @map("cerrado_en")
+  cerradoPorId  String?       @map("cerrado_por_id") @db.Uuid
+  creadoEn      DateTime      @default(now()) @map("creado_en")
+
+  asientos      AsientoContable[]
+
+  @@unique([anio, mes])
+  @@map("periodos_contables")
+}
+
+model AsientoContable {
+  id            String             @id @default(uuid()) @db.Uuid
+  numero        String             @unique @db.VarChar(30)
+  periodoId     String             @map("periodo_id") @db.Uuid
+  periodo       PeriodoContable    @relation(fields: [periodoId], references: [id])
+  fecha         DateTime           @db.Date
+  glosa         String             @db.VarChar(400)
+  tipoOperacion TipoOperacionSunat @map("tipo_operacion")
+  origenTipo    String?            @map("origen_tipo") @db.VarChar(40)
+  origenId      String?            @map("origen_id") @db.Uuid
+  totalDebe     Decimal            @map("total_debe") @db.Decimal(14, 2)
+  totalHaber    Decimal            @map("total_haber") @db.Decimal(14, 2)
+  moneda        String             @default("PEN") @db.VarChar(3)
+  tipoCambio    Decimal            @default(1) @map("tipo_cambio") @db.Decimal(10, 4)
+  estado        EstadoAsiento      @default(asentado)
+  reversaDeId   String?            @map("reversa_de_id") @db.Uuid
+  usuarioId     String             @map("usuario_id") @db.Uuid
+  creadoEn      DateTime           @default(now()) @map("creado_en")
+  actualizadoEn DateTime           @updatedAt @map("actualizado_en")
+
+  detalles      AsientoDetalle[]
+
+  @@index([periodoId, fecha])
+  @@index([origenTipo, origenId])
+  @@map("asientos_contables")
+}
+
+model AsientoDetalle {
+  id              String          @id @default(uuid()) @db.Uuid
+  asientoId       String          @map("asiento_id") @db.Uuid
+  asiento         AsientoContable @relation(fields: [asientoId], references: [id], onDelete: Cascade)
+  cuentaCodigo    String          @map("cuenta_codigo") @db.VarChar(12)
+  cuenta          PlanCuenta      @relation(fields: [cuentaCodigo], references: [codigo])
+  glosa           String?         @db.VarChar(240)
+  debe            Decimal         @default(0) @db.Decimal(14, 2)
+  haber           Decimal         @default(0) @db.Decimal(14, 2)
+  documentoTipo   String?         @map("documento_tipo") @db.VarChar(10)
+  documentoNumero String?         @map("documento_numero") @db.VarChar(30)
+  orden           Int             @default(0)
+
+  @@index([asientoId])
+  @@index([cuentaCodigo])
+  @@map("asiento_detalles")
 }

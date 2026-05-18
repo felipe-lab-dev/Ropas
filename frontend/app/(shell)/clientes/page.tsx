@@ -13,6 +13,10 @@ import {
 } from '@/components/ui/table';
 import { obtenerPaginado } from '@/lib/api/client';
 import { formatearMoneda, iniciales } from '@/lib/utils';
+import { PageHeader } from '@/components/ui/page-header';
+import { Pagination } from '@/components/ui/pagination';
+import { EmptyState } from '@/components/ui/empty-state';
+import { IlustracionClientes } from '@/components/ui/empty-illustrations';
 
 interface Cliente {
   id: string; nombre: string; documento?: string | null; tipoDocumento: string;
@@ -22,28 +26,29 @@ interface Cliente {
 
 export default function ClientesPage() {
   const [buscar, setBuscar] = React.useState('');
+  const [pagina, setPagina] = React.useState(1);
   const [debounced, setDebounced] = React.useState('');
   React.useEffect(() => {
-    const t = setTimeout(() => setDebounced(buscar), 250);
+    const t = setTimeout(() => { setDebounced(buscar); setPagina(1); }, 250);
     return () => clearTimeout(t);
   }, [buscar]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['clientes', debounced],
-    queryFn: () => obtenerPaginado<Cliente>('/clientes', { limite: 30, ...(debounced ? { buscar: debounced } : {}) }),
+    queryKey: ['clientes', debounced, pagina],
+    queryFn: () => obtenerPaginado<Cliente>('/clientes', { limite: 30, pagina, ...(debounced ? { buscar: debounced } : {}) }),
   });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
-          <p className="text-[hsl(var(--text-muted))]">Tu base de clientes registrados.</p>
-        </div>
-        <Button asChild size="lg">
-          <Link href="/clientes/nuevo"><Plus className="size-4" /> Nuevo cliente</Link>
-        </Button>
-      </div>
+      <PageHeader
+        titulo="Clientes"
+        descripcion="Tu base de clientes registrados."
+        acciones={
+          <Button asChild size="lg">
+            <Link href="/clientes/nuevo"><Plus className="size-4" /> Nuevo cliente</Link>
+          </Button>
+        }
+      />
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[hsl(var(--text-muted))]" />
@@ -56,7 +61,7 @@ export default function ClientesPage() {
         />
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -80,9 +85,13 @@ export default function ClientesPage() {
               ))
             ) : data!.datos.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center">
-                  <Users className="size-8 mx-auto text-[hsl(var(--text-muted))] mb-2" />
-                  <p className="text-sm text-[hsl(var(--text-muted))]">Aún no hay clientes registrados.</p>
+                <TableCell colSpan={7} className="p-0">
+                  <EmptyState
+                    ilustracion={<IlustracionClientes className="w-full h-full" />}
+                    titulo="Tu base de clientes está vacía"
+                    descripcion="Registrá tus clientes para llevar el control de sus compras y fidelizar."
+                    accion={{ label: '＋ Nuevo cliente', href: '/clientes/nuevo' }}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -113,6 +122,15 @@ export default function ClientesPage() {
             )}
           </TableBody>
         </Table>
+        {data && (
+          <Pagination
+            pagina={data.pagina}
+            totalPaginas={data.totalPaginas}
+            total={data.total}
+            limite={30}
+            onCambiar={setPagina}
+          />
+        )}
       </Card>
     </div>
   );
