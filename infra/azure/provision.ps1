@@ -1,9 +1,11 @@
-# Provisiona los recursos Azure mínimos para Ropas en brazilsouth.
+# Provisiona los recursos Azure minimos para Ropas en East US 2.
 #
 # Recursos creados:
 #   - Resource Group           rg-ropas-prod
-#   - PostgreSQL Flexible      psql-ropas-prod-brs (Burstable B1ms, ~$12-15 USD/mes)
+#   - PostgreSQL Flexible      psql-ropas-prod-eus2 (Burstable B1ms, ~$15 USD/mes)
 #   - Database                 ropas
+#
+# Region: eastus2 (eastus esta restringida para Postgres Flexible en esta subscription).
 #
 # Pre-requisitos: az login + az account set --subscription "DIH_ERP"
 #
@@ -12,8 +14,8 @@
 
 param(
     [string]$ResourceGroup = "rg-ropas-prod",
-    [string]$Location = "brazilsouth",
-    [string]$ServerName = "psql-ropas-prod-brs",
+    [string]$Location = "eastus2",
+    [string]$ServerName = "psql-ropas-prod-eus2",
     [string]$DatabaseName = "ropas",
     [string]$AdminUser = "ropas_admin",
     [Parameter(Mandatory = $true)][string]$AdminPassword,
@@ -24,13 +26,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "▶ Verificando subscription activa…" -ForegroundColor Cyan
+Write-Host "Verificando subscription activa..." -ForegroundColor Cyan
 az account show --query "{name:name, id:id}" -o table
 
-Write-Host "▶ Creando Resource Group $ResourceGroup en $Location…" -ForegroundColor Cyan
+Write-Host "Creando Resource Group $ResourceGroup en $Location..." -ForegroundColor Cyan
 az group create --name $ResourceGroup --location $Location --tags proyecto=ropas entorno=prod | Out-Null
 
-Write-Host "▶ Creando PostgreSQL Flexible Server $ServerName ($Sku)…" -ForegroundColor Cyan
+Write-Host "Creando PostgreSQL Flexible Server $ServerName ($Sku)..." -ForegroundColor Cyan
 az postgres flexible-server create `
     --resource-group $ResourceGroup `
     --name $ServerName `
@@ -42,21 +44,14 @@ az postgres flexible-server create `
     --storage-size 32 `
     --version $Version `
     --public-access 0.0.0.0 `
-    --tags proyecto=ropas entorno=prod | Out-Null
+    --tags proyecto=ropas entorno=prod `
+    --yes | Out-Null
 
-Write-Host "▶ Creando base de datos $DatabaseName…" -ForegroundColor Cyan
+Write-Host "Creando base de datos $DatabaseName..." -ForegroundColor Cyan
 az postgres flexible-server db create `
     --resource-group $ResourceGroup `
     --server-name $ServerName `
     --database-name $DatabaseName | Out-Null
-
-# Habilitar uuid-ossp/pgcrypto si se necesitan
-Write-Host "▶ Habilitando extensiones (pgcrypto, uuid-ossp)…" -ForegroundColor Cyan
-az postgres flexible-server parameter set `
-    --resource-group $ResourceGroup `
-    --server-name $ServerName `
-    --name azure.extensions `
-    --value "PGCRYPTO,UUID-OSSP" | Out-Null
 
 $fqdn = az postgres flexible-server show `
     --resource-group $ResourceGroup `
@@ -66,13 +61,17 @@ $fqdn = az postgres flexible-server show `
 $connString = "postgresql://${AdminUser}:${AdminPassword}@${fqdn}:5432/${DatabaseName}?sslmode=require&schema=public"
 
 Write-Host ""
-Write-Host "✅ Recursos provisionados" -ForegroundColor Green
+Write-Host "Recursos provisionados" -ForegroundColor Green
 Write-Host ""
-Write-Host "Connection string (copiá a backend/.env como DATABASE_URL):" -ForegroundColor Yellow
+Write-Host "Connection string (copiar a backend/.env como DATABASE_URL):" -ForegroundColor Yellow
 Write-Host $connString
 Write-Host ""
-Write-Host "Recordá:" -ForegroundColor Yellow
-Write-Host "  • Agregar tu IP al firewall:"
+Write-Host "Recordar:" -ForegroundColor Yellow
+Write-Host "  - Agregar tu IP al firewall:"
 Write-Host "    az postgres flexible-server firewall-rule create -g $ResourceGroup -n $ServerName -r dev --start-ip-address <tu-ip> --end-ip-address <tu-ip>"
-Write-Host "  • Correr migrations: pnpm --dir backend prisma migrate deploy"
-Write-Host "  • Crear primer tenant: pnpm --dir backend tenant:crear -- --code mi-tienda --nombre 'Mi Tienda'"
+Write-Host "  - Aplicar schema: pnpm --dir backend prisma db push"
+Write-Host "  - Crear primer tenant: pnpm --dir backend tenant:crear -- --code mi-tienda --nombre 'Mi Tienda'"
+Write-Host ""
+Write-Host "Nota sobre pgcrypto:" -ForegroundColor Yellow
+Write-Host "  Azure bloquea pgcrypto por allow-list. gen_random_uuid() ya es nativa en PG 13+, asi que el script crear-tenant.ts no la necesita."
+Write-Host "  Si una migracion futura la requiere: az postgres flexible-server parameter set -g $ResourceGroup --server-name $ServerName --name azure.extensions --value PGCRYPTO,UUID-OSSP"

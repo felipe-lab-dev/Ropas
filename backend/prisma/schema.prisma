@@ -124,6 +124,7 @@ model Sucursal {
   inventarios   StockSucursal[]
   ventas        Venta[]
   sesionesCaja  SesionCaja[]
+  compras       Compra[]
 
   @@map("sucursales")
 }
@@ -228,6 +229,7 @@ model Variante {
   stocks        StockSucursal[]
   movimientos   MovimientoStock[]
   ventaItems    VentaItem[]
+  compraItems   CompraItem[]
 
   @@unique([productoId, talla, color])
   @@index([eliminadoEn])
