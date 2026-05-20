@@ -13,4 +13,4 @@ export interface TenantContext {
   limites: Record<string, number>;
   /** ¿Cliente con acceso permitido (no suspendido, trial vigente)? */
   accesoPermitido: boolean;
-}>
+}
