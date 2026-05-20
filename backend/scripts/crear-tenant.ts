@@ -194,7 +194,8 @@ async function sembrarPlanCuentas(prisma: PrismaClient, schema: string): Promise
  */
 function ddlStatements(s: string): string[] {
   return [
-    `CREATE EXTENSION IF NOT EXISTS pgcrypto`,
+    // pgcrypto omitido: Azure PostgreSQL no permite la extensión sin allow-list,
+    // y gen_random_uuid() ya es función nativa en Postgres 13+.
     // Enums
     `DO $$ BEGIN CREATE TYPE "${s}".genero AS ENUM ('hombre','mujer','ninio','ninia','unisex'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
     `DO $$ BEGIN CREATE TYPE "${s}".temporada AS ENUM ('primavera','verano','otonio','invierno','todo_el_anio'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,

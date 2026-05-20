@@ -1,4 +1,4 @@
-# Estimación de costos — Azure (Brazil South)
+# Estimación de costos — Azure (East US 2)
 
 Para 1-3 usuarios concurrentes, el setup mínimo razonable:
 
@@ -7,15 +7,15 @@ Para 1-3 usuarios concurrentes, el setup mínimo razonable:
 | PostgreSQL Flexible Server | Burstable **B1ms** (1 vCPU, 2 GB RAM) | ~$12 |
 | Storage | 32 GB SSD P10 | ~$3.50 |
 | Backup | 7 días, geo-redundancy off | incluido |
-| **Total estimado** | | **~$15-18 USD/mes** |
+| **Total estimado** | | **~$15 USD/mes** |
 
-> Brazil South suele tener un pequeño premium vs. East US. Si querés bajar más, usá `Standard_B1ms` (Burstable) y deshabilitá HA.
+> Region: **eastus2**. `eastus` está restringido para PostgreSQL Flexible en esta subscription. East US 2 es la alternativa primaria en Estados Unidos.
 
 ## Notas
 
 - **Sin HA**: si la VM se reinicia hay downtime de ~3-5 min. Aceptable para tienda interna.
 - **Public access ON al inicio**: para simplificar dev. Migrar a Private Endpoint cuando crezca a más clientes SaaS.
-- **Sin réplica**: replicas cuestan ~$12/mes adicionales. No las activamos hasta tener +50 tenants.
+- **Sin réplica**: réplicas cuestan ~$12/mes adicionales. No las activamos hasta tener +50 tenants.
 - **Connection pooling**: usar Prisma con `pgbouncer=true` cuando tengamos +10 tenants concurrentes.
 
 ## Cuando crezca
