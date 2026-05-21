@@ -26,11 +26,21 @@ export function obtenerTenantCode(): string {
 }
 
 export function obtenerApiUrl(): string {
-  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
-  if (typeof window === 'undefined') return 'http://localhost:3001';
-
-  const host = window.location.hostname.toLowerCase();
-  if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:3001';
-
-  return `https://api.${DOMINIO_BASE}`;
+  // En el browser SIEMPRE resolvemos por window.location — la env NEXT_PUBLIC_API_URL
+  // del `.env` no debe ganarle al host real (sino producción termina llamando a localhost).
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+    }
+    // Pattern per-tenant (idem Velarde): <tenant>.tienda.enkihubs.com → api.<tenant>.tienda.enkihubs.com
+    if (host.endsWith(`.${DOMINIO_BASE}`)) {
+      const tenant = host.slice(0, host.length - DOMINIO_BASE.length - 1);
+      return `https://api.${tenant}.${DOMINIO_BASE}`;
+    }
+    // SWA default (staging) o cualquier otro host: API compartida.
+    return `https://api.${DOMINIO_BASE}`;
+  }
+  // SSR / build: usar env si está, fallback a localhost para dev.
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 }
