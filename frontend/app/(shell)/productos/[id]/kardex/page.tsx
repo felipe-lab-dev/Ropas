@@ -1,7 +1,7 @@
 import { KardexCliente } from './kardex-cliente';
 
 export function generateStaticParams() {
-  return [];
+  return [{ id: '_' }];
 }
 
 export default function Page() {
