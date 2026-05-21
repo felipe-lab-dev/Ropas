@@ -271,6 +271,7 @@ function ddlStatements(s: string): string[] {
     `CREATE TABLE IF NOT EXISTS "${s}".productos (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       sku VARCHAR(40) UNIQUE NOT NULL,
+      codigo VARCHAR(40) UNIQUE,
       nombre VARCHAR(160) NOT NULL,
       descripcion TEXT,
       categoria_id UUID NOT NULL REFERENCES "${s}".categorias(id),

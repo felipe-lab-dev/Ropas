@@ -30,6 +30,7 @@ export class ProductosService {
     const busqueda = construirBusquedaWordSplit(query.buscar, [
       'nombre',
       'sku',
+      'codigo',
       'descripcion',
       'material',
     ]);
@@ -95,15 +96,25 @@ export class ProductosService {
     }
     const cliente = this.prisma.forTenant(ctx);
 
+    const sku = dto.sku?.trim() || (await this.siguienteSkuAuto(ctx));
+
     const skuExiste = await cliente.producto.findFirst({
-      where: { sku: dto.sku, eliminadoEn: null },
+      where: { sku, eliminadoEn: null },
     });
-    if (skuExiste) throw new ErrorConflicto(`SKU "${dto.sku}" ya existe`);
+    if (skuExiste) throw new ErrorConflicto(`SKU "${sku}" ya existe`);
+
+    if (dto.codigo) {
+      const codigoExiste = await cliente.producto.findFirst({
+        where: { codigo: dto.codigo, eliminadoEn: null },
+      });
+      if (codigoExiste) throw new ErrorConflicto(`Código "${dto.codigo}" ya existe`);
+    }
 
     return cliente.$transaction(async tx => {
       const producto = await tx.producto.create({
         data: {
-          sku: dto.sku,
+          sku,
+          codigo: dto.codigo?.trim() || null,
           nombre: dto.nombre,
           descripcion: dto.descripcion,
           categoriaId: dto.categoriaId,
@@ -123,7 +134,7 @@ export class ProductosService {
         await tx.variante.create({
           data: {
             productoId: producto.id,
-            sku: v.sku ?? `${dto.sku}-${i + 1}`,
+            sku: v.sku ?? `${sku}-${String(i + 1).padStart(2, '0')}`,
             talla: v.talla,
             color: v.color,
             colorHex: v.colorHex,
@@ -140,11 +151,31 @@ export class ProductosService {
     });
   }
 
+  /**
+   * Genera siguiente SKU correlativo del tipo "P-00001" único por tenant.
+   * Lee el último SKU con prefijo "P-" y suma 1.
+   */
+  private async siguienteSkuAuto(ctx: TenantContext): Promise<string> {
+    const cliente = this.prisma.forTenant(ctx);
+    const ultimo = await cliente.producto.findFirst({
+      where: { sku: { startsWith: 'P-' } },
+      orderBy: { sku: 'desc' },
+      select: { sku: true },
+    });
+    let n = 1;
+    if (ultimo) {
+      const m = ultimo.sku.match(/^P-(\d+)$/);
+      if (m && m[1]) n = parseInt(m[1], 10) + 1;
+    }
+    return `P-${String(n).padStart(5, '0')}`;
+  }
+
   async actualizar(id: string, dto: ActualizarProductoDto, ctx: TenantContext) {
     await this.obtenerPorId(id, ctx);
     return this.prisma.forTenant(ctx).producto.update({
       where: { id },
       data: {
+        codigo: dto.codigo,
         nombre: dto.nombre,
         descripcion: dto.descripcion,
         categoriaId: dto.categoriaId,
@@ -169,6 +200,151 @@ export class ProductosService {
       where: { id },
       data: { eliminadoEn: new Date() },
     });
+  }
+
+  /**
+   * Kardex de un producto: historial de movimientos de stock (entradas y salidas)
+   * de todas sus variantes, con resolución del documento de referencia (compra/venta).
+   *
+   * Filtros: fechaIni, fechaFin, tipo (entradas|salidas|ambas), varianteId, sucursalId.
+   */
+  async kardex(
+    productoId: string,
+    query: {
+      fechaIni?: string;
+      fechaFin?: string;
+      tipo?: 'entradas' | 'salidas' | 'ambas';
+      varianteId?: string;
+      sucursalId?: string;
+    } & PaginacionDto,
+    ctx: TenantContext,
+  ) {
+    await this.obtenerPorId(productoId, ctx);
+    const cliente = this.prisma.forTenant(ctx);
+    const { pagina, limite, skip, take } = obtenerPaginacion(query);
+
+    const variantes = await cliente.variante.findMany({
+      where: { productoId, eliminadoEn: null },
+      select: { id: true, sku: true, talla: true, color: true, colorHex: true },
+    });
+    const variantesMap = new Map(variantes.map(v => [v.id, v]));
+    const varianteIds = variantes.map(v => v.id);
+    if (varianteIds.length === 0) {
+      return crearResultadoPaginado([], 0, { pagina, limite });
+    }
+
+    const where: Prisma.MovimientoStockWhereInput = {
+      varianteId: query.varianteId ? query.varianteId : { in: varianteIds },
+    };
+    if (query.sucursalId) where.sucursalId = query.sucursalId;
+
+    if (query.fechaIni || query.fechaFin) {
+      where.creadoEn = {};
+      if (query.fechaIni) (where.creadoEn as any).gte = new Date(query.fechaIni);
+      if (query.fechaFin) {
+        const hasta = new Date(query.fechaFin);
+        hasta.setDate(hasta.getDate() + 1);
+        (where.creadoEn as any).lt = hasta;
+      }
+    }
+
+    if (query.tipo === 'entradas') {
+      where.tipo = { in: ['ingreso_compra', 'ingreso_devolucion', 'ingreso_ajuste', 'traslado_entrada'] };
+    } else if (query.tipo === 'salidas') {
+      where.tipo = { in: ['egreso_venta', 'egreso_merma', 'egreso_ajuste', 'traslado_salida'] };
+    }
+
+    const [movs, total, sucursales] = await Promise.all([
+      cliente.movimientoStock.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { creadoEn: 'desc' },
+      }),
+      cliente.movimientoStock.count({ where }),
+      cliente.sucursal.findMany({ select: { id: true, nombre: true } }),
+    ]);
+    const sucursalesMap = new Map(sucursales.map(s => [s.id, s.nombre]));
+
+    // Resolver referencias (compra/venta) en batch para evitar N+1
+    const compraIds = movs
+      .filter(m => m.referenciaTipo === 'compra' && m.referenciaId)
+      .map(m => m.referenciaId!) ;
+    const ventaIds = movs
+      .filter(m => m.referenciaTipo === 'venta' && m.referenciaId)
+      .map(m => m.referenciaId!);
+
+    const [compras, ventas] = await Promise.all([
+      compraIds.length
+        ? cliente.compra.findMany({
+            where: { id: { in: compraIds } },
+            select: {
+              id: true,
+              numero: true,
+              serie: true,
+              numeroComprobante: true,
+              fechaEmision: true,
+              proveedor: { select: { id: true, razonSocial: true } },
+            },
+          })
+        : Promise.resolve([] as any[]),
+      ventaIds.length
+        ? cliente.venta.findMany({
+            where: { id: { in: ventaIds } },
+            select: {
+              id: true,
+              numero: true,
+              creadoEn: true,
+              cliente: { select: { id: true, nombre: true } },
+            },
+          })
+        : Promise.resolve([] as any[]),
+    ]);
+    const comprasMap = new Map(compras.map(c => [c.id, c]));
+    const ventasMap = new Map(ventas.map(v => [v.id, v]));
+
+    const datos = movs.map(m => {
+      const v = variantesMap.get(m.varianteId);
+      const esEntrada = m.tipo.startsWith('ingreso') || m.tipo === 'traslado_entrada';
+      const ref =
+        m.referenciaTipo === 'compra' && m.referenciaId ? comprasMap.get(m.referenciaId) :
+        m.referenciaTipo === 'venta' && m.referenciaId ? ventasMap.get(m.referenciaId) : null;
+
+      return {
+        id: m.id,
+        fecha: m.creadoEn,
+        tipo: m.tipo,
+        esEntrada,
+        cantidad: m.cantidad,
+        stockAntes: m.stockAntes,
+        stockDespues: m.stockDespues,
+        notas: m.notas,
+        sucursal: { id: m.sucursalId, nombre: sucursalesMap.get(m.sucursalId) ?? '—' },
+        variante: v
+          ? { id: v.id, sku: v.sku, talla: v.talla, color: v.color, colorHex: v.colorHex }
+          : null,
+        referencia: ref
+          ? {
+              tipo: m.referenciaTipo,
+              id: m.referenciaId,
+              numero:
+                m.referenciaTipo === 'compra'
+                  ? `${(ref as any).serie}-${(ref as any).numeroComprobante}`
+                  : (ref as any).numero,
+              fecha:
+                m.referenciaTipo === 'compra'
+                  ? (ref as any).fechaEmision
+                  : (ref as any).creadoEn,
+              contraparte:
+                m.referenciaTipo === 'compra'
+                  ? (ref as any).proveedor?.razonSocial
+                  : (ref as any).cliente?.nombre,
+            }
+          : null,
+      };
+    });
+
+    return crearResultadoPaginado(datos, total, { pagina, limite });
   }
 
   async buscarPorCodigoBarras(codigo: string, ctx: TenantContext) {

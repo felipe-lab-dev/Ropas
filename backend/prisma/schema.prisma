@@ -183,6 +183,7 @@ enum Temporada {
 model Producto {
   id            String     @id @default(uuid()) @db.Uuid
   sku           String     @unique @db.VarChar(40)
+  codigo        String?    @unique @db.VarChar(40)
   nombre        String     @db.VarChar(160)
   descripcion   String?    @db.Text
   categoriaId   String     @map("categoria_id") @db.Uuid

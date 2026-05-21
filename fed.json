@@ -1,0 +1,8 @@
+﻿{
+    "subject":  "repo:felipe-lab-dev/Ropas:ref:refs/heads/main",
+    "audiences":  [
+                      "api://AzureADTokenExchange"
+                  ],
+    "issuer":  "https://token.actions.githubusercontent.com",
+    "name":  "ropas-main"
+}

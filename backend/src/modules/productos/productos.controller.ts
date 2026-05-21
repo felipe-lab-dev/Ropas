@@ -41,6 +41,16 @@ export class ProductosController {
     return this.service.obtenerPorId(id, ctx);
   }
 
+  @Get(':id/kardex')
+  @RequierePermiso('productos:leer')
+  async kardex(
+    @Param('id') id: string,
+    @Query() query: any,
+    @Tenant() ctx: TenantContext,
+  ) {
+    return this.service.kardex(id, query, ctx);
+  }
+
   @Post()
   @RequierePermiso('productos:crear')
   async crear(@Body() dto: CrearProductoDto, @Tenant() ctx: TenantContext) {

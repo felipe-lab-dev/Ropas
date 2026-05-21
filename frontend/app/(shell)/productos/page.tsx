@@ -2,8 +2,9 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { Plus, Search, Package, Edit2, Trash2 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { Plus, Search, Package, Edit2, Trash2, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -12,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { obtenerPaginado } from '@/lib/api/client';
+import { obtenerPaginado, eliminar as eliminarApi, mensajeError } from '@/lib/api/client';
 import { formatearMoneda, formatearNumero } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
 import { Pagination } from '@/components/ui/pagination';
@@ -22,6 +23,7 @@ import { IlustracionProductos } from '@/components/ui/empty-illustrations';
 interface ProductoLista {
   id: string;
   sku: string;
+  codigo: string | null;
   nombre: string;
   precioVenta: string;
   activo: boolean;
@@ -37,13 +39,15 @@ export default function ProductosPage() {
   const [buscar, setBuscar] = React.useState('');
   const [pagina, setPagina] = React.useState(1);
   const [debouncedBuscar, setDebouncedBuscar] = React.useState('');
+  const [confirmandoId, setConfirmandoId] = React.useState<string | null>(null);
+  const qc = useQueryClient();
 
   React.useEffect(() => {
     const t = setTimeout(() => setDebouncedBuscar(buscar), 250);
     return () => clearTimeout(t);
   }, [buscar]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['productos', pagina, debouncedBuscar],
     queryFn: () =>
       obtenerPaginado<ProductoLista>('/productos', {
@@ -51,6 +55,17 @@ export default function ProductosPage() {
         limite: 20,
         ...(debouncedBuscar ? { buscar: debouncedBuscar } : {}),
       }),
+    retry: false,
+  });
+
+  const borrar = useMutation({
+    mutationFn: (id: string) => eliminarApi(`/productos/${id}`),
+    onSuccess: () => {
+      toast.success('Producto eliminado');
+      setConfirmandoId(null);
+      void qc.invalidateQueries({ queryKey: ['productos'] });
+    },
+    onError: e => toast.error(mensajeError(e)),
   });
 
   return (
@@ -91,6 +106,7 @@ export default function ProductosPage() {
             <TableRow>
               <TableHead className="w-12"></TableHead>
               <TableHead>Producto</TableHead>
+              <TableHead>Código</TableHead>
               <TableHead>SKU</TableHead>
               <TableHead>Categoría</TableHead>
               <TableHead>Variantes</TableHead>
@@ -104,14 +120,30 @@ export default function ProductosPage() {
             {isLoading ? (
               [...Array(8)].map((_, i) => (
                 <TableRow key={i}>
-                  {Array(9).fill(0).map((_, j) => (
+                  {Array(10).fill(0).map((_, j) => (
                     <TableCell key={j}><Skeleton className="h-5" /></TableCell>
                   ))}
                 </TableRow>
               ))
-            ) : data!.datos.length === 0 ? (
+            ) : isError || !data ? (
               <TableRow>
-                <TableCell colSpan={9} className="p-0">
+                <TableCell colSpan={10} className="p-10 text-center">
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-[hsl(var(--brand-danger))]">
+                      No se pudo cargar productos
+                    </p>
+                    <p className="text-xs text-[hsl(var(--text-muted))]">
+                      {mensajeError(error)}
+                    </p>
+                    <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+                      Reintentar
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : data.datos.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={10} className="p-0">
                   <EmptyState
                     ilustracion={<IlustracionProductos className="w-full h-full" />}
                     titulo={debouncedBuscar ? 'Sin resultados' : 'Aún no hay productos'}
@@ -123,7 +155,7 @@ export default function ProductosPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              data!.datos.map(p => (
+              data.datos.map(p => (
                 <TableRow key={p.id}>
                   <TableCell>
                     <div className="size-10 rounded-md bg-[hsl(var(--surface-2))] grid place-items-center overflow-hidden">
@@ -141,7 +173,14 @@ export default function ProductosPage() {
                       <div className="text-xs text-[hsl(var(--text-muted))]">{p.marca.nombre}</div>
                     )}
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {p.codigo ? (
+                      <span className="font-semibold text-[hsl(var(--text))]">{p.codigo}</span>
+                    ) : (
+                      <span className="text-[hsl(var(--text-muted))]">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-mono text-[10px] text-[hsl(var(--text-muted))]">{p.sku}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{p.categoria.nombre}</Badge>
                   </TableCell>
@@ -181,16 +220,55 @@ export default function ProductosPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right pr-4">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button asChild variant="ghost" size="icon-sm">
-                        <Link href={`/productos/${p.id}`}>
-                          <Edit2 className="size-3.5" />
-                        </Link>
-                      </Button>
-                      <Button variant="ghost" size="icon-sm" className="text-[hsl(var(--brand-danger))]">
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
+                    {confirmandoId === p.id ? (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="text-[10px] text-[hsl(var(--text-muted))] mr-1">¿Eliminar?</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setConfirmandoId(null)}
+                          className="h-7 px-2 text-[10px]"
+                        >
+                          No
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => borrar.mutate(p.id)}
+                          disabled={borrar.isPending}
+                          className="h-7 px-2 text-[10px] bg-[hsl(var(--brand-danger))] hover:bg-[hsl(var(--brand-danger))]/90"
+                        >
+                          Sí, eliminar
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Ver Kardex"
+                          className="bg-gradient-to-br from-[#fbbf24] to-[#d97706] text-white shadow-[0_2px_8px_rgba(217,119,6,0.35)] hover:from-[#fcd34d] hover:to-[#f59e0b] hover:shadow-[0_4px_12px_rgba(217,119,6,0.45)] border border-amber-600/20"
+                        >
+                          <Link href={`/productos/${p.id}/kardex`}>
+                            <History className="size-3.5" />
+                          </Link>
+                        </Button>
+                        <Button asChild variant="ghost" size="icon-sm" title="Editar">
+                          <Link href={`/productos/${p.id}`}>
+                            <Edit2 className="size-3.5" />
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-[hsl(var(--brand-danger))] hover:bg-[hsl(var(--brand-danger))]/10"
+                          onClick={() => setConfirmandoId(p.id)}
+                          title="Eliminar"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

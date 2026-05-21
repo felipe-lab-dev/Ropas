@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 
 export class ActualizarProductoDto {
+  @IsOptional() @IsString() codigo?: string;
   @IsOptional() @IsString() nombre?: string;
   @IsOptional() @IsString() descripcion?: string;
   @IsOptional() @IsUUID() categoriaId?: string;

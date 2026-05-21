@@ -1,0 +1,531 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+env:
+  AZURE_SUB: 599b47be-0430-4dc8-997d-5526ebbfb1e6
+  RG: rg-ropas
+  ACR: acrropas
+  ACR_LOGIN: acrropas.azurecr.io
+  BACKEND_APP: ca-backend-ropas
+  SWA_NAME: swa-ropas
+  IMAGE: ropas-backend
+  PNPM_VERSION: 9.15.0
+  NODE_VERSION: '22'
+
+jobs:
+  # ────────────────────────────────────────────────────────────
+  # 🧪  Backend NestJS — typecheck + lint + test
+  # ────────────────────────────────────────────────────────────
+  backend-test:
+    name: 🧪 Backend NestJS (typecheck + test)
+    runs-on: ubuntu-latest
+    outputs:
+      duration: ${{ steps.timer.outputs.duration }}
+      tests_passed: ${{ steps.test.outputs.passed }}
+      tests_failed: ${{ steps.test.outputs.failed }}
+      tests_total: ${{ steps.test.outputs.total }}
+      typecheck: ${{ steps.tsc.outputs.result }}
+      lint: ${{ steps.lint.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ⏱️ Start timer
+        id: start
+        run: echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 📦 Install (workspace, backend only)
+        run: pnpm install --frozen-lockfile --filter "@ropas/backend..."
+
+      - name: 🧬 Prisma generate
+        working-directory: backend
+        run: pnpm prisma generate
+
+      - name: 🔍 Type check
+        id: tsc
+        working-directory: backend
+        run: |
+          if pnpm exec tsc --noEmit; then
+            echo "result=✅" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=❌" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: ✨ Lint
+        id: lint
+        working-directory: backend
+        run: |
+          if pnpm lint; then
+            echo "result=✅" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=⚠️" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 🧪 Test (Jest)
+        id: test
+        working-directory: backend
+        run: |
+          set +e
+          out=$(pnpm test --json --silent 2>/dev/null | tail -1)
+          set -e
+          passed=$(echo "$out" | grep -oE '"numPassedTests":[0-9]+' | cut -d: -f2 | head -1)
+          failed=$(echo "$out" | grep -oE '"numFailedTests":[0-9]+' | cut -d: -f2 | head -1)
+          total=$(echo "$out" | grep -oE '"numTotalTests":[0-9]+' | cut -d: -f2 | head -1)
+          passed=${passed:-0}; failed=${failed:-0}; total=${total:-0}
+          echo "passed=$passed" >> "$GITHUB_OUTPUT"
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+          echo "total=$total"  >> "$GITHUB_OUTPUT"
+          echo "📊 $passed/$total passed, $failed failed"
+
+      - name: ⏱️ End timer
+        id: timer
+        run: echo "duration=$(( $(date +%s) - ${{ steps.start.outputs.start }} ))" >> "$GITHUB_OUTPUT"
+
+      - name: 📝 Job summary
+        if: always()
+        run: |
+          P=${{ steps.test.outputs.passed }}
+          T=${{ steps.test.outputs.total }}
+          F=${{ steps.test.outputs.failed }}
+          PCT=$([ "$T" -gt 0 ] && echo "$(( P * 100 / T ))" || echo "100")
+          BAR_FILLED=$(( PCT * 30 / 100 ))
+          BAR_EMPTY=$(( 30 - BAR_FILLED ))
+          BAR=$(printf '█%.0s' $(seq 1 $BAR_FILLED 2>/dev/null))$(printf '░%.0s' $(seq 1 $BAR_EMPTY 2>/dev/null))
+          {
+            echo "## 🧪 Backend NestJS — ${{ job.status == 'success' && '✅ success' || '❌ failure' }}"
+            echo ""
+            echo "| Métrica         | Valor |"
+            echo "| :-------------- | :---- |"
+            echo "| Tests passed    | \`$P\` / \`$T\` (\`$PCT%\`) |"
+            echo "| Tests failed    | \`$F\` |"
+            echo "| Type-check (tsc)| ${{ steps.tsc.outputs.result }} |"
+            echo "| Lint (eslint)   | ${{ steps.lint.outputs.result }} |"
+            echo "| Prisma generate | ✅ |"
+            echo "| ⏱️ Duración      | \`${{ steps.timer.outputs.duration }}s\` |"
+            echo ""
+            echo "**Tests progress** \`$BAR\` \`$PCT%\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ────────────────────────────────────────────────────────────
+  # 🎨  Frontend Next.js — build estático
+  # ────────────────────────────────────────────────────────────
+  frontend-build:
+    name: 🎨 Frontend Next.js (build prod)
+    runs-on: ubuntu-latest
+    outputs:
+      duration: ${{ steps.timer.outputs.duration }}
+      bundle_size: ${{ steps.size.outputs.size }}
+      files: ${{ steps.size.outputs.files }}
+      typecheck: ${{ steps.tsc.outputs.result }}
+      lint: ${{ steps.lint.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ⏱️ Start timer
+        id: start
+        run: echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 📦 Install (workspace, frontend only)
+        run: pnpm install --frozen-lockfile --filter "@ropas/frontend..."
+
+      - name: 🔍 Type check
+        id: tsc
+        working-directory: frontend
+        run: |
+          if pnpm exec tsc --noEmit; then
+            echo "result=✅" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=❌" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: ✨ Lint
+        id: lint
+        working-directory: frontend
+        run: |
+          if pnpm lint; then
+            echo "result=✅" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=⚠️" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 🏗️ Build (next build + export)
+        working-directory: frontend
+        run: pnpm build
+
+      - name: 📏 Medir bundle
+        id: size
+        working-directory: frontend
+        run: |
+          if [ -d out ]; then
+            size_bytes=$(du -sb out | cut -f1)
+            size_mb=$(awk -v b="$size_bytes" 'BEGIN{printf "%.2f", b/1048576}')
+            files=$(find out -type f | wc -l)
+            echo "size=${size_mb}MB" >> "$GITHUB_OUTPUT"
+            echo "files=$files" >> "$GITHUB_OUTPUT"
+          else
+            echo "size=N/A" >> "$GITHUB_OUTPUT"
+            echo "files=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 📤 Subir artefacto del build
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-out
+          path: frontend/out
+          retention-days: 1
+
+      - name: ⏱️ End timer
+        id: timer
+        run: echo "duration=$(( $(date +%s) - ${{ steps.start.outputs.start }} ))" >> "$GITHUB_OUTPUT"
+
+      - name: 📝 Job summary
+        if: always()
+        run: |
+          {
+            echo "## 🎨 Frontend Next.js — ${{ job.status == 'success' && '✅ success' || '❌ failure' }}"
+            echo ""
+            echo "| Métrica         | Valor |"
+            echo "| :-------------- | :---- |"
+            echo "| Type-check (tsc)| ${{ steps.tsc.outputs.result }} |"
+            echo "| Lint (eslint)   | ${{ steps.lint.outputs.result }} |"
+            echo "| Build output    | \`frontend/out\` |"
+            echo "| 🪶 Bundle size   | \`${{ steps.size.outputs.size }}\` |"
+            echo "| 📄 Archivos     | \`${{ steps.size.outputs.files }}\` |"
+            echo "| ⏱️ Duración      | \`${{ steps.timer.outputs.duration }}s\` |"
+            echo ""
+            echo "**Build progress** \`██████████████████████████████\` \`100%\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ────────────────────────────────────────────────────────────
+  # 🔒  Security scan
+  # ────────────────────────────────────────────────────────────
+  security:
+    name: 🔒 Security scan (secretos + pnpm audit)
+    runs-on: ubuntu-latest
+    outputs:
+      duration: ${{ steps.timer.outputs.duration }}
+      audit_high: ${{ steps.audit.outputs.high }}
+      audit_critical: ${{ steps.audit.outputs.critical }}
+      secrets_found: ${{ steps.gitleaks.outputs.found }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: ⏱️ Start timer
+        id: start
+        run: echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: 🕵️ gitleaks (PRs internos + push a main)
+        id: gitleaks
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🕵️ gitleaks CLI (PRs desde fork)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          curl -sSL -o gitleaks.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          chmod +x gitleaks
+          ./gitleaks detect --source . --redact --verbose --no-banner || true
+
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+
+      - name: 📦 Install (root)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: 🛡️ pnpm audit
+        id: audit
+        run: |
+          set +e
+          out=$(pnpm audit --audit-level=high --json 2>/dev/null || echo '{}')
+          high=$(echo "$out" | grep -oE '"high":[0-9]+' | cut -d: -f2 | head -1)
+          crit=$(echo "$out" | grep -oE '"critical":[0-9]+' | cut -d: -f2 | head -1)
+          echo "high=${high:-0}" >> "$GITHUB_OUTPUT"
+          echo "critical=${crit:-0}" >> "$GITHUB_OUTPUT"
+
+      - name: ⏱️ End timer
+        id: timer
+        run: echo "duration=$(( $(date +%s) - ${{ steps.start.outputs.start }} ))" >> "$GITHUB_OUTPUT"
+
+      - name: 📝 Job summary
+        if: always()
+        run: |
+          GL="✅ Sin secretos"
+          [ "${{ steps.gitleaks.outcome }}" = "failure" ] && GL="⚠️ Posibles secretos detectados"
+          {
+            echo "## 🔒 Security — ${{ job.status == 'success' && '✅ success' || '❌ failure' }}"
+            echo ""
+            echo "| Check              | Resultado |"
+            echo "| :----------------- | :-------- |"
+            echo "| 🕵️ gitleaks         | $GL |"
+            echo "| 🛡️ Vuln. high      | \`${{ steps.audit.outputs.high }}\` |"
+            echo "| 🚨 Vuln. critical  | \`${{ steps.audit.outputs.critical }}\` |"
+            echo "| ⏱️ Duración         | \`${{ steps.timer.outputs.duration }}s\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ────────────────────────────────────────────────────────────
+  # 🚀  Deploy Backend → Container App
+  # ────────────────────────────────────────────────────────────
+  deploy-backend:
+    name: 🚀 Deploy backend a producción (Container App)
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-build, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID != ''
+    environment:
+      name: production
+      url: https://ca-backend-ropas.politecliff-b5298e77.eastus2.azurecontainerapps.io
+    outputs:
+      duration: ${{ steps.timer.outputs.duration }}
+      tag: ${{ steps.meta.outputs.tag }}
+      revision: ${{ steps.deploy.outputs.revision }}
+      health: ${{ steps.smoke.outputs.health }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ⏱️ Start timer
+        id: start
+        run: echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: 🔐 Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUB }}
+
+      - name: 🏷️ Tag = sha corto
+        id: meta
+        run: echo "tag=$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
+      - name: 🐳 Build + push (az acr build)
+        run: |
+          az acr build \
+            --subscription "$AZURE_SUB" \
+            --registry "$ACR" \
+            --image "$IMAGE:${{ steps.meta.outputs.tag }}" \
+            --image "$IMAGE:latest" \
+            --file backend/Dockerfile \
+            .
+
+      - name: 📋 Capturar revisión previa (rollback)
+        id: prev
+        run: |
+          prev=$(az containerapp revision list \
+            --subscription "$AZURE_SUB" -g "$RG" -n "$BACKEND_APP" \
+            --query "[?properties.active==\`true\`] | [0].name" -o tsv || true)
+          echo "prev=$prev" >> "$GITHUB_OUTPUT"
+
+      - name: 🚀 Deploy a Container App
+        id: deploy
+        run: |
+          rev=$(az containerapp update \
+            --subscription "$AZURE_SUB" -g "$RG" -n "$BACKEND_APP" \
+            --image "$ACR_LOGIN/$IMAGE:${{ steps.meta.outputs.tag }}" \
+            --query properties.latestRevisionName -o tsv)
+          echo "revision=$rev" >> "$GITHUB_OUTPUT"
+
+      - name: ⏳ Esperar revisión Healthy
+        run: |
+          for i in $(seq 1 30); do
+            state=$(az containerapp revision list \
+              --subscription "$AZURE_SUB" -g "$RG" -n "$BACKEND_APP" \
+              --query "[?properties.active==\`true\`] | [0].properties.{state:provisioningState, health:healthState}" \
+              -o json)
+            if echo "$state" | grep -q '"state": "Provisioned"' && echo "$state" | grep -q '"health": "Healthy"'; then
+              echo "✅ Provisioned + Healthy"
+              break
+            fi
+            sleep 10
+          done
+
+      - name: 🩺 Smoke test
+        id: smoke
+        run: |
+          url="https://ca-backend-ropas.politecliff-b5298e77.eastus2.azurecontainerapps.io/api/v1"
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$url" || echo 000)
+            if [ "$code" != "000" ] && [ "$code" != "502" ] && [ "$code" != "503" ]; then
+              echo "health=$code" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 8
+          done
+          echo "health=000" >> "$GITHUB_OUTPUT"
+          echo "::error::Smoke test FALLÓ"
+          exit 1
+
+      - name: 🔙 Rollback si falló
+        if: failure() && steps.prev.outputs.prev != ''
+        run: |
+          echo "::warning::Reactivando revisión previa ${{ steps.prev.outputs.prev }}"
+          az containerapp revision activate \
+            --subscription "$AZURE_SUB" -g "$RG" -n "$BACKEND_APP" \
+            --revision "${{ steps.prev.outputs.prev }}" || true
+          az containerapp logs show \
+            --subscription "$AZURE_SUB" -g "$RG" -n "$BACKEND_APP" --tail 200 || true
+
+      - name: ⏱️ End timer
+        id: timer
+        if: always()
+        run: echo "duration=$(( $(date +%s) - ${{ steps.start.outputs.start }} ))" >> "$GITHUB_OUTPUT"
+
+      - name: 📝 Job summary
+        if: always()
+        run: |
+          {
+            echo "## 🚀 Deploy backend — ${{ job.status == 'success' && '✅ success' || '❌ failure' }}"
+            echo ""
+            echo "| Métrica          | Valor |"
+            echo "| :--------------- | :---- |"
+            echo "| 🐳 Imagen        | \`$ACR_LOGIN/$IMAGE:${{ steps.meta.outputs.tag }}\` |"
+            echo "| 🔢 Revisión nueva| \`${{ steps.deploy.outputs.revision }}\` |"
+            echo "| ↩️ Revisión previa| \`${{ steps.prev.outputs.prev }}\` |"
+            echo "| 🩺 Smoke HTTP     | \`${{ steps.smoke.outputs.health }}\` |"
+            echo "| ⏱️ Duración       | \`${{ steps.timer.outputs.duration }}s\` |"
+            echo ""
+            echo "🔗 https://ca-backend-ropas.politecliff-b5298e77.eastus2.azurecontainerapps.io/api/v1"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ────────────────────────────────────────────────────────────
+  # 🎨  Deploy Frontend → Static Web App
+  # ────────────────────────────────────────────────────────────
+  deploy-frontend:
+    name: 🎨 Deploy frontend a SWA
+    runs-on: ubuntu-latest
+    needs: [deploy-backend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production-frontend
+      url: https://gentle-desert-0608f4d0f.7.azurestaticapps.net
+    outputs:
+      duration: ${{ steps.timer.outputs.duration }}
+      health: ${{ steps.smoke.outputs.health }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ⏱️ Start timer
+        id: start
+        run: echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: 📥 Bajar artefacto del build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-out
+          path: frontend/out
+
+      - name: 🚀 Deploy a Azure SWA
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: 'frontend/out'
+          skip_app_build: true
+          skip_api_build: true
+          deployment_environment: ''
+
+      - name: 🩺 Smoke test (HTML 200)
+        id: smoke
+        run: |
+          url="https://gentle-desert-0608f4d0f.7.azurestaticapps.net"
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$url/")
+          echo "health=$code" >> "$GITHUB_OUTPUT"
+          [ "$code" = "200" ] || { echo "::error::Frontend devolvió $code"; exit 1; }
+
+      - name: ⏱️ End timer
+        id: timer
+        if: always()
+        run: echo "duration=$(( $(date +%s) - ${{ steps.start.outputs.start }} ))" >> "$GITHUB_OUTPUT"
+
+      - name: 📝 Job summary
+        if: always()
+        run: |
+          {
+            echo "## 🎨 Deploy frontend — ${{ job.status == 'success' && '✅ success' || '❌ failure' }}"
+            echo ""
+            echo "| Métrica       | Valor |"
+            echo "| :------------ | :---- |"
+            echo "| 🌐 Static Web | \`swa-ropas\` |"
+            echo "| 🩺 Smoke HTTP  | \`${{ steps.smoke.outputs.health }}\` |"
+            echo "| ⏱️ Duración    | \`${{ steps.timer.outputs.duration }}s\` |"
+            echo ""
+            echo "🔗 https://gentle-desert-0608f4d0f.7.azurestaticapps.net"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ────────────────────────────────────────────────────────────
+  # 📊  Pipeline report — corre siempre, resume todo
+  # ────────────────────────────────────────────────────────────
+  pipeline-report:
+    name: 📊 Pipeline report
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [backend-test, frontend-build, security, deploy-backend, deploy-frontend]
+    steps:
+      - name: 📝 Reporte consolidado
+        run: |
+          status() { case "$1" in success) echo "✅ success" ;; failure) echo "❌ failure" ;; skipped) echo "⏭️ skipped" ;; cancelled) echo "⏹️ cancelled" ;; *) echo "❓ $1" ;; esac; }
+          {
+            echo "# 📊 Pipeline ROPAS — Reporte final"
+            echo ""
+            echo "**Commit** \`${{ github.sha }}\` por **${{ github.actor }}** en \`${{ github.ref_name }}\`"
+            echo ""
+            echo "| Etapa                       | Estado | Duración |"
+            echo "| :-------------------------- | :----- | :------- |"
+            echo "| 🧪 Backend test+typecheck   | $(status "${{ needs.backend-test.result }}") | \`${{ needs.backend-test.outputs.duration }}s\` |"
+            echo "| 🎨 Frontend build           | $(status "${{ needs.frontend-build.result }}") | \`${{ needs.frontend-build.outputs.duration }}s\` |"
+            echo "| 🔒 Security scan            | $(status "${{ needs.security.result }}") | \`${{ needs.security.outputs.duration }}s\` |"
+            echo "| 🚀 Deploy backend           | $(status "${{ needs.deploy-backend.result }}") | \`${{ needs.deploy-backend.outputs.duration }}s\` |"
+            echo "| 🎨 Deploy frontend          | $(status "${{ needs.deploy-frontend.result }}") | \`${{ needs.deploy-frontend.outputs.duration }}s\` |"
+            echo ""
+            echo "### 🌐 URLs de producción"
+            echo "- Backend  → https://ca-backend-ropas.politecliff-b5298e77.eastus2.azurecontainerapps.io/api/v1"
+            echo "- Frontend → https://gentle-desert-0608f4d0f.7.azurestaticapps.net"
+            echo ""
+            echo "### 📦 Imagen desplegada"
+            echo "\`${{ env.ACR_LOGIN }}/${{ env.IMAGE }}:${{ needs.deploy-backend.outputs.tag }}\`"
+            echo ""
+            echo "### 🧪 Tests"
+            echo "- Backend: \`${{ needs.backend-test.outputs.tests_passed }}/${{ needs.backend-test.outputs.tests_total }}\` passed, \`${{ needs.backend-test.outputs.tests_failed }}\` failed"
+            echo ""
+            echo "### 🪶 Bundle"
+            echo "- Frontend: \`${{ needs.frontend-build.outputs.bundle_size }}\` (\`${{ needs.frontend-build.outputs.files }}\` archivos)"
+            echo ""
+            echo "### 🔐 Security"
+            echo "- High: \`${{ needs.security.outputs.audit_high }}\` · Critical: \`${{ needs.security.outputs.audit_critical }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

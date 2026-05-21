@@ -106,32 +106,32 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex bg-[hsl(var(--bg))]">
-      {/* ════ Panel izquierdo — Boutique fashion ════ */}
+      {/* ════ Panel izquierdo — Boutique fashion (siempre oscuro/dramático) ════ */}
       <div
         className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center p-12"
         style={{
           background: `linear-gradient(135deg,
-            hsl(265 38% 8%) 0%,
-            hsl(265 32% 10%) 50%,
-            hsl(280 35% 9%) 100%)`,
+            hsl(265 55% 14%) 0%,
+            hsl(275 50% 18%) 50%,
+            hsl(295 55% 16%) 100%)`,
         }}
       >
         {/* Mesh gradient morfando — 3 blobs muy grandes que se desplazan */}
         <div
           className="absolute -top-1/4 -left-1/4 w-[60%] h-[60%] rounded-full ropas-mesh-1 pointer-events-none blur-[80px]"
-          style={{ background: 'hsl(var(--brand-primary) / 0.45)' }}
+          style={{ background: 'hsl(var(--brand-primary) / 0.65)' }}
         />
         <div
           className="absolute -bottom-1/4 -right-1/4 w-[65%] h-[65%] rounded-full ropas-mesh-2 pointer-events-none blur-[90px]"
-          style={{ background: 'hsl(var(--brand-accent) / 0.30)' }}
+          style={{ background: 'hsl(var(--brand-accent) / 0.45)' }}
         />
         <div
           className="absolute top-1/4 right-1/4 w-[40%] h-[40%] rounded-full ropas-mesh-3 pointer-events-none blur-[70px]"
-          style={{ background: 'hsl(var(--brand-primary-hover) / 0.25)' }}
+          style={{ background: 'hsl(var(--brand-primary-hover) / 0.40)' }}
         />
 
         {/* Capa de oscurecido sutil para legibilidad */}
-        <div className="absolute inset-0 bg-[hsl(265_50%_4%)]/35 pointer-events-none" />
+        <div className="absolute inset-0 bg-[hsl(265_60%_6%)]/25 pointer-events-none" />
 
         {/* Patrón de costura sutil — líneas dashed animadas */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.06]">
@@ -222,7 +222,7 @@ export default function LoginPage() {
             Vendé más rápido. Controlá tu tienda.
           </p>
           <p
-            className="text-sm leading-relaxed text-white/60 max-w-sm mx-auto login-reveal-up"
+            className="text-sm leading-relaxed text-white/65 max-w-sm mx-auto login-reveal-up"
             style={{ animationDelay: '0.5s' }}
           >
             ERP para tienda de ropa. Variantes, inventario multi-sucursal,
@@ -233,17 +233,17 @@ export default function LoginPage() {
           <div className="mt-8 mb-8 h-px w-full login-shimmer-bar rounded-full" />
 
           {/* Stats con entrada escalonada */}
-          <div className="flex justify-center gap-6 text-white/50">
+          <div className="flex justify-center gap-6 text-white/55">
             <div className="text-center login-stat-in-1">
               <p className="text-2xl font-bold text-[hsl(var(--brand-accent))]">7+</p>
               <p className="text-[10px] uppercase tracking-wider">Paletas</p>
             </div>
-            <div className="w-px bg-white/10 login-stat-in-1" />
+            <div className="w-px bg-white/15 login-stat-in-1" />
             <div className="text-center login-stat-in-2">
               <p className="text-2xl font-bold text-[hsl(var(--brand-accent))]">24/7</p>
               <p className="text-[10px] uppercase tracking-wider">Operación</p>
             </div>
-            <div className="w-px bg-white/10 login-stat-in-2" />
+            <div className="w-px bg-white/15 login-stat-in-2" />
             <div className="text-center login-stat-in-3">
               <p className="text-2xl font-bold text-[hsl(var(--brand-accent))]">100%</p>
               <p className="text-[10px] uppercase tracking-wider">En la nube</p>

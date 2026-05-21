@@ -23,7 +23,8 @@ export class CrearVarianteDto {
 }
 
 export class CrearProductoDto {
-  @IsString() @IsNotEmpty() sku!: string;
+  @IsOptional() @IsString() sku?: string;
+  @IsOptional() @IsString() codigo?: string;
   @IsString() @IsNotEmpty() nombre!: string;
   @IsOptional() @IsString() descripcion?: string;
   @IsUUID() categoriaId!: string;

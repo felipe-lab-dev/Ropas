@@ -1,17 +1,15 @@
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import { useSesion } from '@/lib/store/sesion';
-
-const baseURL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-const tenantCode = process.env.NEXT_PUBLIC_TENANT_CODE ?? 'mi-tienda';
+import { obtenerApiUrl, obtenerTenantCode } from '@/lib/tenant';
 
 export const api = axios.create({
-  baseURL: `${baseURL}/api/v1`,
-  headers: { 'X-Tenant-Code': tenantCode },
+  baseURL: '/api/v1',
   timeout: 15_000,
 });
 
 api.interceptors.request.use(config => {
+  config.baseURL = `${obtenerApiUrl()}/api/v1`;
+  config.headers['X-Tenant-Code'] = obtenerTenantCode();
   const token = useSesion.getState().accessToken;
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
