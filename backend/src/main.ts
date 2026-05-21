@@ -14,8 +14,20 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   app.use(helmet());
+  // CORS: orígenes explícitos via env + wildcard implícito para subdominios *.tienda.enkihubs.com
+  // (cada tenant SaaS estrena su propio subdominio sin que tengamos que rebootear el backend).
+  const origenesExplicitos = config
+    .get<string>('CORS_ORIGIN', 'http://localhost:3000')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: config.get<string>('CORS_ORIGIN', 'http://localhost:3000').split(','),
+    origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+      if (!origin) return cb(null, true);
+      if (origenesExplicitos.includes(origin)) return cb(null, true);
+      if (/^https:\/\/[a-z0-9-]+\.tienda\.enkihubs\.com$/.test(origin)) return cb(null, true);
+      return cb(new Error(`Origen CORS no permitido: ${origin}`), false);
+    },
     credentials: true,
   });
 

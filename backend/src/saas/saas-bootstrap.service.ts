@@ -8,17 +8,20 @@ export class SaasBootstrapService {
   constructor(private readonly cache: SaasConfigCacheService) {}
 
   async iniciar(): Promise<void> {
+    // Multi-tenant: ya no hay un tenant "default" para precachear en bootstrap.
+    // Cada request resuelve su tenant por X-Tenant-Code via SaasConfigCacheService.
+    this.logger.log('Bootstrap SaaS listo (modo multi-tenant, resolución por request)');
     try {
-      const cfg = await this.cache.obtener(true);
-      this.logger.log(
-        { tenant: cfg.tenant.codigo, modulos: cfg.modulosHabilitados.length },
-        'Bootstrap SaaS completo',
-      );
+      const codigoDefault = process.env.ENKI_TENANT_CODE;
+      if (codigoDefault) {
+        const cfg = await this.cache.obtener(codigoDefault);
+        this.logger.log(
+          { tenant: cfg.tenant.codigo, modulos: cfg.modulosHabilitados.length },
+          'Tenant default precacheado',
+        );
+      }
     } catch (err) {
-      this.logger.error(
-        { err },
-        'Bootstrap SaaS falló — la API arrancará pero rechazará requests de tenant',
-      );
+      this.logger.warn({ err }, 'No se pudo precachear el tenant default (no fatal)');
     }
   }
 }

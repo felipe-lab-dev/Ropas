@@ -26,10 +26,9 @@ export class TenantMiddleware implements NestMiddleware {
     if (!codigo) throw new ErrorNoAutorizado('Header X-Tenant-Code requerido');
     const codigoFinal: string = codigo;
 
-    const config = await this.cache.obtener();
-    if (config.tenant.codigo !== codigoFinal) {
-      throw new ErrorNoAutorizado('Tenant no coincide con la configuración del servicio');
-    }
+    // El cache resuelve el tenant dinamicamente desde public.tenants (cualquier subdominio
+    // *.tienda.enkihubs.com mapea a su tenant). Si el codigo no existe, lanza 404.
+    const config = await this.cache.obtener(codigoFinal);
     if (!config.accesoPermitido) {
       throw new ErrorPagoRequerido('Suscripción suspendida o trial vencido');
     }
