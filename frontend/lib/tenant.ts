@@ -22,7 +22,7 @@ export function obtenerTenantCode(): string {
     return TENANT_DEV;
   }
 
-  return host.split('.')[0];
+  return host.split('.')[0] ?? TENANT_DEV;
 }
 
 export function obtenerApiUrl(): string {
