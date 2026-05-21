@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -46,9 +46,18 @@ interface ProductoDetalle {
 
 export function EditarProductoCliente() {
   const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const id = params.id;
+  const search = useSearchParams();
+  const id = search.get('id') ?? '';
   const qc = useQueryClient();
+
+  if (!id) {
+    return (
+      <div className="p-8">
+        <p className="text-sm text-[hsl(var(--brand-danger))]">Falta el parámetro id en la URL.</p>
+        <Link href="/productos" className="text-sm underline">Volver a productos</Link>
+      </div>
+    );
+  }
 
   const { data: producto, isLoading } = useQuery({
     queryKey: ['producto', id],
@@ -141,7 +150,7 @@ export function EditarProductoCliente() {
               <Link href="/productos"><ArrowLeft className="size-4" /> Volver</Link>
             </Button>
             <Button asChild variant="outline" type="button">
-              <Link href={`/productos/${id}/kardex`}><History className="size-4" /> Kardex</Link>
+              <Link href={`/productos/kardex/?id=${id}`}><History className="size-4" /> Kardex</Link>
             </Button>
             <Button type="submit" size="lg" disabled={guardar.isPending}>
               {guardar.isPending ? 'Guardando…' : 'Guardar cambios'}

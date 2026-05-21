@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowDownToLine, ArrowUpFromLine, TrendingUp, TrendingDown, Boxes } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -51,8 +51,8 @@ const ETIQUETAS_TIPO: Record<string, string> = {
 };
 
 export function KardexCliente() {
-  const params = useParams<{ id: string }>();
-  const id = params.id;
+  const search = useSearchParams();
+  const id = search.get('id') ?? '';
 
   const hoy = new Date();
   const haceUnMes = new Date();
@@ -106,7 +106,7 @@ export function KardexCliente() {
         }
         acciones={
           <Button asChild variant="ghost">
-            <Link href={`/productos/${id}`}><ArrowLeft className="size-4" /> Volver al producto</Link>
+            <Link href={`/productos/editar/?id=${id}`}><ArrowLeft className="size-4" /> Volver al producto</Link>
           </Button>
         }
       />

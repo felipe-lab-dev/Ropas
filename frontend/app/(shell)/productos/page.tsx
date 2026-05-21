@@ -249,12 +249,12 @@ export default function ProductosPage() {
                           title="Ver Kardex"
                           className="bg-gradient-to-br from-[#fbbf24] to-[#d97706] text-white shadow-[0_2px_8px_rgba(217,119,6,0.35)] hover:from-[#fcd34d] hover:to-[#f59e0b] hover:shadow-[0_4px_12px_rgba(217,119,6,0.45)] border border-amber-600/20"
                         >
-                          <Link href={`/productos/${p.id}/kardex`}>
+                          <Link href={`/productos/kardex/?id=${p.id}`}>
                             <History className="size-3.5" />
                           </Link>
                         </Button>
                         <Button asChild variant="ghost" size="icon-sm" title="Editar">
-                          <Link href={`/productos/${p.id}`}>
+                          <Link href={`/productos/editar/?id=${p.id}`}>
                             <Edit2 className="size-3.5" />
                           </Link>
                         </Button>
