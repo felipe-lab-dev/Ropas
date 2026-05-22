@@ -1,5 +1,9 @@
 import type { MetadataRoute } from 'next';
 
+// Necesario con output: 'export' — pre-renderiza el manifest como archivo estático.
+export const dynamic = 'force-static';
+export const revalidate = false;
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Ropas — ERP',
