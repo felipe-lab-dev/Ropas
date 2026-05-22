@@ -1,6 +1,6 @@
 /**
  * Seed: 10 productos de ropa de mujer con SKU auto, código tipo "M-0001" y stock.
- * Uso: pnpm exec tsx scripts/seed-mujer.ts [--code mi-tienda]
+ * Uso: pnpm exec tsx scripts/seed-mujer.ts [--code loremstore]
  */
 import { PrismaClient } from '@prisma/client';
 import { existsSync, readFileSync } from 'node:fs';
@@ -16,7 +16,7 @@ if (existsSync(envPath)) {
 
 const TENANT_CODE = process.argv.includes('--code')
   ? process.argv[process.argv.indexOf('--code') + 1]!
-  : 'mi-tienda';
+  : 'loremstore';
 const SCHEMA = `tenant_${TENANT_CODE.replace(/-/g, '_')}`;
 
 interface VarianteSeed { talla: string; color: string; hex: string; stock: number }

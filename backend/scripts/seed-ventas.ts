@@ -2,7 +2,7 @@
  * Seed: 10 ventas distribuidas en los últimos 12 meses para poblar el sparkline
  * de C. Ventas y el Kardex. Cada venta toma 1-3 items aleatorios del catálogo.
  *
- *   Uso: pnpm exec tsx scripts/seed-ventas.ts [--code mi-tienda]
+ *   Uso: pnpm exec tsx scripts/seed-ventas.ts [--code loremstore]
  */
 import { PrismaClient } from '@prisma/client';
 import { existsSync, readFileSync } from 'node:fs';
@@ -18,7 +18,7 @@ if (existsSync(envPath)) {
 
 const TENANT_CODE = process.argv.includes('--code')
   ? process.argv[process.argv.indexOf('--code') + 1]!
-  : 'mi-tienda';
+  : 'loremstore';
 const SCHEMA = `tenant_${TENANT_CODE.replace(/-/g, '_')}`;
 const CANTIDAD_VENTAS = 10;
 

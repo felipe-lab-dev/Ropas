@@ -1,8 +1,8 @@
 /**
  * Seed de demo: productos con variantes + stock + clientes + algunas ventas
- * Asume que el tenant `mi-tienda` ya existe y está sembrado.
+ * Asume que el tenant `loremstore` ya existe y está sembrado.
  *
- * Uso: pnpm exec tsx scripts/seed-demo.ts [--code mi-tienda]
+ * Uso: pnpm exec tsx scripts/seed-demo.ts [--code loremstore]
  */
 import { PrismaClient } from '@prisma/client';
 import { existsSync, readFileSync } from 'node:fs';
@@ -18,7 +18,7 @@ if (existsSync(envPath)) {
 
 const TENANT_CODE = process.argv.includes('--code')
   ? process.argv[process.argv.indexOf('--code') + 1]!
-  : 'mi-tienda';
+  : 'loremstore';
 
 const SCHEMA = `tenant_${TENANT_CODE.replace(/-/g, '_')}`;
 
