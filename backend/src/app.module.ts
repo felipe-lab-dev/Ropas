@@ -18,6 +18,7 @@ import { ConfiguracionModule } from './modules/configuracion/configuracion.modul
 import { ProveedoresModule } from './modules/proveedores/proveedores.module';
 import { ComprasModule } from './modules/compras/compras.module';
 import { ContabilidadModule } from './modules/contabilidad/contabilidad.module';
+import { PreferenciasModule } from './modules/preferencias/preferencias.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { ContabilidadModule } from './modules/contabilidad/contabilidad.module';
     ContabilidadModule,
     ReportesModule,
     ConfiguracionModule,
+    PreferenciasModule,
   ],
 })
 export class AppModule {}

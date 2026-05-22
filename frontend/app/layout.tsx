@@ -1,8 +1,9 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from '@/components/providers/theme-provider';
 import { QueryProvider } from '@/components/providers/query-provider';
+import { ServiceWorkerRegister } from '@/components/providers/sw-register';
 import './globals.css';
 
 const inter = Inter({
@@ -20,6 +21,28 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: { default: 'Ropas — ERP', template: '%s · Ropas' },
   description: 'ERP brutal para venta de ropa',
+  applicationName: 'Ropas',
+  appleWebApp: {
+    capable: true,
+    title: 'Ropas',
+    statusBarStyle: 'black-translucent',
+  },
+  formatDetection: { telephone: false },
+  icons: {
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    apple: [{ url: '/apple-touch-icon.svg' }],
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0f0a18' },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -28,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.variable} ${jetbrains.variable} font-sans antialiased`}>
         <ThemeProvider>
           <QueryProvider>
+            <ServiceWorkerRegister />
             {children}
             <Toaster
               richColors

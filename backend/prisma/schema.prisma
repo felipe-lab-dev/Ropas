@@ -82,6 +82,7 @@ model Usuario {
   sucursalDefecto String?   @map("sucursal_defecto") @db.Uuid
   activo          Boolean   @default(true)
   ultimoIngreso   DateTime? @map("ultimo_ingreso")
+  preferenciasUi  Json      @default("{}") @map("preferencias_ui")
   creadoEn        DateTime  @default(now()) @map("creado_en")
   actualizadoEn   DateTime  @updatedAt @map("actualizado_en")
   eliminadoEn     DateTime? @map("eliminado_en")
@@ -170,6 +171,16 @@ enum Genero {
   @@map("genero")
 }
 
+enum ClasificacionAbc {
+  AA
+  A
+  B
+  C
+  D
+
+  @@map("clasificacion_abc")
+}
+
 enum Temporada {
   primavera
   verano
@@ -199,6 +210,9 @@ model Producto {
   imagenes      String[]   @default([])
   tags          String[]   @default([])
   activo        Boolean    @default(true)
+  clasificacion       ClasificacionAbc? @map("clasificacion")
+  clasificacionScore  Decimal?          @map("clasificacion_score") @db.Decimal(12, 4)
+  clasificadoEn       DateTime?         @map("clasificado_en")
   creadoEn      DateTime   @default(now()) @map("creado_en")
   actualizadoEn DateTime   @updatedAt @map("actualizado_en")
   eliminadoEn   DateTime?  @map("eliminado_en")

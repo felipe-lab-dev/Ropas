@@ -19,6 +19,7 @@
     "tenant:migrar": "tsx scripts/migrar-tenants.ts",
     "seed": "tsx scripts/seed.ts",
     "seed:mujer": "tsx scripts/seed-mujer.ts",
+    "seed:ventas": "tsx scripts/seed-ventas.ts",
     "migrar:codigo": "tsx scripts/aplicar-migracion-codigo.ts"
   },
   "dependencies": {

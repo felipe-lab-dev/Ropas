@@ -34,6 +34,8 @@ export class AzureBlobService {
     this.client = BlobServiceClient.fromConnectionString(conn);
   }
 
+  private containerLista = false;
+
   /** Sube un buffer al blob `<tenant>/<ruta>` y devuelve la URL pública. */
   async subir(
     tenantCodigo: string,
@@ -46,8 +48,13 @@ export class AzureBlobService {
     }
     const blobName = this.normalizarRuta(tenantCodigo, rutaRelativa);
     const container = this.client.getContainerClient(this.containerName);
-    const blob: BlockBlobClient = container.getBlockBlobClient(blobName);
 
+    if (!this.containerLista) {
+      await container.createIfNotExists({ access: 'blob' });
+      this.containerLista = true;
+    }
+
+    const blob: BlockBlobClient = container.getBlockBlobClient(blobName);
     await blob.uploadData(contenido, {
       blobHTTPHeaders: { blobContentType: contentType, blobCacheControl: 'public, max-age=86400' },
     });

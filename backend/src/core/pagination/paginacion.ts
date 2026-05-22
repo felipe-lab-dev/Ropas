@@ -21,6 +21,11 @@ export function obtenerPaginacion(query: PaginacionDto | Record<string, unknown>
   };
 }
 
+/**
+ * Construye un where con búsqueda word-split sobre múltiples campos.
+ * Soporta paths anidados con puntos: `'producto.nombre'` se traduce a
+ * `{ producto: { nombre: { contains, mode: 'insensitive' } } }`.
+ */
 export function construirBusquedaWordSplit(
   texto: string | undefined,
   campos: string[],
@@ -29,10 +34,20 @@ export function construirBusquedaWordSplit(
   const palabras = texto.trim().split(/\s+/).filter(Boolean);
   if (palabras.length === 0) return undefined;
 
+  const construirCampo = (campo: string, palabra: string): Record<string, unknown> => {
+    const partes = campo.split('.');
+    const hoja: Record<string, unknown> = {
+      contains: palabra,
+      mode: 'insensitive' as const,
+    };
+    return partes.reduceRight<Record<string, unknown>>(
+      (acc, parte) => ({ [parte]: acc }),
+      hoja,
+    );
+  };
+
   const buildOR = (palabra: string) => ({
-    OR: campos.map(campo => ({
-      [campo]: { contains: palabra, mode: 'insensitive' as const },
-    })),
+    OR: campos.map(campo => construirCampo(campo, palabra)),
   });
 
   if (palabras.length === 1) return buildOR(palabras[0]!);

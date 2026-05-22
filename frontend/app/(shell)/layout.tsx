@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/shell/sidebar';
 import { Header } from '@/components/shell/header';
 import { OnboardingModal } from '@/components/shell/onboarding-modal';
+import { MobileNav } from '@/components/shell/mobile-nav';
+import { MobileDrawer } from '@/components/shell/mobile-drawer';
 import { useSesion } from '@/lib/store/sesion';
 import { useConfigSaas } from '@/lib/store/config-saas';
 import { motion } from 'framer-motion';
@@ -14,6 +16,7 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
   const usuario = useSesion(s => s.usuario);
   const cargarConfig = useConfigSaas(s => s.cargar);
   const config = useConfigSaas(s => s.config);
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!usuario) router.replace('/login');
@@ -40,22 +43,33 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex min-h-screen bg-[hsl(var(--bg))] text-[hsl(var(--text))]">
-      <Sidebar />
+    <div className="flex min-h-[100dvh] bg-[hsl(var(--bg))] text-[hsl(var(--text))]">
+      <div className="hidden lg:flex">
+        <Sidebar />
+      </div>
       <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-        <main className="flex-1 overflow-auto scrollbar-thin">
+        <Header onOpenMenu={() => setDrawerOpen(true)} />
+        <main
+          className="flex-1 overflow-auto scrollbar-thin pb-16 lg:pb-0"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4rem)' }}
+        >
           <motion.div
             key={typeof window !== 'undefined' ? window.location.pathname : ''}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-            className="w-full px-4 py-6 sm:px-6 lg:px-8 lg:py-8"
+            className="w-full px-4 py-5 sm:px-6 lg:px-8 lg:py-8"
+            style={{
+              paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+              paddingRight: 'max(1rem, env(safe-area-inset-right))',
+            }}
           >
             {children}
           </motion.div>
         </main>
       </div>
+      <MobileNav onOpenMenu={() => setDrawerOpen(true)} />
+      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
       <OnboardingModal />
     </div>
   );

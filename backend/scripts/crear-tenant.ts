@@ -199,6 +199,7 @@ function ddlStatements(s: string): string[] {
     // Enums
     `DO $$ BEGIN CREATE TYPE "${s}".genero AS ENUM ('hombre','mujer','ninio','ninia','unisex'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
     `DO $$ BEGIN CREATE TYPE "${s}".temporada AS ENUM ('primavera','verano','otonio','invierno','todo_el_anio'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN CREATE TYPE "${s}".clasificacion_abc AS ENUM ('AA','A','B','C','D'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
     `DO $$ BEGIN CREATE TYPE "${s}".tipo_movimiento_stock AS ENUM ('ingreso_compra','ingreso_devolucion','ingreso_ajuste','egreso_venta','egreso_merma','egreso_ajuste','traslado_salida','traslado_entrada'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
     `DO $$ BEGIN CREATE TYPE "${s}".tipo_documento AS ENUM ('dni','ruc','cpf','cnpj','pasaporte','otro'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
     `DO $$ BEGIN CREATE TYPE "${s}".estado_venta AS ENUM ('borrador','confirmada','pagada','parcial','anulada'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
@@ -228,6 +229,7 @@ function ddlStatements(s: string): string[] {
       sucursal_defecto UUID,
       activo BOOLEAN NOT NULL DEFAULT true,
       ultimo_ingreso TIMESTAMP,
+      preferencias_ui JSONB NOT NULL DEFAULT '{}',
       creado_en TIMESTAMP NOT NULL DEFAULT now(),
       actualizado_en TIMESTAMP NOT NULL DEFAULT now(),
       eliminado_en TIMESTAMP
@@ -285,6 +287,9 @@ function ddlStatements(s: string): string[] {
       imagenes TEXT[] NOT NULL DEFAULT '{}',
       tags TEXT[] NOT NULL DEFAULT '{}',
       activo BOOLEAN NOT NULL DEFAULT true,
+      clasificacion "${s}".clasificacion_abc,
+      clasificacion_score DECIMAL(12, 4),
+      clasificado_en TIMESTAMP,
       creado_en TIMESTAMP NOT NULL DEFAULT now(),
       actualizado_en TIMESTAMP NOT NULL DEFAULT now(),
       eliminado_en TIMESTAMP

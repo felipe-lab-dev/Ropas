@@ -20,6 +20,8 @@ export class CrearVarianteDto {
   @IsOptional() @IsNumber() precioVenta?: number;
   @IsOptional() @IsNumber() pesoGramos?: number;
   @IsOptional() @IsNumber() @Min(0) stockInicial?: number;
+  /** Sucursal donde se carga el stock inicial. Si no viene, se usa la sucursal principal. */
+  @IsOptional() @IsUUID() sucursalId?: string;
 }
 
 export class CrearProductoDto {
@@ -37,6 +39,8 @@ export class CrearProductoDto {
   @IsOptional() @IsNumber() precioCompra?: number;
   @IsOptional() @IsArray() imagenes?: string[];
   @IsOptional() @IsArray() tags?: string[];
+  /** Sucursal por defecto para el stock inicial de variantes que no la especifiquen. */
+  @IsOptional() @IsUUID() sucursalId?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

@@ -61,8 +61,25 @@ export async function actualizar<T, B = unknown>(url: string, body?: B): Promise
   const { data } = await api.patch<RespuestaApi<T>>(url, body);
   return data.datos;
 }
-export async function eliminar(url: string): Promise<void> {
-  await api.delete(url);
+export async function eliminar<T = void>(
+  url: string,
+  config?: AxiosRequestConfig,
+): Promise<T> {
+  const { data } = await api.delete<RespuestaApi<T>>(url, config);
+  return (data as RespuestaApi<T>)?.datos as T;
+}
+
+export async function subirArchivos<T>(
+  url: string,
+  archivos: File[],
+  campo = 'archivos',
+): Promise<T> {
+  const fd = new FormData();
+  for (const a of archivos) fd.append(campo, a);
+  const { data } = await api.post<RespuestaApi<T>>(url, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data.datos;
 }
 
 export function mensajeError(err: unknown): string {

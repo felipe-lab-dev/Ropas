@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Search, Sun, Moon, LogOut, ChevronRight } from 'lucide-react';
+import { Search, Sun, Moon, LogOut, ChevronRight, Menu } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApariencia } from '@/lib/store/apariencia';
@@ -26,7 +26,11 @@ const TITULOS: Record<string, string> = {
   '/configuracion': 'Configuración',
 };
 
-export function Header() {
+interface HeaderProps {
+  onOpenMenu?: () => void;
+}
+
+export function Header({ onOpenMenu }: HeaderProps = {}) {
   const tema = useApariencia(s => s.tema);
   const setTema = useApariencia(s => s.setTema);
   const usuario = useSesion(s => s.usuario);
@@ -59,13 +63,32 @@ export function Header() {
 
   return (
     <>
-      <header className="h-14 border-b border-[hsl(var(--border))] surface-glass sticky top-0 z-30 flex items-center px-6 gap-4">
+      <header
+        className="h-14 border-b border-[hsl(var(--border))] surface-glass sticky top-0 z-30 flex items-center px-3 sm:px-4 lg:px-6 gap-2 sm:gap-4"
+        style={{
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+          paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+          height: 'calc(3.5rem + env(safe-area-inset-top))',
+        }}
+      >
+        {/* Botón menú móvil */}
+        {onOpenMenu && (
+          <button
+            onClick={onOpenMenu}
+            className="lg:hidden size-9 rounded-lg grid place-items-center hover:bg-[hsl(var(--surface-2))] text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))] -ml-1"
+            aria-label="Abrir menú"
+          >
+            <Menu className="size-5" />
+          </button>
+        )}
+
         {/* Breadcrumb / título */}
         <div className="flex items-center gap-2 text-sm min-w-0">
-          <span className="text-[hsl(var(--text-muted))] font-medium">Ropas</span>
+          <span className="hidden sm:inline text-[hsl(var(--text-muted))] font-medium">Ropas</span>
           {tituloActual && (
             <>
-              <ChevronRight className="size-3.5 text-[hsl(var(--text-muted))]" />
+              <ChevronRight className="hidden sm:inline size-3.5 text-[hsl(var(--text-muted))]" />
               <motion.span
                 key={tituloActual}
                 initial={{ opacity: 0, x: -4 }}
@@ -79,10 +102,10 @@ export function Header() {
           )}
         </div>
 
-        {/* Búsqueda Ctrl+K */}
+        {/* Búsqueda Ctrl+K — desktop: input ancho; móvil: solo ícono */}
         <button
           onClick={() => setPaletteOpen(true)}
-          className="flex items-center gap-3 px-3.5 h-9 rounded-lg bg-[hsl(var(--surface-2))]/70 hover:bg-[hsl(var(--surface-2))] border border-[hsl(var(--border))] transition-all min-w-[280px] max-w-[420px] text-sm text-[hsl(var(--text-muted))] hover:border-[hsl(var(--brand-primary))]/40 ml-4"
+          className="hidden md:flex items-center gap-3 px-3.5 h-9 rounded-lg bg-[hsl(var(--surface-2))]/70 hover:bg-[hsl(var(--surface-2))] border border-[hsl(var(--border))] transition-all min-w-[240px] max-w-[420px] text-sm text-[hsl(var(--text-muted))] hover:border-[hsl(var(--brand-primary))]/40 ml-4"
         >
           <Search className="size-4" />
           <span className="flex-1 text-left">Buscar módulos, productos, ventas…</span>
@@ -90,8 +113,15 @@ export function Header() {
             Ctrl K
           </kbd>
         </button>
+        <button
+          onClick={() => setPaletteOpen(true)}
+          className="md:hidden ml-auto size-9 rounded-lg grid place-items-center hover:bg-[hsl(var(--surface-2))] text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]"
+          aria-label="Buscar"
+        >
+          <Search className="size-4" />
+        </button>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="md:ml-auto flex items-center gap-1.5 sm:gap-3">
           {config && (
             <motion.div
               initial={{ opacity: 0, y: -4 }}
