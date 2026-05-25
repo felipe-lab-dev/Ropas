@@ -55,6 +55,8 @@ export async function login(page: Page): Promise<void> {
         version: 0,
       }),
     );
+    // Saltar onboarding (su overlay full-screen intercepta clicks de Playwright)
+    window.localStorage.setItem('ropas.onboarding.completado', 'true');
   }, sesion);
 
   await page.goto('/bienvenida');
@@ -78,8 +80,40 @@ export async function gotoY(page: Page, url: string): Promise<void> {
   await page.goto(url);
   await page.waitForLoadState('domcontentloaded');
   await page.waitForLoadState('networkidle').catch(() => undefined);
-  // Pequeño respiro para el ciclo StrictMode + framer-motion (250ms transition)
-  await page.waitForTimeout(450);
+  // Respiro generoso para ciclo StrictMode (double-mount en dev)
+  // + framer-motion 250ms + hidratación del shell.
+  await page.waitForTimeout(900);
+}
+
+/**
+ * Fill resiliente a re-renders de React StrictMode (double-mount en dev).
+ * Reintenta hasta 3 veces si el value no quedó persistido.
+ */
+export async function fillEstable(
+  page: Page,
+  selector: string,
+  value: string,
+): Promise<void> {
+  const loc = page.locator(selector).first();
+  await loc.waitFor({ state: 'visible', timeout: 10_000 });
+
+  for (let intento = 0; intento < 3; intento++) {
+    await loc.fill(''); // limpiar
+    await loc.fill(value);
+    // Pequeño settle: dejá que React procese el onChange y settee state
+    await page.waitForTimeout(120);
+    const actual = await loc.inputValue();
+    if (actual === value) return; // ✓ persistió
+    // Si no quedó, esperar un poco más y reintentar
+    await page.waitForTimeout(300);
+  }
+  // Último intento usando pressSequentially char-por-char + blur explícito
+  await loc.click({ clickCount: 3 });
+  await page.keyboard.press('Delete');
+  await loc.pressSequentially(value, { delay: 25 });
+  await loc.blur();
+  await page.waitForTimeout(120);
+  await expect(loc).toHaveValue(value, { timeout: 5_000 });
 }
 
 /**

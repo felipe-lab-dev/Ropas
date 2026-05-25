@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { codigoCuponUnico, gotoY, login } from './helpers';
+import { codigoCuponUnico, fillEstable, gotoY, login } from './helpers';
 
 test.describe('Cupones · CRUD básico', () => {
   test.beforeEach(async ({ page }) => {
@@ -8,35 +8,38 @@ test.describe('Cupones · CRUD básico', () => {
 
   test('crea un cupón desde cero, lo busca en la lista, lo edita, lo pausa y lo elimina', async ({ page }) => {
     const codigo = codigoCuponUnico('CRUD');
+    const nombre = `Cupón ${codigo}`; // único por run para evitar choque con runs anteriores
 
     // 1. Crear
     await gotoY(page,'/cupones/nuevo');
     await expect(page.getByText('Nuevo cupón')).toBeVisible();
 
-    await page.locator('input[name="codigo"]').fill(codigo);
-    await page.locator('input[name="nombre"]').fill('Cupón CRUD E2E');
-    await page.locator('input[name="valorDescuento"]').fill('15');
+    await fillEstable(page, 'input[name="codigo"]', codigo);
+    await fillEstable(page, 'input[name="nombre"]', nombre);
+    await fillEstable(page, 'input[name="valorDescuento"]', '15');
 
     // Vista previa en vivo debe reflejar el código
     await expect(page.getByTestId('cupon-preview')).toContainText(codigo);
 
     await page.getByTestId('cupon-guardar').click();
-    await expect(page).toHaveURL(/\/cupones\/[a-f0-9-]{36}$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/cupones\/[a-f0-9-]{36}\/?$/, { timeout: 15_000 });
     await expect(page.locator('body')).toContainText(codigo);
 
-    // 2. Volver a la lista y buscar
+    // 2. Volver a la lista y buscar (por código, único)
     await gotoY(page,'/cupones');
     await page.getByPlaceholder(/c[oó]digo, nombre/i).fill(codigo);
-    await expect(page.getByRole('cell', { name: 'Cupón CRUD E2E' })).toBeVisible({ timeout: 6_000 });
+    await expect(page.getByRole('cell', { name: new RegExp(codigo, 'i') }).first()).toBeVisible({ timeout: 6_000 });
+    // Esperar a que el link de edición exista (debounce 250ms + refetch)
+    const editarLink = page.getByRole('link', { name: new RegExp(`editar ${codigo}`, 'i') });
+    await expect(editarLink).toBeVisible({ timeout: 5_000 });
 
     // 3. Editar nombre
-    await page.getByRole('link', { name: new RegExp(`editar ${codigo}`, 'i') }).click();
-    await expect(page).toHaveURL(/\/cupones\/editar\?id=/);
-    const nombreInput = page.locator('input[name="nombre"]');
-    await nombreInput.fill('Cupón CRUD E2E (editado)');
+    await editarLink.click();
+    await expect(page).toHaveURL(/\/cupones\/editar\/?\?id=/);
+    await fillEstable(page, 'input[name="nombre"]', `${nombre} (editado)`);
     await page.getByTestId('cupon-guardar').click();
-    await expect(page).toHaveURL(/\/cupones\/[a-f0-9-]{36}$/, { timeout: 15_000 });
-    await expect(page.locator('body')).toContainText('Cupón CRUD E2E (editado)');
+    await expect(page).toHaveURL(/\/cupones\/[a-f0-9-]{36}\/?$/, { timeout: 15_000 });
+    await expect(page.locator('body')).toContainText(`${nombre} (editado)`);
 
     // 4. Pausar desde la lista
     await gotoY(page,'/cupones');

@@ -29,7 +29,7 @@ test.describe('Cupones · plantillas brutales + render PDF/PNG', () => {
 
     // Guardar
     await page.getByTestId('cupon-guardar').click();
-    await expect(page).toHaveURL(/\/cupones\/[a-f0-9-]{36}$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/cupones\/[a-f0-9-]{36}\/?$/, { timeout: 15_000 });
   });
 
   test('descarga PDF y PNG de un cupón', async ({ page }) => {
@@ -39,7 +39,7 @@ test.describe('Cupones · plantillas brutales + render PDF/PNG', () => {
     await page.locator('input[name="nombre"]').fill('Cupón render PDF/PNG');
     await page.locator('input[name="valorDescuento"]').fill('10');
     await page.getByTestId('cupon-guardar').click();
-    await page.waitForURL(/\/cupones\/[a-f0-9-]{36}$/);
+    await page.waitForURL(/\/cupones\/[a-f0-9-]{36}\/?$/);
 
     // Descargar PDF
     const [pdfDownload] = await Promise.all([

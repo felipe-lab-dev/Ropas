@@ -15,7 +15,7 @@ test.describe('Cupones · dashboard de marketing brutal', () => {
     await page.locator('input[name="valorDescuento"]').fill('10');
     await page.locator('input[name="usosMaximosTotal"]').fill('10');
     await page.getByTestId('cupon-guardar').click();
-    await page.waitForURL(/\/cupones\/[a-f0-9-]{36}$/);
+    await page.waitForURL(/\/cupones\/[a-f0-9-]{36}\/?$/);
 
     // Volver a lista, filtrar por código
     await gotoY(page,'/cupones');
@@ -34,7 +34,7 @@ test.describe('Cupones · dashboard de marketing brutal', () => {
     await page.locator('input[name="nombre"]').fill('Cupón detalle KPI');
     await page.locator('input[name="valorDescuento"]').fill('15');
     await page.getByTestId('cupon-guardar').click();
-    await page.waitForURL(/\/cupones\/[a-f0-9-]{36}$/);
+    await page.waitForURL(/\/cupones\/[a-f0-9-]{36}\/?$/);
 
     // Estamos en detalle: deben aparecer KPIs y la sección histórica
     await expect(page.getByText('Canjes')).toBeVisible();

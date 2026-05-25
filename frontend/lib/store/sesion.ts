@@ -42,10 +42,18 @@ export const useSesion = create<EstadoSesion>()(
  * persistido (flash visible al recargar la página estando logueado).
  */
 export function useSesionHidratada(): boolean {
-  const [hidratada, setHidratada] = React.useState(useSesion.persist.hasHydrated());
+  // En SSR `persist` puede no estar disponible — devolvemos false para que
+  // el shell no decida nada hasta el primer render en cliente.
+  const safeHasHydrated = () => {
+    const p = (useSesion as unknown as { persist?: { hasHydrated?: () => boolean; onFinishHydration?: (cb: () => void) => () => void } }).persist;
+    return p?.hasHydrated?.() ?? false;
+  };
+  const [hidratada, setHidratada] = React.useState(false);
   React.useEffect(() => {
-    const off = useSesion.persist.onFinishHydration(() => setHidratada(true));
-    setHidratada(useSesion.persist.hasHydrated());
+    setHidratada(safeHasHydrated());
+    const p = (useSesion as unknown as { persist?: { onFinishHydration?: (cb: () => void) => () => void } }).persist;
+    if (!p?.onFinishHydration) return;
+    const off = p.onFinishHydration(() => setHidratada(true));
     return off;
   }, []);
   return hidratada;

@@ -15,7 +15,7 @@ test.describe('Cupones · aplicación end-to-end en venta', () => {
     await page.locator('input[name="nombre"]').fill('Cupón aplicar-en-venta');
     await page.locator('input[name="valorDescuento"]').fill('20');
     await page.getByTestId('cupon-guardar').click();
-    await page.waitForURL(/\/cupones\/[a-f0-9-]{36}$/);
+    await page.waitForURL(/\/cupones\/[a-f0-9-]{36}\/?$/);
     const cuponId = page.url().split('/').pop()!;
 
     // 2. Ir al POS, agregar un producto al carrito
