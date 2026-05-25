@@ -3,7 +3,9 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -26,17 +28,23 @@ export class ProveedoresController {
   constructor(private readonly service: ProveedoresService) {}
 
   @Get() @RequierePermiso('proveedores:leer')
-  async listar(@Query() q: any, @Tenant() ctx: TenantContext) {
-    return this.service.listar(q, ctx);
+  async listar(@Query() q: Record<string, string | undefined>, @Tenant() ctx: TenantContext) {
+    return this.service.listar(q as never, ctx);
   }
 
   @Get(':id') @RequierePermiso('proveedores:leer')
-  async obtener(@Param('id') id: string, @Tenant() ctx: TenantContext) {
-    return { datos: await this.service.obtener(id, ctx) };
+  async obtener(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Tenant() ctx: TenantContext,
+  ) {
+    return { datos: await this.service.detalle(id, ctx) };
   }
 
   @Get(':id/historial') @RequierePermiso('proveedores:leer')
-  async historial(@Param('id') id: string, @Tenant() ctx: TenantContext) {
+  async historial(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Tenant() ctx: TenantContext,
+  ) {
     return { datos: await this.service.historial(id, ctx) };
   }
 
@@ -48,7 +56,7 @@ export class ProveedoresController {
 
   @Patch(':id') @RequierePermiso('proveedores:editar')
   async actualizar(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ActualizarProveedorDto,
     @Tenant() ctx: TenantContext,
   ) {
@@ -56,8 +64,11 @@ export class ProveedoresController {
     return { datos, mensaje: 'Proveedor actualizado' };
   }
 
-  @Delete(':id') @RequierePermiso('proveedores:eliminar')
-  async eliminar(@Param('id') id: string, @Tenant() ctx: TenantContext) {
+  @Delete(':id') @RequierePermiso('proveedores:eliminar') @HttpCode(200)
+  async eliminar(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Tenant() ctx: TenantContext,
+  ) {
     await this.service.eliminar(id, ctx);
     return { mensaje: 'Proveedor eliminado' };
   }

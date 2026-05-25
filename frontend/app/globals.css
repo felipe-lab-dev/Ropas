@@ -690,3 +690,25 @@
   .ropas-ring-rotate { animation: ropas-ring-rotate 28s linear infinite; }
   .ropas-stitch { stroke-dasharray: 6 6; animation: ropas-stitch 1.2s linear infinite; }
 }
+
+/* Impresión: ocultar shell y dejar sólo el contenido.
+   Marcar elementos no imprimibles con la clase `no-print`. */
+.print-only { display: none; }
+@media print {
+  html, body { background: white !important; color: #111 !important; }
+  .no-print, nav, aside, [data-shell-sidebar], [data-shell-topbar] {
+    display: none !important;
+  }
+  .print-only { display: block !important; }
+  /* Colores planos sin gradientes ni sombras */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    color: #111 !important;
+    background-color: transparent !important;
+    border-color: #ddd !important;
+    background-image: none !important;
+  }
+  a { text-decoration: none !important; }
+  @page { margin: 1.2cm; }
+}

@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, ShoppingCart, Boxes, Wallet,
   Users, BarChart3, Settings, Building2, ChevronLeft, Sparkles,
-  Receipt, Home, History, Truck, PackageCheck, BookOpen,
+  Receipt, Home, History, Truck, PackageCheck, BookOpen, Tag, RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useConfigSaas } from '@/lib/store/config-saas';
@@ -40,6 +40,7 @@ const SECCIONES: NavSection[] = [
     items: [
       { label: 'Punto de Venta', href: '/pos', icon: ShoppingCart, modulo: 'ventas' },
       { label: 'Ventas', href: '/ventas', icon: Receipt, modulo: 'ventas' },
+      { label: 'Notas de crédito', href: '/notas-credito', icon: RotateCcw, modulo: 'notas-credito' },
       { label: 'Caja', href: '/caja', icon: Wallet, modulo: 'caja' },
       { label: 'Historial de caja', href: '/caja/historial', icon: History, modulo: 'caja' },
     ],
@@ -62,6 +63,12 @@ const SECCIONES: NavSection[] = [
     titulo: 'Finanzas',
     items: [
       { label: 'Contabilidad', href: '/contabilidad', icon: BookOpen, modulo: 'contabilidad' },
+    ],
+  },
+  {
+    titulo: 'Promociones',
+    items: [
+      { label: 'Cupones', href: '/cupones', icon: Tag, modulo: 'cupones' },
     ],
   },
   {

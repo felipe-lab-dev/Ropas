@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Search, ShoppingCart } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -138,8 +138,16 @@ export default function VentasPage() {
               </TableRow>
             ) : (
               data!.datos.map(v => (
-                <TableRow key={v.id}>
-                  <TableCell className="font-mono font-semibold">{v.numero}</TableCell>
+                <TableRow
+                  key={v.id}
+                  className="cursor-pointer hover:bg-[hsl(var(--surface-2))]/50"
+                  onClick={() => { window.location.href = `/ventas/${v.id}`; }}
+                >
+                  <TableCell className="font-mono font-semibold">
+                    <Link href={`/ventas/${v.id}`} onClick={e => e.stopPropagation()} className="hover:underline">
+                      {v.numero}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-xs text-[hsl(var(--text-muted))]">{formatearFecha(v.creadoEn, 'completa')}</TableCell>
                   <TableCell>{v.cliente?.nombre ?? <span className="text-[hsl(var(--text-muted))]">Consumidor final</span>}</TableCell>
                   <TableCell>{v.vendedor.nombre}</TableCell>

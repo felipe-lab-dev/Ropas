@@ -48,4 +48,18 @@ export class VentasController {
     const venta = await this.service.anular(id, body.motivo, ctx, req.usuario!.sub);
     return { datos: venta, mensaje: 'Venta anulada' };
   }
+
+  @Post(':id/pagos') @RequierePermiso('ventas:crear')
+  async registrarPago(
+    @Param('id') id: string,
+    @Body() body: { medio: string; monto: number; referencia?: string; sesionCajaId?: string },
+    @Tenant() ctx: TenantContext,
+    @Req() req: Request,
+  ) {
+    const datos = await this.service.registrarPago(id, body, ctx, req.usuario!.sub);
+    return {
+      datos,
+      mensaje: datos.estado === 'pagada' ? 'Venta saldada' : 'Pago registrado',
+    };
+  }
 }

@@ -4,7 +4,7 @@
   "private": true,
   "description": "ERP SaaS multi-tenant para tienda de ropa, integrado con ENKI",
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c blue,magenta \"pnpm --dir backend dev\" \"pnpm --dir frontend dev\"",
+    "dev": "concurrently -k --kill-others-on-fail --timestamp-format HH:mm:ss -n API,WEB -c cyan.bold,magenta.bold \"pnpm --dir backend dev\" \"pnpm --dir frontend dev\"",
     "build": "pnpm --dir backend build && pnpm --dir frontend build",
     "lint": "pnpm --dir backend lint && pnpm --dir frontend lint",
     "test": "pnpm --dir backend test"

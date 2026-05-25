@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, TipoDocumento } from '@prisma/client';
+import { Prisma, TipoDocumento, CondicionPago } from '@prisma/client';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { TenantContext } from '../../core/tenancy/tenant-context';
-import { ErrorConflicto, ErrorNoEncontrado } from '../../core/errors/errores';
+import {
+  ErrorConflicto,
+  ErrorNoEncontrado,
+  ErrorValidacion,
+} from '../../core/errors/errores';
 import {
   obtenerPaginacion,
   PaginacionDto,
@@ -27,7 +31,7 @@ export class ProveedoresService {
     const where: Prisma.ProveedorWhereInput = { eliminadoEn: null };
     if (query.activo === 'true') where.activo = true;
     if (query.activo === 'false') where.activo = false;
-    if (query.condicionPago) where.condicionPago = query.condicionPago as any;
+    if (query.condicionPago) where.condicionPago = query.condicionPago as CondicionPago;
 
     const busqueda = construirBusquedaWordSplit(query.buscar, [
       'razonSocial',
@@ -43,7 +47,7 @@ export class ProveedoresService {
         where,
         skip,
         take,
-        orderBy: { razonSocial: 'asc' },
+        orderBy: [{ activo: 'desc' }, { razonSocial: 'asc' }],
       }),
       cliente.proveedor.count({ where }),
     ]);
@@ -58,13 +62,71 @@ export class ProveedoresService {
     return proveedor;
   }
 
+  /**
+   * Detalle con stats vivas (cantidad de compras, última compra, deuda recalculada).
+   * Se usa en la pantalla de edición.
+   */
+  async detalle(id: string, ctx: TenantContext) {
+    const cliente = this.prisma.forTenant(ctx);
+    const proveedor = await this.obtener(id, ctx);
+
+    const [totalCompras, ultima, agregados] = await Promise.all([
+      cliente.compra.count({
+        where: { proveedorId: id, eliminadoEn: null, anuladaEn: null },
+      }),
+      cliente.compra.findFirst({
+        where: { proveedorId: id, eliminadoEn: null, anuladaEn: null },
+        orderBy: { fechaEmision: 'desc' },
+        select: { fechaEmision: true, total: true, numero: true, id: true },
+      }),
+      cliente.compra.aggregate({
+        where: {
+          proveedorId: id,
+          eliminadoEn: null,
+          anuladaEn: null,
+          estadoPago: { in: ['pendiente', 'parcial', 'vencida'] },
+        },
+        _sum: { total: true, totalPagado: true },
+      }),
+    ]);
+
+    const totalSum = agregados._sum.total ?? new Prisma.Decimal(0);
+    const pagadoSum = agregados._sum.totalPagado ?? new Prisma.Decimal(0);
+    const deudaCalculada = totalSum.minus(pagadoSum);
+
+    return {
+      ...proveedor,
+      stats: {
+        totalCompras,
+        ultimaCompra: ultima,
+        deudaCalculada: deudaCalculada.toFixed(2),
+      },
+    };
+  }
+
   async historial(id: string, ctx: TenantContext) {
     const cliente = this.prisma.forTenant(ctx);
+    await this.obtener(id, ctx);
     return cliente.compra.findMany({
       where: { proveedorId: id, eliminadoEn: null },
       orderBy: { fechaEmision: 'desc' },
       take: 50,
-      include: { _count: { select: { items: true, pagos: true } } },
+      select: {
+        id: true,
+        numero: true,
+        serie: true,
+        numeroComprobante: true,
+        tipoComprobante: true,
+        fechaEmision: true,
+        fechaVencimiento: true,
+        moneda: true,
+        total: true,
+        totalPagado: true,
+        estado: true,
+        estadoPago: true,
+        anuladaEn: true,
+        _count: { select: { items: true, pagos: true } },
+      },
     });
   }
 
@@ -76,24 +138,29 @@ export class ProveedoresService {
         documento: dto.documento,
         eliminadoEn: null,
       },
+      select: { id: true, razonSocial: true },
     });
-    if (existente) throw new ErrorConflicto('Ya existe un proveedor con ese documento');
+    if (existente) {
+      throw new ErrorConflicto(
+        `Ya existe un proveedor con ${dto.tipoDocumento.toUpperCase()} ${dto.documento}: ${existente.razonSocial}`,
+      );
+    }
 
     return cliente.proveedor.create({
       data: {
         tipoDocumento: dto.tipoDocumento as TipoDocumento,
         documento: dto.documento,
         razonSocial: dto.razonSocial,
-        nombreComercial: dto.nombreComercial,
-        contacto: dto.contacto,
-        email: dto.email,
-        telefono: dto.telefono,
-        direccion: dto.direccion,
-        ciudad: dto.ciudad,
-        condicionPago: (dto.condicionPago ?? 'contado') as any,
+        nombreComercial: dto.nombreComercial ?? null,
+        contacto: dto.contacto ?? null,
+        email: dto.email ?? null,
+        telefono: dto.telefono ?? null,
+        direccion: dto.direccion ?? null,
+        ciudad: dto.ciudad ?? null,
+        condicionPago: (dto.condicionPago ?? 'contado') as CondicionPago,
         diasCredito: dto.diasCredito ?? 0,
-        cuentaBancaria: dto.cuentaBancaria,
-        notas: dto.notas,
+        cuentaBancaria: dto.cuentaBancaria ?? null,
+        notas: dto.notas ?? null,
         tags: dto.tags ?? [],
       },
     });
@@ -101,7 +168,28 @@ export class ProveedoresService {
 
   async actualizar(id: string, dto: ActualizarProveedorDto, ctx: TenantContext) {
     const cliente = this.prisma.forTenant(ctx);
-    await this.obtener(id, ctx);
+    const actual = await this.obtener(id, ctx);
+
+    // Si cambian tipoDocumento o documento, validar duplicado contra OTROS proveedores.
+    const nuevoTipo = (dto.tipoDocumento ?? actual.tipoDocumento) as TipoDocumento;
+    const nuevoDoc = dto.documento ?? actual.documento;
+    if (nuevoTipo !== actual.tipoDocumento || nuevoDoc !== actual.documento) {
+      const duplicado = await cliente.proveedor.findFirst({
+        where: {
+          id: { not: id },
+          tipoDocumento: nuevoTipo,
+          documento: nuevoDoc,
+          eliminadoEn: null,
+        },
+        select: { id: true, razonSocial: true },
+      });
+      if (duplicado) {
+        throw new ErrorConflicto(
+          `Otro proveedor ya usa ${nuevoTipo.toUpperCase()} ${nuevoDoc}: ${duplicado.razonSocial}`,
+        );
+      }
+    }
+
     return cliente.proveedor.update({
       where: { id },
       data: {
@@ -114,7 +202,7 @@ export class ProveedoresService {
         ...(dto.telefono !== undefined && { telefono: dto.telefono }),
         ...(dto.direccion !== undefined && { direccion: dto.direccion }),
         ...(dto.ciudad !== undefined && { ciudad: dto.ciudad }),
-        ...(dto.condicionPago && { condicionPago: dto.condicionPago as any }),
+        ...(dto.condicionPago && { condicionPago: dto.condicionPago as CondicionPago }),
         ...(dto.diasCredito !== undefined && { diasCredito: dto.diasCredito }),
         ...(dto.cuentaBancaria !== undefined && { cuentaBancaria: dto.cuentaBancaria }),
         ...(dto.notas !== undefined && { notas: dto.notas }),
@@ -124,9 +212,29 @@ export class ProveedoresService {
     });
   }
 
+  /**
+   * Soft delete. Bloquea si el proveedor tiene compras pendientes/parciales/vencidas:
+   * borrarlo ocultaría cuentas por pagar abiertas.
+   */
   async eliminar(id: string, ctx: TenantContext) {
+    const cliente = this.prisma.forTenant(ctx);
     await this.obtener(id, ctx);
-    return this.prisma.forTenant(ctx).proveedor.update({
+
+    const comprasAbiertas = await cliente.compra.count({
+      where: {
+        proveedorId: id,
+        eliminadoEn: null,
+        anuladaEn: null,
+        estadoPago: { in: ['pendiente', 'parcial', 'vencida'] },
+      },
+    });
+    if (comprasAbiertas > 0) {
+      throw new ErrorValidacion(
+        `No se puede eliminar: el proveedor tiene ${comprasAbiertas} compra(s) con pago pendiente. Cancela o paga las compras primero.`,
+      );
+    }
+
+    await cliente.proveedor.update({
       where: { id },
       data: { eliminadoEn: new Date(), activo: false },
     });

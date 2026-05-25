@@ -59,6 +59,7 @@ const PERMISOS_ADMIN = ['*'];
 const MODULOS = [
   'productos', 'inventario', 'ventas', 'caja', 'clientes',
   'proveedores', 'compras', 'contabilidad', 'reportes', 'usuarios', 'configuracion',
+  'cupones', 'notas-credito',
 ];
 
 async function main() {
@@ -362,12 +363,16 @@ function ddlStatements(s: string): string[] {
       total_compras DECIMAL(12,2) NOT NULL DEFAULT 0,
       ultima_compra_en TIMESTAMP,
       tags TEXT[] NOT NULL DEFAULT '{}',
+      clasificacion "${s}".clasificacion_abc,
+      clasificacion_score DECIMAL(12, 4),
+      clasificado_en TIMESTAMP,
       creado_en TIMESTAMP NOT NULL DEFAULT now(),
       actualizado_en TIMESTAMP NOT NULL DEFAULT now(),
       eliminado_en TIMESTAMP,
       UNIQUE (tipo_documento, documento)
     )`,
     `CREATE INDEX IF NOT EXISTS clientes_eliminado_idx ON "${s}".clientes(eliminado_en)`,
+    `CREATE INDEX IF NOT EXISTS clientes_clasificacion_idx ON "${s}".clientes(clasificacion)`,
 
     `CREATE TABLE IF NOT EXISTS "${s}".sesiones_caja (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -411,10 +416,48 @@ function ddlStatements(s: string): string[] {
       anulada_en TIMESTAMP,
       motivo_anulacion TEXT,
       creado_en TIMESTAMP NOT NULL DEFAULT now(),
-      actualizado_en TIMESTAMP NOT NULL DEFAULT now()
+      actualizado_en TIMESTAMP NOT NULL DEFAULT now(),
+      eliminado_en TIMESTAMP
     )`,
     `CREATE INDEX IF NOT EXISTS ventas_sucursal_idx ON "${s}".ventas(sucursal_id, creado_en)`,
     `CREATE INDEX IF NOT EXISTS ventas_cliente_idx ON "${s}".ventas(cliente_id)`,
+    `CREATE INDEX IF NOT EXISTS ventas_eliminado_idx ON "${s}".ventas(eliminado_en)`,
+
+    // ─────────────────────── NOTAS DE CRÉDITO ─────────────────────────
+    `DO $$ BEGIN CREATE TYPE "${s}".estado_nota_credito AS ENUM ('emitida','anulada'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `CREATE TABLE IF NOT EXISTS "${s}".notas_credito (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      numero VARCHAR(20) UNIQUE NOT NULL,
+      venta_id UUID NOT NULL REFERENCES "${s}".ventas(id),
+      sucursal_id UUID NOT NULL REFERENCES "${s}".sucursales(id),
+      cliente_id UUID REFERENCES "${s}".clientes(id),
+      emitida_por_id UUID NOT NULL REFERENCES "${s}".usuarios(id),
+      estado "${s}".estado_nota_credito NOT NULL DEFAULT 'emitida',
+      motivo TEXT NOT NULL,
+      subtotal DECIMAL(12,2) NOT NULL,
+      total DECIMAL(12,2) NOT NULL,
+      restituye_stock BOOLEAN NOT NULL DEFAULT true,
+      anulada_en TIMESTAMP,
+      motivo_anulacion TEXT,
+      creado_en TIMESTAMP NOT NULL DEFAULT now(),
+      actualizado_en TIMESTAMP NOT NULL DEFAULT now(),
+      eliminado_en TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS notas_credito_venta_idx ON "${s}".notas_credito(venta_id)`,
+    `CREATE INDEX IF NOT EXISTS notas_credito_cliente_idx ON "${s}".notas_credito(cliente_id)`,
+    `CREATE INDEX IF NOT EXISTS notas_credito_eliminado_idx ON "${s}".notas_credito(eliminado_en)`,
+    `CREATE TABLE IF NOT EXISTS "${s}".notas_credito_items (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      nota_credito_id UUID NOT NULL REFERENCES "${s}".notas_credito(id) ON DELETE CASCADE,
+      venta_item_id UUID NOT NULL REFERENCES "${s}".venta_items(id),
+      variante_id UUID NOT NULL REFERENCES "${s}".variantes(id),
+      descripcion VARCHAR(240) NOT NULL,
+      cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+      precio_unitario DECIMAL(12,2) NOT NULL,
+      subtotal DECIMAL(12,2) NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS notas_credito_items_nc_idx ON "${s}".notas_credito_items(nota_credito_id)`,
+    `CREATE INDEX IF NOT EXISTS notas_credito_items_vi_idx ON "${s}".notas_credito_items(venta_item_id)`,
 
     `CREATE TABLE IF NOT EXISTS "${s}".venta_items (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

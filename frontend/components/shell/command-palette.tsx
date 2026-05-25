@@ -9,6 +9,7 @@ import {
 import {
   LayoutDashboard, Package, ShoppingCart, Boxes, Wallet,
   Users, BarChart3, Settings, Building2, Plus, ArrowRight,
+  Truck, PackageCheck, Tag, Sparkles, ScanLine, RotateCcw,
 } from 'lucide-react';
 
 interface Props {
@@ -40,6 +41,18 @@ export function CommandPalette({ open, onOpenChange }: Props) {
           <CommandItem onSelect={() => ir('/clientes/nuevo')}>
             <Plus /> Nuevo cliente
           </CommandItem>
+          <CommandItem onSelect={() => ir('/proveedores/nuevo')}>
+            <Plus /> Nuevo proveedor
+          </CommandItem>
+          <CommandItem onSelect={() => ir('/cupones/nuevo')}>
+            <Plus /> Nuevo cupón
+          </CommandItem>
+          <CommandItem onSelect={() => ir('/cupones/nuevo?wizard=plantillas')}>
+            <Sparkles /> Plantilla brutal (campaña)
+          </CommandItem>
+          <CommandItem onSelect={() => ir('/cupones/canjear')}>
+            <ScanLine /> Canjear cupón
+          </CommandItem>
           <CommandItem onSelect={() => ir('/caja')}>
             <Wallet /> Abrir / cerrar caja
           </CommandItem>
@@ -60,8 +73,20 @@ export function CommandPalette({ open, onOpenChange }: Props) {
           <CommandItem onSelect={() => ir('/ventas')}>
             <ShoppingCart /> Ventas
           </CommandItem>
+          <CommandItem onSelect={() => ir('/notas-credito')}>
+            <RotateCcw /> Notas de crédito
+          </CommandItem>
           <CommandItem onSelect={() => ir('/clientes')}>
             <Users /> Clientes
+          </CommandItem>
+          <CommandItem onSelect={() => ir('/proveedores')}>
+            <Truck /> Proveedores
+          </CommandItem>
+          <CommandItem onSelect={() => ir('/compras')}>
+            <PackageCheck /> Compras
+          </CommandItem>
+          <CommandItem onSelect={() => ir('/cupones')}>
+            <Tag /> Cupones y promociones
           </CommandItem>
           <CommandItem onSelect={() => ir('/sucursales')}>
             <Building2 /> Sucursales

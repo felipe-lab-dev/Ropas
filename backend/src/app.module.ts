@@ -19,6 +19,8 @@ import { ProveedoresModule } from './modules/proveedores/proveedores.module';
 import { ComprasModule } from './modules/compras/compras.module';
 import { ContabilidadModule } from './modules/contabilidad/contabilidad.module';
 import { PreferenciasModule } from './modules/preferencias/preferencias.module';
+import { CuponesModule } from './modules/cupones/cupones.module';
+import { NotasCreditoModule } from './modules/notas-credito/notas-credito.module';
 
 @Module({
   imports: [
@@ -29,7 +31,16 @@ import { PreferenciasModule } from './modules/preferencias/preferencias.module';
         transport:
           process.env.NODE_ENV === 'production'
             ? undefined
-            : { target: 'pino-pretty', options: { singleLine: true, colorize: true } },
+            : {
+                target: 'pino-pretty',
+                options: {
+                  singleLine: true,
+                  colorize: true,
+                  translateTime: 'HH:MM:ss',
+                  ignore: 'pid,hostname,req,res,responseTime,context',
+                  messageFormat: '{context} | {msg}',
+                },
+              },
         redact: ['req.headers.authorization', 'req.headers["x-enki-api-key"]'],
       },
     }),
@@ -50,6 +61,8 @@ import { PreferenciasModule } from './modules/preferencias/preferencias.module';
     ReportesModule,
     ConfiguracionModule,
     PreferenciasModule,
+    CuponesModule,
+    NotasCreditoModule,
   ],
 })
 export class AppModule {}

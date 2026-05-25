@@ -8,9 +8,19 @@ import { AppExceptionFilter } from './core/errors/app-exception.filter';
 import { RespuestaInterceptor } from './core/responses/respuesta.interceptor';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const esProduccion = process.env.NODE_ENV === 'production';
 
-  app.useLogger(app.get(Logger));
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    logger: esProduccion ? ['error', 'warn', 'log'] : ['error', 'warn'],
+  });
+
+  // En prod redirigimos los logs internos de Nest a Pino para tener todo estructurado.
+  // En dev los dejamos en el ConsoleLogger filtrado por `logger` arriba — así no aparece
+  // el listado de ~300 "Mapped {...}" rutas al arrancar y la terminal queda legible.
+  if (esProduccion) {
+    app.useLogger(app.get(Logger));
+  }
   const config = app.get(ConfigService);
 
   app.use(helmet());

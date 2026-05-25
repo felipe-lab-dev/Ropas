@@ -133,12 +133,12 @@ export default function NuevoProductoPage() {
           stockInicial: Number(v.stockInicial) || 0,
         })),
       };
-      return postear('/productos', body);
+      return postear<{ id: string }>('/productos', body);
     },
-    onSuccess: () => {
-      toast.success('Producto creado');
+    onSuccess: producto => {
+      toast.success('Producto creado — agregá las imágenes');
       void qc.invalidateQueries({ queryKey: ['productos'] });
-      router.push('/productos');
+      router.push(`/productos/editar/?id=${producto.id}`);
     },
     onError: e => toast.error(mensajeError(e)),
   });

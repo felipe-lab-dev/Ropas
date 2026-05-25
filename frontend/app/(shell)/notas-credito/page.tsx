@@ -1,0 +1,182 @@
+'use client';
+
+import * as React from 'react';
+import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import { RotateCcw, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { obtenerPaginado } from '@/lib/api/client';
+import { formatearFecha, formatearMoneda } from '@/lib/utils';
+import { PageHeader } from '@/components/ui/page-header';
+import { Pagination } from '@/components/ui/pagination';
+import { FacetFilter } from '@/components/ui/facet-filter';
+import { EmptyState } from '@/components/ui/empty-state';
+
+interface NotaListada {
+  id: string;
+  numero: string;
+  estado: 'emitida' | 'anulada';
+  motivo: string;
+  total: string;
+  creadoEn: string;
+  venta: { id: string; numero: string };
+  cliente: { nombre: string } | null;
+  sucursal: { nombre: string };
+  emitidaPor: { nombre: string };
+  _count: { items: number };
+}
+
+const ESTADO_FACET = [
+  { valor: 'emitida', label: 'Emitida', color: 'hsl(150 55% 42%)' },
+  { valor: 'anulada', label: 'Anulada', color: 'hsl(355 75% 55%)' },
+];
+
+export default function NotasCreditoPage() {
+  const [buscar, setBuscar] = React.useState('');
+  const [pagina, setPagina] = React.useState(1);
+  const [estados, setEstados] = React.useState<string[]>([]);
+  const [debounced, setDebounced] = React.useState('');
+
+  React.useEffect(() => {
+    const t = setTimeout(() => { setDebounced(buscar); setPagina(1); }, 250);
+    return () => clearTimeout(t);
+  }, [buscar]);
+
+  React.useEffect(() => { setPagina(1); }, [estados]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['notas-credito', debounced, pagina, estados],
+    queryFn: () =>
+      obtenerPaginado<NotaListada>('/notas-credito', {
+        limite: 30,
+        pagina,
+        ...(debounced ? { buscar: debounced } : {}),
+        ...(estados.length === 1 ? { estado: estados[0] } : {}),
+      }),
+  });
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        titulo="Notas de crédito"
+        descripcion="Devoluciones totales o parciales de ventas."
+      />
+
+      <Card className="p-4 space-y-4">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[hsl(var(--text-muted))]" />
+          <Input
+            data-busqueda
+            placeholder="Buscar por número, venta o cliente…"
+            value={buscar}
+            onChange={e => setBuscar(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <FacetFilter
+          titulo="Estado"
+          opciones={ESTADO_FACET}
+          seleccionadas={estados}
+          onCambiar={setEstados}
+        />
+      </Card>
+
+      <Card className="overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Número</TableHead>
+              <TableHead>Fecha</TableHead>
+              <TableHead>Venta</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Motivo</TableHead>
+              <TableHead className="text-right">Items</TableHead>
+              <TableHead className="text-right">Total</TableHead>
+              <TableHead>Estado</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              [...Array(6)].map((_, i) => (
+                <TableRow key={i}>
+                  {Array(8).fill(0).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-5" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : data!.datos.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="p-0">
+                  <EmptyState
+                    titulo="Sin notas de crédito"
+                    descripcion="Las devoluciones que emitas desde una venta aparecerán aquí."
+                  />
+                </TableCell>
+              </TableRow>
+            ) : (
+              data!.datos.map(nc => (
+                <TableRow
+                  key={nc.id}
+                  className="cursor-pointer hover:bg-[hsl(var(--surface-2))]/50"
+                  onClick={() => { window.location.href = `/notas-credito/${nc.id}`; }}
+                >
+                  <TableCell className="font-mono font-semibold">
+                    <Link
+                      href={`/notas-credito/${nc.id}`}
+                      onClick={e => e.stopPropagation()}
+                      className="hover:underline"
+                    >
+                      {nc.numero}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-xs text-[hsl(var(--text-muted))]">
+                    {formatearFecha(nc.creadoEn, 'completa')}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    <Link
+                      href={`/ventas/${nc.venta.id}`}
+                      onClick={e => e.stopPropagation()}
+                      className="hover:underline"
+                    >
+                      {nc.venta.numero}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    {nc.cliente?.nombre ?? (
+                      <span className="text-[hsl(var(--text-muted))]">Consumidor final</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm max-w-xs truncate">{nc.motivo}</TableCell>
+                  <TableCell className="text-right tabular-nums">{nc._count.items}</TableCell>
+                  <TableCell className="text-right font-bold tabular-nums">
+                    {formatearMoneda(nc.total)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={nc.estado === 'anulada' ? 'danger' : 'success'}>
+                      {nc.estado}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+        {data && (
+          <Pagination
+            pagina={data.pagina}
+            totalPaginas={data.totalPaginas}
+            total={data.total}
+            limite={30}
+            onCambiar={setPagina}
+          />
+        )}
+      </Card>
+    </div>
+  );
+}

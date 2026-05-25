@@ -130,7 +130,7 @@ export class ProductosController {
 
   @Post(':id/imagenes')
   @RequierePermiso('productos:editar')
-  @UseInterceptors(FilesInterceptor('archivos', 10, { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @UseInterceptors(FilesInterceptor('archivos', 10, { limits: { fileSize: 25 * 1024 * 1024 } }))
   async subirImagenes(
     @Param('id') id: string,
     @UploadedFiles() archivos: Express.Multer.File[],

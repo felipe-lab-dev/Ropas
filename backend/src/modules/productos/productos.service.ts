@@ -66,11 +66,16 @@ export class ProductosService {
             where: { eliminadoEn: null },
             select: {
               id: true,
+              sku: true,
               talla: true,
               color: true,
               colorHex: true,
               codigoBarras: true,
-              stocks: { select: { disponible: true } },
+              precioVenta: true,
+              activo: true,
+              stocks: {
+                select: { sucursalId: true, disponible: true, reservado: true },
+              },
             },
           },
         },
@@ -78,31 +83,41 @@ export class ProductosService {
       cliente.producto.count({ where }),
     ]);
 
-    // Agregar cantidadVentas y ventasMensuales (12 meses) para cada producto.
-    // Una sola query por página: groupBy de VentaItem joineado con variantes.
+    // Agregar cantidadVentas, ventasMensuales (12 meses) y ultimaVentaEn para cada producto.
     const ventasPorProducto = new Map<string, { total: number; mensual: Map<string, number> }>();
+    const ultimaVentaPorProducto = new Map<string, Date>();
     const todasLasVarianteIds = datos.flatMap(p => p.variantes.map(v => v.id));
+    const varianteAProducto = new Map<string, string>();
+    for (const p of datos) for (const v of p.variantes) varianteAProducto.set(v.id, p.id);
+
     if (todasLasVarianteIds.length > 0) {
       const desde = new Date();
       desde.setMonth(desde.getMonth() - 11);
       desde.setDate(1);
       desde.setHours(0, 0, 0, 0);
 
-      const items = await cliente.ventaItem.findMany({
-        where: {
-          varianteId: { in: todasLasVarianteIds },
-          venta: { anuladaEn: null, creadoEn: { gte: desde } },
-        },
-        select: {
-          cantidad: true,
-          varianteId: true,
-          venta: { select: { creadoEn: true } },
-        },
-      });
-
-      // Mapear variante -> producto
-      const varianteAProducto = new Map<string, string>();
-      for (const p of datos) for (const v of p.variantes) varianteAProducto.set(v.id, p.id);
+      // Query 1: items de los últimos 12 meses (para sparkline y total).
+      // Query 2: última fecha de venta por variante (sin filtro temporal, para "días estancados").
+      const [items, ultimas] = await Promise.all([
+        cliente.ventaItem.findMany({
+          where: {
+            varianteId: { in: todasLasVarianteIds },
+            venta: { anuladaEn: null, creadoEn: { gte: desde } },
+          },
+          select: {
+            cantidad: true,
+            varianteId: true,
+            venta: { select: { creadoEn: true } },
+          },
+        }),
+        cliente.ventaItem.findMany({
+          where: {
+            varianteId: { in: todasLasVarianteIds },
+            venta: { anuladaEn: null },
+          },
+          select: { varianteId: true, venta: { select: { creadoEn: true } } },
+        }),
+      ]);
 
       for (const item of items) {
         const productoId = varianteAProducto.get(item.varianteId);
@@ -114,6 +129,14 @@ export class ProductosService {
         entry.mensual.set(key, (entry.mensual.get(key) ?? 0) + item.cantidad);
         ventasPorProducto.set(productoId, entry);
       }
+
+      for (const item of ultimas) {
+        const productoId = varianteAProducto.get(item.varianteId);
+        if (!productoId) continue;
+        const fecha = item.venta.creadoEn;
+        const actual = ultimaVentaPorProducto.get(productoId);
+        if (!actual || fecha > actual) ultimaVentaPorProducto.set(productoId, fecha);
+      }
     }
 
     // Generar serie de 12 meses (aunque haya ceros) para sparkline estable.
@@ -124,8 +147,14 @@ export class ProductosService {
       meses.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
 
+    const ahoraMs = Date.now();
+    const MS_POR_DIA = 1000 * 60 * 60 * 24;
     const conTotales = datos.map(p => {
       const ventas = ventasPorProducto.get(p.id);
+      const ultimaVenta = ultimaVentaPorProducto.get(p.id) ?? null;
+      // "Estancado" = días desde la última venta. Sin ventas → días desde creación.
+      const referencia = ultimaVenta ?? p.creadoEn;
+      const diasEstancado = Math.max(0, Math.floor((ahoraMs - referencia.getTime()) / MS_POR_DIA));
       return {
         ...p,
         stockTotal: p.variantes.reduce(
@@ -138,6 +167,8 @@ export class ProductosService {
           mes,
           cantidad: ventas?.mensual.get(mes) ?? 0,
         })),
+        ultimaVentaEn: ultimaVenta,
+        diasEstancado,
       };
     });
 

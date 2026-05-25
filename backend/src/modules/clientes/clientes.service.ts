@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { ClasificacionAbc, Prisma } from '@prisma/client';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { ErrorNoEncontrado } from '../../core/errors/errores';
@@ -9,18 +9,30 @@ import {
   construirBusquedaWordSplit,
 } from '../../core/pagination/paginacion';
 import { crearResultadoPaginado } from '../../core/responses/respuesta.interceptor';
+import { CrearClienteDto } from './dto/crear-cliente.dto';
+import { ActualizarClienteDto } from './dto/actualizar-cliente.dto';
+
+const CLASES_VALIDAS = new Set<ClasificacionAbc>(['AA', 'A', 'B', 'C', 'D']);
+
+interface ListarClientesQuery extends PaginacionDto {
+  clasificacion?: string;
+}
 
 @Injectable()
 export class ClientesService {
   constructor(private readonly prisma: PrismaTenantService) {}
 
-  async listar(query: PaginacionDto, ctx: TenantContext) {
+  async listar(query: ListarClientesQuery, ctx: TenantContext) {
     const { pagina, limite, skip, take } = obtenerPaginacion(query);
     const where: Prisma.ClienteWhereInput = { eliminadoEn: null };
     const busqueda = construirBusquedaWordSplit(query.buscar, [
       'nombre', 'documento', 'email', 'telefono',
     ]);
     if (busqueda) Object.assign(where, busqueda);
+
+    if (query.clasificacion && CLASES_VALIDAS.has(query.clasificacion as ClasificacionAbc)) {
+      where.clasificacion = query.clasificacion as ClasificacionAbc;
+    }
 
     const cliente = this.prisma.forTenant(ctx);
     const [datos, total] = await Promise.all([
@@ -39,13 +51,28 @@ export class ClientesService {
     return c;
   }
 
-  crear(data: any, ctx: TenantContext) {
-    return this.prisma.forTenant(ctx).cliente.create({ data });
+  crear(data: CrearClienteDto, ctx: TenantContext) {
+    const { fechaNacimiento, ...rest } = data;
+    return this.prisma.forTenant(ctx).cliente.create({
+      data: {
+        ...rest,
+        fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : null,
+      },
+    });
   }
 
-  async actualizar(id: string, data: any, ctx: TenantContext) {
+  async actualizar(id: string, data: ActualizarClienteDto, ctx: TenantContext) {
     await this.obtener(id, ctx);
-    return this.prisma.forTenant(ctx).cliente.update({ where: { id }, data });
+    const { fechaNacimiento, ...rest } = data;
+    return this.prisma.forTenant(ctx).cliente.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(fechaNacimiento !== undefined
+          ? { fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : null }
+          : {}),
+      },
+    });
   }
 
   async eliminar(id: string, ctx: TenantContext) {

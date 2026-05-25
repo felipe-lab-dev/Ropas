@@ -7,25 +7,29 @@ import { Header } from '@/components/shell/header';
 import { OnboardingModal } from '@/components/shell/onboarding-modal';
 import { MobileNav } from '@/components/shell/mobile-nav';
 import { MobileDrawer } from '@/components/shell/mobile-drawer';
-import { useSesion } from '@/lib/store/sesion';
+import { useSesion, useSesionHidratada } from '@/lib/store/sesion';
 import { useConfigSaas } from '@/lib/store/config-saas';
 import { motion } from 'framer-motion';
 
 export default function ShellLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const usuario = useSesion(s => s.usuario);
+  const hidratada = useSesionHidratada();
   const cargarConfig = useConfigSaas(s => s.cargar);
   const config = useConfigSaas(s => s.config);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
 
   React.useEffect(() => {
-    if (!usuario) router.replace('/login');
-  }, [usuario, router]);
+    // Evita el flash de /login al recargar estando logueado:
+    // esperamos a que zustand persist termine de hidratar antes de decidir.
+    if (hidratada && !usuario) router.replace('/login');
+  }, [hidratada, usuario, router]);
 
   React.useEffect(() => {
-    void cargarConfig();
-  }, [cargarConfig]);
+    if (usuario) void cargarConfig();
+  }, [usuario, cargarConfig]);
 
+  if (!hidratada) return null; // aún hidratando — no decidir todavía
   if (!usuario) return null;
 
   if (config && !config.accesoPermitido) {

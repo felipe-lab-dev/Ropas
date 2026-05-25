@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -31,6 +32,24 @@ export const useSesion = create<EstadoSesion>()(
     { name: 'ropas.sesion' },
   ),
 );
+
+/**
+ * Hook que indica si zustand persist terminó de hidratar desde localStorage.
+ * Útil para componentes que necesitan saber si el estado inicial (usuario null)
+ * es real o solo "todavía no hidraté".
+ *
+ * Sin esto, el shell layout puede redirigir a /login antes de leer el token
+ * persistido (flash visible al recargar la página estando logueado).
+ */
+export function useSesionHidratada(): boolean {
+  const [hidratada, setHidratada] = React.useState(useSesion.persist.hasHydrated());
+  React.useEffect(() => {
+    const off = useSesion.persist.onFinishHydration(() => setHidratada(true));
+    setHidratada(useSesion.persist.hasHydrated());
+    return off;
+  }, []);
+  return hidratada;
+}
 
 export function tienePermiso(permisos: string[] | undefined, requerido: string): boolean {
   if (!permisos) return false;

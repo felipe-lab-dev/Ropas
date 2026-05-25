@@ -1,5 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ClientesService } from './clientes.service';
+import { MotorClasificacionClientesService } from './motor-clasificacion.service';
+import { CrearClienteDto } from './dto/crear-cliente.dto';
+import { ActualizarClienteDto } from './dto/actualizar-cliente.dto';
 import { Tenant } from '../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { AuthGuard, RequierePermiso } from '../auth/auth.guard';
@@ -9,7 +12,17 @@ import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../saas/modulo-habil
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
 @ModuloHabilitado('clientes')
 export class ClientesController {
-  constructor(private readonly service: ClientesService) {}
+  constructor(
+    private readonly service: ClientesService,
+    private readonly motor: MotorClasificacionClientesService,
+  ) {}
+
+  @Post('clasificacion/calcular')
+  @RequierePermiso('clientes:editar')
+  async clasificar(@Tenant() ctx: TenantContext) {
+    const datos = await this.motor.calcular(ctx);
+    return { datos, mensaje: 'Clasificación de clientes ejecutada' };
+  }
 
   @Get() @RequierePermiso('clientes:leer')
   async listar(@Query() q: any, @Tenant() ctx: TenantContext) {
@@ -22,12 +35,12 @@ export class ClientesController {
   }
 
   @Post() @RequierePermiso('clientes:crear')
-  async crear(@Body() body: any, @Tenant() ctx: TenantContext) {
+  async crear(@Body() body: CrearClienteDto, @Tenant() ctx: TenantContext) {
     return { datos: await this.service.crear(body, ctx), mensaje: 'Cliente creado' };
   }
 
   @Patch(':id') @RequierePermiso('clientes:editar')
-  async actualizar(@Param('id') id: string, @Body() body: any, @Tenant() ctx: TenantContext) {
+  async actualizar(@Param('id') id: string, @Body() body: ActualizarClienteDto, @Tenant() ctx: TenantContext) {
     return { datos: await this.service.actualizar(id, body, ctx), mensaje: 'Cliente actualizado' };
   }
 

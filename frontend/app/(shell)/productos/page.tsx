@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Plus, Search, Edit2, Trash2, History, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { obtener, obtenerPaginado, eliminar as eliminarApi, mensajeError } from '@/lib/api/client';
@@ -40,6 +41,19 @@ interface ProductoLista {
   ventasMensuales: Array<{ mes: string; cantidad: number }>;
   variantes: Array<{ talla: string; color: string; colorHex?: string | null }>;
   clasificacion: 'AA' | 'A' | 'B' | 'C' | 'D' | null;
+  diasEstancado: number;
+  ultimaVentaEn: string | null;
+}
+
+const BUCKETS_ESTANCADO: Array<{ max: number; base: string; suave: string; etiqueta: string }> = [
+  { max: 30,  base: '#10b981', suave: 'rgba(16,185,129,0.12)',  etiqueta: 'Saludable' },
+  { max: 60,  base: '#f59e0b', suave: 'rgba(245,158,11,0.12)',  etiqueta: 'Atención' },
+  { max: 90,  base: '#ea580c', suave: 'rgba(234,88,12,0.12)',   etiqueta: 'Acción' },
+  { max: Infinity, base: '#ef4444', suave: 'rgba(239,68,68,0.12)', etiqueta: 'Crítico' },
+];
+
+function bucketEstancado(dias: number) {
+  return BUCKETS_ESTANCADO.find(b => dias <= b.max)!;
 }
 
 const COLORES_CLASE: Record<'AA' | 'A' | 'B' | 'C' | 'D', { base: string; suave: string }> = {
@@ -58,6 +72,7 @@ export default function ProductosPage() {
   const [buscar, setBuscar] = React.useState('');
   const [pagina, setPagina] = React.useState(1);
   const [debouncedBuscar, setDebouncedBuscar] = React.useState('');
+  const [categoriaIdFiltro, setCategoriaIdFiltro] = React.useState('');
   const [confirmandoId, setConfirmandoId] = React.useState<string | null>(null);
   const [motorAbierto, setMotorAbierto] = React.useState(false);
   const qc = useQueryClient();
@@ -69,7 +84,7 @@ export default function ProductosPage() {
     return () => clearTimeout(t);
   }, [buscar]);
 
-  React.useEffect(() => { setPagina(1); }, [debouncedBuscar]);
+  React.useEffect(() => { setPagina(1); }, [debouncedBuscar, categoriaIdFiltro]);
 
   const { data: categorias } = useQuery({
     queryKey: ['categorias'],
@@ -77,12 +92,13 @@ export default function ProductosPage() {
   });
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['productos', pagina, debouncedBuscar],
+    queryKey: ['productos', pagina, debouncedBuscar, categoriaIdFiltro],
     queryFn: () =>
       obtenerPaginado<ProductoLista>('/productos', {
         pagina,
         limite: 20,
         ...(debouncedBuscar ? { buscar: debouncedBuscar } : {}),
+        ...(categoriaIdFiltro ? { categoriaId: categoriaIdFiltro } : {}),
       }),
     retry: false,
   });
@@ -214,6 +230,29 @@ export default function ProductosPage() {
             title={`Clase ${p.clasificacion}`}
           >
             {p.clasificacion}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'diasEstancado',
+      titulo: 'Estancado',
+      width: 110,
+      align: 'right',
+      sortValor: p => p.diasEstancado,
+      filter: { tipo: 'rango', getValor: p => p.diasEstancado },
+      render: p => {
+        const b = bucketEstancado(p.diasEstancado);
+        const titulo = p.ultimaVentaEn
+          ? `${b.etiqueta} · última venta ${new Date(p.ultimaVentaEn).toLocaleDateString('es-PE')}`
+          : `${b.etiqueta} · sin ventas (desde creación)`;
+        return (
+          <span
+            className="inline-flex items-center justify-end gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold tabular-nums border"
+            style={{ background: b.suave, color: b.base, borderColor: `${b.base}40` }}
+            title={titulo}
+          >
+            {p.diasEstancado}d
           </span>
         );
       },
@@ -388,6 +427,17 @@ export default function ProductosPage() {
             className="pl-9"
           />
         </div>
+        <Select
+          value={categoriaIdFiltro}
+          onChange={e => setCategoriaIdFiltro(e.target.value)}
+          className="w-auto min-w-[180px]"
+          aria-label="Filtrar por categoría"
+        >
+          <option value="">Todas las categorías</option>
+          {(categorias ?? []).map(c => (
+            <option key={c.id} value={c.id}>{c.nombre}</option>
+          ))}
+        </Select>
         {filtrosActivos > 0 && (
           <button
             type="button"
