@@ -189,7 +189,7 @@ export default function ConfiguracionPage() {
                 id="subtituloApp"
                 value={subtituloApp}
                 onChange={e => setSubtituloApp(e.target.value)}
-                placeholder="Vendé más rápido. Controlá tu tienda."
+                placeholder="Vende más rápido. Controla tu tienda."
               />
             </div>
           </div>

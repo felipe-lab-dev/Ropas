@@ -381,7 +381,7 @@ export default function PosPage() {
               <div className="py-20 text-center">
                 <ShoppingCart className="size-12 mx-auto text-[hsl(var(--text-muted))]/50 mb-3" />
                 <p className="text-sm text-[hsl(var(--text-muted))]">
-                  Carrito vacío. Buscá productos arriba.
+                  Carrito vacío. Busca productos arriba.
                 </p>
               </div>
             ) : (

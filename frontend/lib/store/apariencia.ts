@@ -32,7 +32,7 @@ export const useApariencia = create<EstadoApariencia>()((set, get) => ({
   familiaFuente: '',
   logoSvg: DEFAULT_LOGO_SVG,
   nombreApp: 'Ropas',
-  subtituloApp: 'Vendé más rápido. Controlá tu tienda.',
+  subtituloApp: 'Vende más rápido. Controla tu tienda.',
   hidratado: false,
   setTema: tema => { set({ tema }); persistir(get()); },
   setPaleta: paleta => { set({ paleta }); persistir(get()); },
@@ -54,7 +54,7 @@ export const useApariencia = create<EstadoApariencia>()((set, get) => ({
           familiaFuente: parsed.familiaFuente ?? '',
           logoSvg: parsed.logoSvg ?? DEFAULT_LOGO_SVG,
           nombreApp: parsed.nombreApp ?? 'Ropas',
-          subtituloApp: parsed.subtituloApp ?? 'Vendé más rápido. Controlá tu tienda.',
+          subtituloApp: parsed.subtituloApp ?? 'Vende más rápido. Controla tu tienda.',
           hidratado: true,
         });
       } else {

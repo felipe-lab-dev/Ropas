@@ -219,7 +219,7 @@ export default function LoginPage() {
             className="text-xl font-semibold mb-3 login-reveal-up bg-gradient-to-r from-[hsl(var(--brand-accent))] via-white to-[hsl(var(--brand-primary))] bg-clip-text text-transparent"
             style={{ animationDelay: '0.35s' }}
           >
-            Vendé más rápido. Controlá tu tienda.
+            Vende más rápido. Controla tu tienda.
           </p>
           <p
             className="text-sm leading-relaxed text-white/65 max-w-sm mx-auto login-reveal-up"

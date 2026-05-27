@@ -155,7 +155,7 @@ export default function CanjearCuponPage() {
 
         <div className="text-[11px] text-[hsl(var(--text-muted))] pt-2 border-t border-[hsl(var(--border))]">
           Nota: la validación rápida no aplica filtros de carrito (categorías/productos específicos).
-          Para el cálculo exacto del descuento, usá el POS con el carrito real.
+          Para el cálculo exacto del descuento, usa el POS con el carrito real.
         </div>
       </Card>
 

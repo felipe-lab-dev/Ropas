@@ -108,7 +108,7 @@ async function main() {
     console.log(`   Schema:    ${schema}`);
     console.log(`   Admin:     ${args.admin}`);
     console.log(`   Password:  ${password}\n`);
-    console.log(`   Guardá la contraseña — solo se muestra una vez.\n`);
+    console.log(`   Guarda la contraseña — solo se muestra una vez.\n`);
   } finally {
     await prismaPublic.$disconnect();
   }

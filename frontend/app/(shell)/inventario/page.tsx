@@ -201,7 +201,7 @@ export default function InventarioPage() {
                       titulo={debounced || sucursalId || soloAlertas ? 'Sin resultados' : 'Sin stock registrado'}
                       descripcion={
                         debounced || sucursalId || soloAlertas
-                          ? 'Probá con otros filtros.'
+                          ? 'Prueba con otros filtros.'
                           : 'El inventario aparecerá aquí cuando crees productos con variantes y movimientos.'
                       }
                       accion={debounced || sucursalId || soloAlertas ? undefined : { label: 'Ir a Productos', href: '/productos' }}

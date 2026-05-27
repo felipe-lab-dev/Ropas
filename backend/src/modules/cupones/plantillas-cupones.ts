@@ -1,5 +1,5 @@
 /**
- * Plantillas de marketing brutal — campañas pre-armadas con copy,
+ * Plantillas de marketing destacadas — campañas pre-armadas con copy,
  * diseño y reglas listas. El usuario solo confirma fechas y código.
  *
  * Cada plantilla retorna un objeto compatible con CrearCuponDto, salvo

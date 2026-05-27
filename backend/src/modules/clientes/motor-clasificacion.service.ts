@@ -7,7 +7,7 @@ import { TenantContext } from '../../core/tenancy/tenant-context';
  * Motor de Clasificación de Clientes — RFM clásico, mismo Pareto que motor logístico.
  *
  * Inspiración: módulo CRM > Clientes de DIH_ERP y el motor logístico de productos
- * de este mismo repo. Acá usamos RFM (Recency / Frequency / Monetary) porque para
+ * de este mismo repo. Aquí usamos RFM (Recency / Frequency / Monetary) porque para
  * clientes no aplican rotación/margen/tendencia.
  *
  *   Variable      Peso  Qué mide

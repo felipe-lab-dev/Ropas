@@ -4,8 +4,8 @@ import { defineConfig, devices } from '@playwright/test';
  * Playwright config para Ropas — orientado a E2E del módulo de cupones.
  *
  * Requiere que backend (:3001) y frontend (:3000) estén corriendo.
- * El comando `webServer` los levanta automáticamente, pero podés correrlos
- * en otra terminal y comentar `webServer` si querés ver los logs.
+ * El comando `webServer` los levanta automáticamente, pero puedes correrlos
+ * en otra terminal y comentar `webServer` si quieres ver los logs.
  *
  * Variables esperadas:
  *   E2E_BASE_URL       (default http://localhost:3000)

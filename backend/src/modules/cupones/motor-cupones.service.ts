@@ -154,7 +154,7 @@ export class MotorCuponesService {
         }
         return { ok: true };
       case 'nuevos_clientes':
-        // El service que invoca debe haber verificado totalCompras=0 al cargar — acá confiamos.
+        // El service que invoca debe haber verificado totalCompras=0 al cargar — aquí confiamos.
         return { ok: true };
       case 'reactivacion':
         return { ok: true };

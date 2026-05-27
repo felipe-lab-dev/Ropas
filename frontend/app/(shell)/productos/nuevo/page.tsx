@@ -136,7 +136,7 @@ export default function NuevoProductoPage() {
       return postear<{ id: string }>('/productos', body);
     },
     onSuccess: producto => {
-      toast.success('Producto creado — agregá las imágenes');
+      toast.success('Producto creado — agrega las imágenes');
       void qc.invalidateQueries({ queryKey: ['productos'] });
       router.push(`/productos/editar/?id=${producto.id}`);
     },
