@@ -6,10 +6,11 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
-const TIPO_DOC = ['dni', 'ruc', 'cpf', 'cnpj', 'pasaporte', 'otro'] as const;
+const TIPO_DOC = ['dni', 'carne_extranjeria', 'ruc', 'pasaporte', 'otro'] as const;
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -56,4 +57,9 @@ export class ActualizarClienteDto {
 
   @IsOptional() @IsArray() @IsString({ each: true })
   tags?: string[];
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'El código de ubigeo debe tener exactamente 6 dígitos' })
+  ubigeoCodigo?: string | null;
 }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, EstadoVenta, MedioPago, TipoMovimientoStock } from '@prisma/client';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { TenantContext } from '../../core/tenancy/tenant-context';
@@ -15,6 +15,9 @@ import {
 import { crearResultadoPaginado } from '../../core/responses/respuesta.interceptor';
 import { InventarioService } from '../inventario/inventario.service';
 import { MotorCuponesService, ItemCarrito } from '../cupones/motor-cupones.service';
+import { SerieCpeService } from '../facturacion-electronica/series-cpe/series-cpe.service';
+import { TipoCpe } from '../../core/sunat/codigos';
+import { AppEventEmitter } from '../../core/events/app-event-emitter';
 import { CrearVentaDto } from './dto/crear-venta.dto';
 
 // Advisory-lock key (estable por tenant) para serializar generación del número de venta.
@@ -42,10 +45,14 @@ interface ListarVentasQuery extends PaginacionDto {
 
 @Injectable()
 export class VentasService {
+  private readonly logger = new Logger(VentasService.name);
+
   constructor(
     private readonly prisma: PrismaTenantService,
     private readonly inventario: InventarioService,
     private readonly motorCupones: MotorCuponesService,
+    private readonly serieCpeService: SerieCpeService,
+    private readonly eventEmitter: AppEventEmitter,
   ) {}
 
   async listar(query: ListarVentasQuery, ctx: TenantContext) {
@@ -154,7 +161,7 @@ export class VentasService {
     }
     const cliente = this.prisma.forTenant(ctx);
 
-    return cliente.$transaction(async tx => {
+    const resultado = await cliente.$transaction(async tx => {
       // Lock advisory por tenant: serializa generación del número correlativo.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${LOCK_KEY_NUMERO_VENTA})`;
 
@@ -427,6 +434,44 @@ export class VentasService {
 
       return venta;
     });
+
+    // ─── BEST-EFFORT: stamp tipoCpe + serie + correlativo ────────────────────
+    // Fire-and-forget: la venta retorna ANTES de que el stamp termine.
+    // Si no hay serie configurada o falla cualquier cosa, la venta queda sin
+    // stamp. emitirCpe se lo asignará posteriormente.
+    this.stampearTipoCpeYSerie(resultado.id, ctx).catch(err => {
+      this.logger.warn(
+        `No se pudo asignar serie+correlativo a venta ${resultado.id}: ${err.message}`,
+      );
+    });
+
+    return resultado;
+  }
+
+  private async stampearTipoCpeYSerie(ventaId: string, ctx: TenantContext): Promise<void> {
+    const prisma = this.prisma.forTenant(ctx);
+    const venta = await prisma.venta.findUnique({
+      where: { id: ventaId },
+      select: { sucursalId: true, cliente: { select: { tipoDocumento: true } } },
+    });
+    if (!venta) return;
+
+    const tipoCpe: TipoCpe =
+      venta.cliente?.tipoDocumento === 'ruc' ? 'factura' : 'boleta';
+
+    const serie = await this.serieCpeService.asignarProximoCorrelativoEnTenant(
+      prisma,
+      venta.sucursalId,
+      tipoCpe,
+    );
+
+    await prisma.venta.update({
+      where: { id: ventaId },
+      data: { tipoCpe, serieCpeId: serie.serieCpeId, correlativo: serie.correlativo },
+    });
+
+    // Stamp exitoso: emitir evento para que VentaCreadaListener dispare auto-emisión CPE.
+    this.eventEmitter.emit('venta.creada', { ventaId, tenantCode: ctx.codigo });
   }
 
   private async actualizarEstadoCuponSiAgotado(tx: Prisma.TransactionClient, cuponId: string) {

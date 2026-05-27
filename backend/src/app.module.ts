@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -21,11 +21,17 @@ import { ContabilidadModule } from './modules/contabilidad/contabilidad.module';
 import { PreferenciasModule } from './modules/preferencias/preferencias.module';
 import { CuponesModule } from './modules/cupones/cupones.module';
 import { NotasCreditoModule } from './modules/notas-credito/notas-credito.module';
+import { CatalogosModule } from './modules/catalogos/catalogos.module';
+import { FacturacionElectronicaModule } from './modules/facturacion-electronica/facturacion-electronica.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     LoggerModule.forRoot({
+      // forRoutes explícito para evitar el DEFAULT_ROUTES legacy de nestjs-pino
+      // (`{ path: '*', method: ALL }`) que combinado con setGlobalPrefix('api/v1')
+      // dispara dos warnings de LegacyRouteConverter en cada arranque.
+      forRoutes: [{ path: '*path', method: RequestMethod.ALL }],
       pinoHttp: {
         level: process.env.LOG_LEVEL ?? 'info',
         transport:
@@ -63,6 +69,8 @@ import { NotasCreditoModule } from './modules/notas-credito/notas-credito.module
     PreferenciasModule,
     CuponesModule,
     NotasCreditoModule,
+    CatalogosModule,
+    FacturacionElectronicaModule,
   ],
 })
 export class AppModule {}

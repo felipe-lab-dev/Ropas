@@ -110,7 +110,7 @@ const PRODUCTOS = [
   },
 ];
 
-type TipoDoc = 'dni' | 'ruc' | 'cpf' | 'cnpj' | 'pasaporte' | 'otro';
+type TipoDoc = 'dni' | 'carne_extranjeria' | 'ruc' | 'pasaporte' | 'otro';
 
 interface PerfilCliente {
   tipoDocumento: TipoDoc;

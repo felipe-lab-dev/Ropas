@@ -48,7 +48,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
             <Plus /> Nuevo cupón
           </CommandItem>
           <CommandItem onSelect={() => ir('/cupones/nuevo?wizard=plantillas')}>
-            <Sparkles /> Plantilla brutal (campaña)
+            <Sparkles /> Plantilla destacada (campaña)
           </CommandItem>
           <CommandItem onSelect={() => ir('/cupones/canjear')}>
             <ScanLine /> Canjear cupón

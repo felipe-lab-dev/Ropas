@@ -20,7 +20,7 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: { default: 'Ropas — ERP', template: '%s · Ropas' },
-  description: 'ERP brutal para venta de ropa',
+  description: 'ERP completo para venta de ropa',
   applicationName: 'Ropas',
   appleWebApp: {
     capable: true,

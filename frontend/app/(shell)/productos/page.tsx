@@ -484,7 +484,7 @@ export default function ProductosPage() {
                 ilustracion={<IlustracionProductos className="w-full h-full" />}
                 titulo={debouncedBuscar ? 'Sin resultados' : 'Aún no hay productos'}
                 descripcion={debouncedBuscar
-                  ? 'Probá con otra búsqueda o limpiá los filtros.'
+                  ? 'Prueba con otra búsqueda o limpia los filtros.'
                   : 'Crea tu primer producto con variantes de talla y color.'}
                 accion={debouncedBuscar ? undefined : { label: '＋ Nuevo producto', href: '/productos/nuevo' }}
               />

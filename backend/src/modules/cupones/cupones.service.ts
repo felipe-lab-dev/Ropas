@@ -293,7 +293,7 @@ export class CuponesService {
         return rechazoValidacion('El cupón es solo para nuevos clientes');
       }
       if (cupon.segmento === 'reactivacion') {
-        if (!c?.ultimaCompraEn) return rechazoValidacion('El cliente nunca compró — usá un cupón de bienvenida');
+        if (!c?.ultimaCompraEn) return rechazoValidacion('El cliente nunca compró — usa un cupón de bienvenida');
         const dias = (Date.now() - c.ultimaCompraEn.getTime()) / 86400_000;
         if (dias < 60) {
           return rechazoValidacion(`El cliente compró hace ${Math.floor(dias)} días — el cupón es para 60+ días`);

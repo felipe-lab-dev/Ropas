@@ -128,7 +128,7 @@ export function CuponFormulario({
               value={form.descripcion ?? ''}
               onChange={e => set('descripcion', e.target.value)}
               rows={2}
-              placeholder="A quién va dirigido, qué buscás lograr, condiciones especiales…"
+              placeholder="A quién va dirigido, qué buscas lograr, condiciones especiales…"
               maxLength={2000}
             />
           </Campo>
@@ -145,7 +145,7 @@ export function CuponFormulario({
         </Seccion>
 
         {/* DESCUENTO */}
-        <Seccion titulo="Descuento" descripcion="Cuánto regalás y bajo qué condiciones.">
+        <Seccion titulo="Descuento" descripcion="Cuánto regalas y bajo qué condiciones.">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Campo label="Tipo *" error={errores.tipoDescuento}>
               <Select
@@ -329,7 +329,7 @@ export function CuponFormulario({
             </Campo>
           </div>
 
-          <Campo label="Paletas brutales">
+          <Campo label="Paletas destacadas">
             <div className="flex flex-wrap gap-2">
               {COLORES_SUGERIDOS.map(p => (
                 <button

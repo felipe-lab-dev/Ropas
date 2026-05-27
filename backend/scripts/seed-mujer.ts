@@ -143,7 +143,7 @@ async function main() {
   console.log(`▶ Sembrando 10 productos de mujer en "${SCHEMA}"`);
 
   const sucursal = await p.sucursal.findFirst({ where: { esPrincipal: true } });
-  if (!sucursal) throw new Error('Sucursal principal no encontrada — corré crear-tenant primero');
+  if (!sucursal) throw new Error('Sucursal principal no encontrada — corre crear-tenant primero');
 
   const categorias = await p.categoria.findMany();
   const catMap = new Map(categorias.map(c => [c.slug, c.id]));
