@@ -1,9 +1,7 @@
 import { CuponDetalleCliente } from './cupon-detalle-cliente';
 
-// SPA detrás de output:'export' — los IDs reales se resuelven en cliente.
-// `dynamicParams:true` permite IDs no listados en generateStaticParams.
-export const dynamicParams = true;
-
+// SPA detrás de output:'export'. generateStaticParams sólo pre-genera el placeholder `_`;
+// los IDs reales se resuelven en cliente vía useParams() + SWA navigationFallback.
 export function generateStaticParams() {
   return [{ id: '_' }];
 }
