@@ -40,6 +40,7 @@ import { obtener, postear, mensajeError } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { tienePermiso } from '@/lib/store/sesion';
 import { useSesion } from '@/lib/store/sesion';
+import { SeccionCpe } from '@/components/facturacion-electronica/seccion-cpe';
 
 type EstadoVenta = 'borrador' | 'confirmada' | 'pagada' | 'parcial' | 'anulada';
 
@@ -215,6 +216,7 @@ export function VentaDetalleCliente() {
   }
 
   const puedeAnular = tienePermiso(permisos, 'ventas:anular') && venta.estado !== 'anulada';
+  const puedeEmitirCpe = tienePermiso(permisos, 'ventas:emitir-cpe');
   const puedeRegistrarPago =
     tienePermiso(permisos, 'ventas:crear') &&
     venta.estado !== 'anulada' &&
@@ -517,6 +519,8 @@ export function VentaDetalleCliente() {
               </div>
             )}
           </Card>
+
+          <SeccionCpe ventaId={venta.id} puedeEmitir={puedeEmitirCpe} />
         </div>
       </div>
 

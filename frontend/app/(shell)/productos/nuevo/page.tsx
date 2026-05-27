@@ -16,6 +16,10 @@ import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
 import { obtener, postear, mensajeError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import {
+  useUnidadesMedida,
+  useTiposAfectacionIgv,
+} from '@/lib/api/hooks/use-catalogos-sunat';
 
 interface Categoria {
   id: string;
@@ -75,11 +79,17 @@ export default function NuevoProductoPage() {
 
   const [variantes, setVariantes] = React.useState<Variante[]>([]);
   const [mostrarOpcionales, setMostrarOpcionales] = React.useState(false);
+  const [mostrarSunat, setMostrarSunat] = React.useState(false);
+  const [unidadMedidaCodigo, setUnidadMedidaCodigo] = React.useState('NIU');
+  const [tipoAfectacionIgv, setTipoAfectacionIgv] = React.useState('gravado_onerosa');
 
   const { data: categorias } = useQuery({
     queryKey: ['categorias'],
     queryFn: () => obtener<Categoria[]>('/categorias'),
   });
+
+  const { data: unidades } = useUnidadesMedida();
+  const { data: tiposAfectacion } = useTiposAfectacionIgv();
 
   React.useEffect(() => {
     if (categorias?.length && !categoriaId && categorias[0]) {
@@ -126,6 +136,8 @@ export default function NuevoProductoPage() {
         material: material.trim() || undefined,
         precioVenta: Number(precioVenta),
         precioCompra: precioCompra ? Number(precioCompra) : undefined,
+        unidadMedidaCodigo,
+        tipoAfectacionIgv,
         variantes: variantesFinal.map(v => ({
           talla: v.talla,
           color: v.color,
@@ -574,6 +586,72 @@ export default function NuevoProductoPage() {
                   <option value="otonio">Otoño</option>
                   <option value="invierno">Invierno</option>
                 </Select>
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Configuración SUNAT (plegable, avanzado) */}
+      <Card className="p-0 overflow-hidden" data-testid="seccion-sunat">
+        <button
+          type="button"
+          onClick={() => setMostrarSunat(o => !o)}
+          className="w-full flex items-center justify-between p-4 hover:bg-[hsl(var(--surface-2))]/30 transition-colors"
+        >
+          <div className="text-left">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]">
+              Configuración SUNAT (avanzado)
+            </h2>
+            <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
+              Unidad de medida e IGV — la mayoría de productos usa los defaults
+            </p>
+          </div>
+          <ChevronDown
+            className={cn(
+              'size-4 text-[hsl(var(--text-muted))] transition-transform',
+              mostrarSunat && 'rotate-180',
+            )}
+          />
+        </button>
+        {mostrarSunat && (
+          <div className="p-6 pt-0 space-y-5 border-t border-[hsl(var(--border))]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-5">
+              <div className="space-y-1.5">
+                <Label htmlFor="unidadMedida">Unidad de medida (SUNAT Cat. 03)</Label>
+                <Select
+                  id="unidadMedida"
+                  value={unidadMedidaCodigo}
+                  onChange={e => setUnidadMedidaCodigo(e.target.value)}
+                  data-testid="select-unidad-medida"
+                >
+                  {unidades?.map(u => (
+                    <option key={u.codigo} value={u.codigo}>
+                      {u.codigo} — {u.nombre}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-[10px] text-[hsl(var(--text-muted))]">
+                  Cómo se contabiliza la cantidad en la factura. Default: NIU (unidad).
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tipoAfectacion">Tipo de afectación IGV (SUNAT Cat. 07)</Label>
+                <Select
+                  id="tipoAfectacion"
+                  value={tipoAfectacionIgv}
+                  onChange={e => setTipoAfectacionIgv(e.target.value)}
+                  data-testid="select-tipo-afectacion"
+                >
+                  {tiposAfectacion?.map(t => (
+                    <option key={t.codigo} value={t.codigo}>
+                      {t.sunatCodigo} — {t.nombre}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-[10px] text-[hsl(var(--text-muted))]">
+                  Define si el producto está gravado, exonerado o inafecto al IGV.
+                </p>
               </div>
             </div>
           </div>
