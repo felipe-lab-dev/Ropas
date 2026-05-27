@@ -17,6 +17,10 @@ import { PageHeader } from '@/components/ui/page-header';
 import { obtener, actualizar, eliminar as eliminarApi, mensajeError } from '@/lib/api/client';
 import { SelectorUbigeo } from '@/components/sunat/selector-ubigeo';
 
+export function generateStaticParams() {
+  return [{ id: '_' }];
+}
+
 const TIPO_DOC = [
   { value: 'dni', label: 'DNI' },
   { value: 'ruc', label: 'RUC' },
