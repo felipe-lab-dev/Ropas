@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -28,6 +28,10 @@ import { FacturacionElectronicaModule } from './modules/facturacion-electronica/
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     LoggerModule.forRoot({
+      // forRoutes explícito para evitar el DEFAULT_ROUTES legacy de nestjs-pino
+      // (`{ path: '*', method: ALL }`) que combinado con setGlobalPrefix('api/v1')
+      // dispara dos warnings de LegacyRouteConverter en cada arranque.
+      forRoutes: [{ path: '*path', method: RequestMethod.ALL }],
       pinoHttp: {
         level: process.env.LOG_LEVEL ?? 'info',
         transport:
