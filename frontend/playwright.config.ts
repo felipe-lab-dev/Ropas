@@ -35,7 +35,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  // Para levantar manualmente: comentá este bloque y arrancá backend+frontend a mano.
+  // Para levantar manualmente: comenta este bloque y arranca backend+frontend a mano.
   // webServer: [
   //   {
   //     command: 'pnpm --dir ../backend dev',

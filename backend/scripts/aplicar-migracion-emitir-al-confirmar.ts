@@ -48,7 +48,7 @@ async function main() {
 
   if (schemasFiltrados.length === 0) {
     console.log(tenantFiltro
-      ? `No se encontró el tenant '${tenantFiltro}'. Verificá el nombre.`
+      ? `No se encontró el tenant '${tenantFiltro}'. Verifica el nombre.`
       : 'No hay tenants.');
     await p.$disconnect();
     return;

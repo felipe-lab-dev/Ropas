@@ -15,7 +15,7 @@ console.log('');
 console.log('FACTURACION_MASTER_KEY=' + clave);
 console.log('');
 console.log('────────────────────────────────────────────────────────────');
-console.log('Copiá la línea de arriba a backend/.env');
+console.log('Copia la línea de arriba a backend/.env');
 console.log('');
 console.log('IMPORTANTE: si ya hay una FACTURACION_MASTER_KEY existente,');
 console.log('NO la reemplaces — los tokens cifrados con la vieja clave');

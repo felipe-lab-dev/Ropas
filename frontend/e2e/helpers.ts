@@ -100,7 +100,7 @@ export async function fillEstable(
   for (let intento = 0; intento < 3; intento++) {
     await loc.fill(''); // limpiar
     await loc.fill(value);
-    // Pequeño settle: dejá que React procese el onChange y settee state
+    // Pequeño settle: deja que React procese el onChange y settee state
     await page.waitForTimeout(120);
     const actual = await loc.inputValue();
     if (actual === value) return; // ✓ persistió

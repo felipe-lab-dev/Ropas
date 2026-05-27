@@ -79,7 +79,7 @@ function useSucursales() {
 // ─── Schema del formulario ────────────────────────────────────────────────────
 
 const schemaNuevaSerie = z.object({
-  sucursalId: z.string().uuid('Seleccioná una sucursal'),
+  sucursalId: z.string().uuid('Selecciona una sucursal'),
   tipoCpe: z.enum([
     'factura',
     'boleta',
@@ -410,8 +410,8 @@ function ModalNuevaSerie({
               <p className="text-xs text-[hsl(var(--brand-danger))]">{errors.correlativoInicial.message}</p>
             )}
             <p className="text-[11px] text-[hsl(var(--text-muted))]">
-              Si estás migrando desde otro sistema y querés continuar la numeración, ingresá el último
-              correlativo emitido. Si arrancás de cero, dejá en 0.
+              Si estás migrando desde otro sistema y quieres continuar la numeración, ingresa el último
+              correlativo emitido. Si arrancas de cero, deja en 0.
             </p>
           </div>
 
@@ -576,7 +576,7 @@ export default function SeriesCpePage() {
             </div>
             <p className="text-base font-semibold mb-1">No hay series configuradas</p>
             <p className="text-sm text-[hsl(var(--text-muted))] mb-4 max-w-xs">
-              Creá al menos una serie por tipo de comprobante para poder emitir facturas electrónicas.
+              Crea al menos una serie por tipo de comprobante para poder emitir facturas electrónicas.
             </p>
             <Button onClick={() => setModalOpen(true)}>
               <Plus className="size-4" />
@@ -618,7 +618,7 @@ export default function SeriesCpePage() {
             <Hash className="size-10 text-[hsl(var(--text-muted))] mb-3" />
             <p className="text-sm font-medium mb-1">Sin series configuradas</p>
             <p className="text-xs text-[hsl(var(--text-muted))] mb-4">
-              Tocá + Nueva serie para empezar.
+              Toca + Nueva serie para empezar.
             </p>
             <Button size="sm" onClick={() => setModalOpen(true)}>
               <Plus className="size-4" />

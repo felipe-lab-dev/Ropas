@@ -144,8 +144,8 @@ export const PLANTILLAS_CUPONES: Record<PlantillaCuponId, PlantillaCupon> = {
     titulo: 'Recompra inteligente',
     tagline: 'Sube el ticket promedio de tus clientes recurrentes',
     copyMarketing:
-      'Identificá clientes que compran chico y empújalos al siguiente nivel. ' +
-      'Monto mínimo alto = forzás a sumar piezas que en frío no comprarían.',
+      'Identifica clientes que compran chico y empújalos al siguiente nivel. ' +
+      'Monto mínimo alto = fuerzas a sumar piezas que en frío no comprarían.',
     diasVigenciaSugeridos: 14,
     config: {
       nombre: 'Llévate más, paga menos',

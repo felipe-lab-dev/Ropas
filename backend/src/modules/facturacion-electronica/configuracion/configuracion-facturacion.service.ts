@@ -61,7 +61,7 @@ export class ConfiguracionFacturacionService {
     if (!config) {
       throw new ErrorNoEncontrado(
         'Tenant no tiene configuración de facturación electrónica. ' +
-          'Configurá RUC, token Mifact y datos fiscales primero.',
+          'Configura RUC, token Mifact y datos fiscales primero.',
       );
     }
 

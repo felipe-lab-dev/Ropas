@@ -39,7 +39,7 @@ const schema = z.object({
   direccionFiscal: z.string().min(1, 'Dirección fiscal requerida').max(240),
   ubigeoFiscalCodigo: z
     .string()
-    .regex(/^\d{6}$/, 'Seleccioná un UBIGEO válido'),
+    .regex(/^\d{6}$/, 'Selecciona un UBIGEO válido'),
   mifactToken: z.string().optional(),
   mifactBaseUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   enviarAutomaticoASunat: z.boolean(),

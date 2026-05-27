@@ -151,7 +151,7 @@ export function SelectorUbigeo({
                 <CommandEmpty>
                   {debouncedBusqueda
                     ? `Sin resultados para "${debouncedBusqueda}"`
-                    : 'Escribí para buscar...'}
+                    : 'Escribe para buscar...'}
                 </CommandEmpty>
               )}
               {!isFetching && resultados.length > 0 && (

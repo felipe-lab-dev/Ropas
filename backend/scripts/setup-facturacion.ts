@@ -16,7 +16,7 @@
  *     --mifact-token "gN8zNRBV+/FVxTLwdaZx0w=="
  *
  * Pre-requisito: tener FACTURACION_MASTER_KEY en .env.
- *   pnpm facturacion:master-key   # genera una nueva si no tenés
+ *   pnpm facturacion:master-key   # genera una nueva si no tienes
  *
  * Flags opcionales:
  *   --nombre-comercial "Empresa Demo"
@@ -112,8 +112,8 @@ if (!/^B\d{3}$/.test(args.serieBoleta)) {
 if (!process.env.FACTURACION_MASTER_KEY) {
   errores.push(
     'FACTURACION_MASTER_KEY no está en .env\n' +
-    '  Ejecutá primero: pnpm facturacion:master-key\n' +
-    '  Luego copiá la línea generada a backend/.env'
+    '  Ejecuta primero: pnpm facturacion:master-key\n' +
+    '  Luego copia la línea generada a backend/.env'
   );
 }
 
@@ -124,7 +124,7 @@ if (errores.length > 0) {
   process.exit(1);
 }
 
-// ─── A partir de acá los args están garantizados ─────────────────────────────
+// ─── A partir de aquí los args están garantizados ─────────────────────────────
 const tenant          = args.tenant!;
 const ruc             = args.ruc!;
 const razonSocial     = args.razonSocial!;
@@ -183,7 +183,7 @@ async function main() {
 
     if (!sucursal) {
       console.error(`✗ No se encontró una sucursal principal en el tenant "${tenant}".`);
-      console.error('  Verificá que el tenant esté correctamente inicializado (seed, crear-tenant).');
+      console.error('  Verifica que el tenant esté correctamente inicializado (seed, crear-tenant).');
       process.exit(1);
     }
 
@@ -238,7 +238,7 @@ async function main() {
       console.log('');
       console.log(`  [DRY-RUN] Smoke test cifrado: ${smokeOk ? '✓ OK' : '✗ FALLÓ — revisar master key'}`);
       console.log('');
-      console.log('[DRY-RUN] Fin de simulación. Corré sin --dry-run para aplicar.');
+      console.log('[DRY-RUN] Fin de simulación. Corre sin --dry-run para aplicar.');
       console.log('');
       return;
     }
@@ -347,7 +347,7 @@ async function main() {
       console.log('✓ Smoke test: token cifrado/descifrado OK');
     } else {
       console.warn(`⚠  Smoke test FALLÓ: ${smokeError}`);
-      console.warn('   Verificá que FACTURACION_MASTER_KEY sea la misma que se usó para cifrar.');
+      console.warn('   Verifica que FACTURACION_MASTER_KEY sea la misma que se usó para cifrar.');
     }
 
     console.log('');

@@ -2,11 +2,11 @@
  * Catálogo SUNAT 03 — Unidades de Medida.
  *
  * El catálogo oficial SUNAT tiene ~400 entradas pero retail/ropa usa ~10.
- * Para añadir una unidad: agregá la entrada acá, redesplegá.
+ * Para añadir una unidad: agrega la entrada aquí, redespliega.
  *
  * Si en el futuro un tenant quiere ocultar unidades de su UI (ej. "yo no
  * vendo nada por KGM"), eso es config per-tenant — vive en Tenant.configCache
- * (Json), no acá.
+ * (Json), no aquí.
  */
 
 export interface UnidadMedidaSunat {

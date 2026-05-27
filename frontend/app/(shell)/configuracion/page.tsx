@@ -82,7 +82,7 @@ export default function ConfiguracionPage() {
     <div className="space-y-6 max-w-3xl">
       <PageHeader
         titulo="Configuración"
-        descripcion="Personalizá la apariencia y los datos del negocio."
+        descripcion="Personaliza la apariencia y los datos del negocio."
       />
 
       <Card>

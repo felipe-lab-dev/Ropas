@@ -128,7 +128,7 @@ async function aplicarDdl(prisma: PrismaClient, _schema: string): Promise<void> 
   const snapshotPath = join(__dirname, '..', 'prisma', 'snapshot', 'schema-tenant.sql');
   if (!existsSync(snapshotPath)) {
     throw new Error(
-      `No existe el snapshot ${snapshotPath}. Corré "pnpm schema:snapshot" primero.`,
+      `No existe el snapshot ${snapshotPath}. Corre "pnpm schema:snapshot" primero.`,
     );
   }
   const sql = readFileSync(snapshotPath, 'utf-8');

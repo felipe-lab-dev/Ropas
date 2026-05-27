@@ -137,7 +137,7 @@ export class DocumentoElectronicoService {
 
     if (!doc) {
       throw new ErrorNoEncontrado(
-        'No hay documento electrónico para esta venta. Usá emitirCpe primero.',
+        'No hay documento electrónico para esta venta. Usa emitirCpe primero.',
       );
     }
 
@@ -149,7 +149,7 @@ export class DocumentoElectronicoService {
     }
     if (doc.estadoSunat === 'en_proceso') {
       throw new ErrorConflicto(
-        'El documento está en proceso en SUNAT. Usá consultarEstadoCpe para refrescar el estado.',
+        'El documento está en proceso en SUNAT. Usa consultarEstadoCpe para refrescar el estado.',
       );
     }
 

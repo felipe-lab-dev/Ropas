@@ -53,7 +53,7 @@ async function main() {
       stocks: { where: { sucursalId: sucursal.id }, select: { disponible: true } },
     },
   });
-  if (variantes.length === 0) throw new Error('No hay variantes en el catálogo. Corré seed-mujer primero.');
+  if (variantes.length === 0) throw new Error('No hay variantes en el catálogo. Corre seed-mujer primero.');
 
   // Filtrar variantes con stock (para no dejar negativo aunque el seed lo permitiría).
   const conStock = variantes.filter(v => (v.stocks[0]?.disponible ?? 0) > 0);
