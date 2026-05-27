@@ -515,7 +515,7 @@ export default function SeriesCpePage() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-6xl">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-[hsl(var(--text-muted))]">
         <span>Configuración</span>

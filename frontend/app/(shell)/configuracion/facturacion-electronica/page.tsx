@@ -265,7 +265,7 @@ function Campo({
 
 function FormSkeleton() {
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4 max-w-5xl">
       {[160, 100, 140, 100, 120].map((w, i) => (
         <Card key={i}>
           <CardHeader>
@@ -368,7 +368,7 @@ export default function ConfiguracionFacturacionPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-6 max-w-5xl">
         <PageHeader
           titulo="Facturación Electrónica"
           descripcion="Configuración SUNAT / Mifact OSE"
@@ -379,7 +379,7 @@ export default function ConfiguracionFacturacionPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-5xl">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-[hsl(var(--text-muted))]">
         <span>Configuración</span>

@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, ShoppingCart, Boxes, Wallet,
   Users, BarChart3, Settings, Building2, ChevronLeft, Sparkles,
-  Receipt, Home, History, Truck, PackageCheck, BookOpen, Tag, RotateCcw, FileText, Hash,
+  Receipt, Home, History, Truck, PackageCheck, BookOpen, Tag, RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useConfigSaas } from '@/lib/store/config-saas';
@@ -76,23 +76,6 @@ const SECCIONES: NavSection[] = [
     items: [
       { label: 'Clientes', href: '/clientes', icon: Users, modulo: 'clientes' },
       { label: 'Sucursales', href: '/sucursales', icon: Building2 },
-    ],
-  },
-  {
-    titulo: 'Configuración',
-    items: [
-      {
-        label: 'Facturación Electrónica',
-        href: '/configuracion/facturacion-electronica',
-        icon: FileText,
-        modulo: 'facturacion-electronica',
-      },
-      {
-        label: 'Series CPE',
-        href: '/configuracion/series-cpe',
-        icon: Hash,
-        modulo: 'facturacion-electronica',
-      },
     ],
   },
 ];

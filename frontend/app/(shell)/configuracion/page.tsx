@@ -79,12 +79,13 @@ export default function ConfiguracionPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <PageHeader
         titulo="Configuración"
         descripcion="Personaliza la apariencia y los datos del negocio."
       />
 
+      <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
       <Card>
         <CardHeader>
           <CardTitle>Apariencia</CardTitle>
@@ -292,6 +293,7 @@ export default function ConfiguracionPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
