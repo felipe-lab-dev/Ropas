@@ -17,6 +17,7 @@ import {
 import { crearResultadoPaginado } from '../../core/responses/respuesta.interceptor';
 import { CrearProductoDto, CrearVarianteDto } from './dto/crear-producto.dto';
 import { ActualizarProductoDto } from './dto/actualizar-producto.dto';
+import { unidadMedidaExiste } from '../../core/sunat/unidades-medida';
 import {
   AgregarVarianteDto,
   ActualizarVarianteDto,
@@ -197,6 +198,12 @@ export class ProductosService {
       throw new ErrorValidacion('Debe incluir al menos una variante');
     }
 
+    if (dto.unidadMedidaCodigo && !unidadMedidaExiste(dto.unidadMedidaCodigo)) {
+      throw new ErrorValidacion(
+        `Unidad de medida "${dto.unidadMedidaCodigo}" no existe en el catálogo SUNAT`,
+      );
+    }
+
     // Validar que no haya pares (talla,color) duplicados en el payload.
     const claves = new Set<string>();
     for (const v of dto.variantes) {
@@ -293,6 +300,8 @@ export class ProductosService {
           precioCompra: dto.precioCompra,
           imagenes: dto.imagenes ?? [],
           tags: dto.tags ?? [],
+          ...(dto.unidadMedidaCodigo !== undefined && { unidadMedidaCodigo: dto.unidadMedidaCodigo }),
+          ...(dto.tipoAfectacionIgv !== undefined && { tipoAfectacionIgv: dto.tipoAfectacionIgv as any }),
         },
       });
 
@@ -389,6 +398,12 @@ export class ProductosService {
       }
     }
 
+    if (dto.unidadMedidaCodigo && !unidadMedidaExiste(dto.unidadMedidaCodigo)) {
+      throw new ErrorValidacion(
+        `Unidad de medida "${dto.unidadMedidaCodigo}" no existe en el catálogo SUNAT`,
+      );
+    }
+
     const data: Prisma.ProductoUpdateInput = {};
     if (dto.codigo !== undefined) data.codigo = dto.codigo?.trim() || null;
     if (dto.nombre !== undefined) data.nombre = dto.nombre.trim();
@@ -406,6 +421,8 @@ export class ProductosService {
     if (dto.imagenes !== undefined) data.imagenes = dto.imagenes;
     if (dto.tags !== undefined) data.tags = dto.tags;
     if (dto.activo !== undefined) data.activo = dto.activo;
+    if (dto.unidadMedidaCodigo !== undefined) data.unidadMedidaCodigo = dto.unidadMedidaCodigo;
+    if (dto.tipoAfectacionIgv !== undefined) data.tipoAfectacionIgv = dto.tipoAfectacionIgv as any;
 
     return cliente.producto.update({
       where: { id },

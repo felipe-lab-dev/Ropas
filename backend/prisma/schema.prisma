@@ -87,10 +87,10 @@ model Usuario {
   actualizadoEn   DateTime  @updatedAt @map("actualizado_en")
   eliminadoEn     DateTime? @map("eliminado_en")
 
-  ventas             Venta[]
-  sesionesCaja       SesionCaja[]
-  movimientosCaja    MovimientoCaja[] @relation("MovimientosCajaCreados")
-  cuponesCreados     Cupon[]          @relation("CuponesCreados")
+  ventas               Venta[]
+  sesionesCaja         SesionCaja[]
+  movimientosCaja      MovimientoCaja[] @relation("MovimientosCajaCreados")
+  cuponesCreados       Cupon[]          @relation("CuponesCreados")
   notasCreditoEmitidas NotaCredito[]
 
   @@index([eliminadoEn])
@@ -107,28 +107,32 @@ model Rol {
   actualizadoEn DateTime  @updatedAt @map("actualizado_en")
   eliminadoEn   DateTime? @map("eliminado_en")
 
-  usuarios      Usuario[]
+  usuarios Usuario[]
 
   @@map("roles")
 }
 
 model Sucursal {
-  id            String    @id @default(uuid()) @db.Uuid
-  codigo        String    @unique @db.VarChar(20)
-  nombre        String    @db.VarChar(120)
-  direccion     String?   @db.VarChar(240)
-  telefono      String?   @db.VarChar(40)
-  esPrincipal   Boolean   @default(false) @map("es_principal")
-  activa        Boolean   @default(true)
-  creadoEn      DateTime  @default(now()) @map("creado_en")
-  actualizadoEn DateTime  @updatedAt @map("actualizado_en")
-  eliminadoEn   DateTime? @map("eliminado_en")
+  id               String    @id @default(uuid()) @db.Uuid
+  codigo           String    @unique @db.VarChar(20)
+  nombre           String    @db.VarChar(120)
+  direccion        String?   @db.VarChar(240)
+  direccionFiscal  String?   @map("direccion_fiscal") @db.VarChar(240)
+  ubigeoCodigo     String?   @map("ubigeo_codigo") @db.VarChar(6)
+  codigoAnexoSunat String    @default("0000") @map("codigo_anexo_sunat") @db.VarChar(4)
+  telefono         String?   @db.VarChar(40)
+  esPrincipal      Boolean   @default(false) @map("es_principal")
+  activa           Boolean   @default(true)
+  creadoEn         DateTime  @default(now()) @map("creado_en")
+  actualizadoEn    DateTime  @updatedAt @map("actualizado_en")
+  eliminadoEn      DateTime? @map("eliminado_en")
 
-  inventarios   StockSucursal[]
-  ventas        Venta[]
-  sesionesCaja  SesionCaja[]
-  compras       Compra[]
-  notasCredito  NotaCredito[]
+  inventarios  StockSucursal[]
+  ventas       Venta[]
+  sesionesCaja SesionCaja[]
+  compras      Compra[]
+  notasCredito NotaCredito[]
+  seriesCpe    SerieCpe[]
 
   @@map("sucursales")
 }
@@ -146,20 +150,20 @@ model Categoria {
   actualizadoEn DateTime    @updatedAt @map("actualizado_en")
   eliminadoEn   DateTime?   @map("eliminado_en")
 
-  productos     Producto[]
+  productos Producto[]
 
   @@map("categorias")
 }
 
 model Marca {
-  id            String     @id @default(uuid()) @db.Uuid
-  nombre        String     @unique @db.VarChar(80)
-  logoUrl       String?    @map("logo_url") @db.VarChar(240)
-  creadoEn      DateTime   @default(now()) @map("creado_en")
-  actualizadoEn DateTime   @updatedAt @map("actualizado_en")
-  eliminadoEn   DateTime?  @map("eliminado_en")
+  id            String    @id @default(uuid()) @db.Uuid
+  nombre        String    @unique @db.VarChar(80)
+  logoUrl       String?   @map("logo_url") @db.VarChar(240)
+  creadoEn      DateTime  @default(now()) @map("creado_en")
+  actualizadoEn DateTime  @updatedAt @map("actualizado_en")
+  eliminadoEn   DateTime? @map("eliminado_en")
 
-  productos     Producto[]
+  productos Producto[]
 
   @@map("marcas")
 }
@@ -195,32 +199,34 @@ enum Temporada {
 }
 
 model Producto {
-  id            String     @id @default(uuid()) @db.Uuid
-  sku           String     @unique @db.VarChar(40)
-  codigo        String?    @unique @db.VarChar(40)
-  nombre        String     @db.VarChar(160)
-  descripcion   String?    @db.Text
-  categoriaId   String     @map("categoria_id") @db.Uuid
-  categoria     Categoria  @relation(fields: [categoriaId], references: [id])
-  marcaId       String?    @map("marca_id") @db.Uuid
-  marca         Marca?     @relation(fields: [marcaId], references: [id])
-  genero        Genero     @default(unisex)
-  temporada     Temporada  @default(todo_el_anio)
-  material      String?    @db.VarChar(120)
-  cuidado       String?    @db.VarChar(240)
-  precioVenta   Decimal    @map("precio_venta") @db.Decimal(12, 2)
-  precioCompra  Decimal?   @map("precio_compra") @db.Decimal(12, 2)
-  imagenes      String[]   @default([])
-  tags          String[]   @default([])
-  activo        Boolean    @default(true)
-  clasificacion       ClasificacionAbc? @map("clasificacion")
-  clasificacionScore  Decimal?          @map("clasificacion_score") @db.Decimal(12, 4)
-  clasificadoEn       DateTime?         @map("clasificado_en")
-  creadoEn      DateTime   @default(now()) @map("creado_en")
-  actualizadoEn DateTime   @updatedAt @map("actualizado_en")
-  eliminadoEn   DateTime?  @map("eliminado_en")
+  id                 String            @id @default(uuid()) @db.Uuid
+  sku                String            @unique @db.VarChar(40)
+  codigo             String?           @unique @db.VarChar(40)
+  nombre             String            @db.VarChar(160)
+  descripcion        String?           @db.Text
+  categoriaId        String            @map("categoria_id") @db.Uuid
+  categoria          Categoria         @relation(fields: [categoriaId], references: [id])
+  marcaId            String?           @map("marca_id") @db.Uuid
+  marca              Marca?            @relation(fields: [marcaId], references: [id])
+  genero             Genero            @default(unisex)
+  temporada          Temporada         @default(todo_el_anio)
+  material           String?           @db.VarChar(120)
+  cuidado            String?           @db.VarChar(240)
+  precioVenta        Decimal           @map("precio_venta") @db.Decimal(12, 2)
+  precioCompra       Decimal?          @map("precio_compra") @db.Decimal(12, 2)
+  unidadMedidaCodigo String?           @default("NIU") @map("unidad_medida_codigo") @db.VarChar(10)
+  tipoAfectacionIgv  TipoAfectacionIgv @default(gravado_onerosa) @map("tipo_afectacion_igv")
+  imagenes           String[]          @default([])
+  tags               String[]          @default([])
+  activo             Boolean           @default(true)
+  clasificacion      ClasificacionAbc? @map("clasificacion")
+  clasificacionScore Decimal?          @map("clasificacion_score") @db.Decimal(12, 4)
+  clasificadoEn      DateTime?         @map("clasificado_en")
+  creadoEn           DateTime          @default(now()) @map("creado_en")
+  actualizadoEn      DateTime          @updatedAt @map("actualizado_en")
+  eliminadoEn        DateTime?         @map("eliminado_en")
 
-  variantes     Variante[]
+  variantes Variante[]
 
   @@index([eliminadoEn])
   @@index([categoriaId])
@@ -244,10 +250,10 @@ model Variante {
   actualizadoEn DateTime  @updatedAt @map("actualizado_en")
   eliminadoEn   DateTime? @map("eliminado_en")
 
-  stocks        StockSucursal[]
-  movimientos   MovimientoStock[]
-  ventaItems    VentaItem[]
-  compraItems   CompraItem[]
+  stocks            StockSucursal[]
+  movimientos       MovimientoStock[]
+  ventaItems        VentaItem[]
+  compraItems       CompraItem[]
   notasCreditoItems NotaCreditoItem[]
 
   @@unique([productoId, talla, color])
@@ -308,40 +314,40 @@ model MovimientoStock {
 }
 
 enum TipoDocumento {
-  dni
-  ruc
-  cpf
-  cnpj
-  pasaporte
-  otro
+  dni // SUNAT 1
+  carne_extranjeria // SUNAT 4
+  ruc // SUNAT 6
+  pasaporte // SUNAT 7
+  otro // SUNAT 0
 
   @@map("tipo_documento")
 }
 
 model Cliente {
-  id                  String            @id @default(uuid()) @db.Uuid
-  tipoDocumento       TipoDocumento     @default(cpf) @map("tipo_documento")
-  documento           String?           @db.VarChar(20)
-  nombre              String            @db.VarChar(160)
-  email               String?           @db.VarChar(160)
-  telefono            String?           @db.VarChar(40)
-  direccion           String?           @db.VarChar(240)
-  ciudad              String?           @db.VarChar(120)
-  fechaNacimiento     DateTime?         @map("fecha_nacimiento") @db.Date
-  notas               String?           @db.Text
-  totalCompras        Decimal           @default(0) @map("total_compras") @db.Decimal(12, 2)
-  ultimaCompraEn      DateTime?         @map("ultima_compra_en")
-  tags                String[]          @default([])
-  clasificacion       ClasificacionAbc?
-  clasificacionScore  Decimal?          @map("clasificacion_score") @db.Decimal(12, 4)
-  clasificadoEn       DateTime?         @map("clasificado_en")
-  creadoEn            DateTime          @default(now()) @map("creado_en")
-  actualizadoEn       DateTime          @updatedAt @map("actualizado_en")
-  eliminadoEn         DateTime?         @map("eliminado_en")
+  id                 String            @id @default(uuid()) @db.Uuid
+  tipoDocumento      TipoDocumento     @default(dni) @map("tipo_documento")
+  documento          String?           @db.VarChar(20)
+  nombre             String            @db.VarChar(160)
+  email              String?           @db.VarChar(160)
+  telefono           String?           @db.VarChar(40)
+  direccion          String?           @db.VarChar(240)
+  ciudad             String?           @db.VarChar(120)
+  ubigeoCodigo       String?           @map("ubigeo_codigo") @db.VarChar(6)
+  fechaNacimiento    DateTime?         @map("fecha_nacimiento") @db.Date
+  notas              String?           @db.Text
+  totalCompras       Decimal           @default(0) @map("total_compras") @db.Decimal(12, 2)
+  ultimaCompraEn     DateTime?         @map("ultima_compra_en")
+  tags               String[]          @default([])
+  clasificacion      ClasificacionAbc?
+  clasificacionScore Decimal?          @map("clasificacion_score") @db.Decimal(12, 4)
+  clasificadoEn      DateTime?         @map("clasificado_en")
+  creadoEn           DateTime          @default(now()) @map("creado_en")
+  actualizadoEn      DateTime          @updatedAt @map("actualizado_en")
+  eliminadoEn        DateTime?         @map("eliminado_en")
 
-  ventas              Venta[]
-  cuponesUsos         CuponUso[]
-  notasCredito        NotaCredito[]
+  ventas       Venta[]
+  cuponesUsos  CuponUso[]
+  notasCredito NotaCredito[]
 
   @@unique([tipoDocumento, documento])
   @@index([eliminadoEn])
@@ -373,38 +379,48 @@ enum MedioPago {
 }
 
 model Venta {
-  id              String      @id @default(uuid()) @db.Uuid
-  numero          String      @unique @db.VarChar(20)
-  sucursalId      String      @map("sucursal_id") @db.Uuid
-  sucursal        Sucursal    @relation(fields: [sucursalId], references: [id])
-  clienteId       String?     @map("cliente_id") @db.Uuid
-  cliente         Cliente?    @relation(fields: [clienteId], references: [id])
-  vendedorId      String      @map("vendedor_id") @db.Uuid
-  vendedor        Usuario     @relation(fields: [vendedorId], references: [id])
-  estado          EstadoVenta @default(confirmada)
-  subtotal        Decimal     @db.Decimal(12, 2)
-  descuento       Decimal     @default(0) @db.Decimal(12, 2)
-  descuentoCupon  Decimal     @default(0) @map("descuento_cupon") @db.Decimal(12, 2)
-  cuponId         String?     @map("cupon_id") @db.Uuid
-  cupon           Cupon?      @relation(fields: [cuponId], references: [id])
-  cuponCodigo     String?     @map("cupon_codigo") @db.VarChar(40)
-  impuestos       Decimal     @default(0) @db.Decimal(12, 2)
-  total           Decimal     @db.Decimal(12, 2)
-  totalPagado     Decimal     @default(0) @map("total_pagado") @db.Decimal(12, 2)
-  notas           String?     @db.Text
-  sesionCajaId    String?     @map("sesion_caja_id") @db.Uuid
-  sesionCaja      SesionCaja? @relation(fields: [sesionCajaId], references: [id])
-  anuladaEn       DateTime?   @map("anulada_en")
-  motivoAnulacion String?     @map("motivo_anulacion") @db.Text
-  creadoEn        DateTime    @default(now()) @map("creado_en")
-  actualizadoEn   DateTime    @updatedAt @map("actualizado_en")
-  eliminadoEn     DateTime?   @map("eliminado_en")
+  id                       String      @id @default(uuid()) @db.Uuid
+  numero                   String      @unique @db.VarChar(20)
+  sucursalId               String      @map("sucursal_id") @db.Uuid
+  sucursal                 Sucursal    @relation(fields: [sucursalId], references: [id])
+  clienteId                String?     @map("cliente_id") @db.Uuid
+  cliente                  Cliente?    @relation(fields: [clienteId], references: [id])
+  vendedorId               String      @map("vendedor_id") @db.Uuid
+  vendedor                 Usuario     @relation(fields: [vendedorId], references: [id])
+  estado                   EstadoVenta @default(confirmada)
+  subtotal                 Decimal     @db.Decimal(12, 2)
+  descuento                Decimal     @default(0) @db.Decimal(12, 2)
+  descuentoCupon           Decimal     @default(0) @map("descuento_cupon") @db.Decimal(12, 2)
+  cuponId                  String?     @map("cupon_id") @db.Uuid
+  cupon                    Cupon?      @relation(fields: [cuponId], references: [id])
+  cuponCodigo              String?     @map("cupon_codigo") @db.VarChar(40)
+  impuestos                Decimal     @default(0) @db.Decimal(12, 2)
+  total                    Decimal     @db.Decimal(12, 2)
+  totalPagado              Decimal     @default(0) @map("total_pagado") @db.Decimal(12, 2)
+  notas                    String?     @db.Text
+  sesionCajaId             String?     @map("sesion_caja_id") @db.Uuid
+  sesionCaja               SesionCaja? @relation(fields: [sesionCajaId], references: [id])
+  tipoCpe                  TipoCpe?    @map("tipo_cpe")
+  serieCpeId               String?     @map("serie_cpe_id") @db.Uuid
+  serieCpe                 SerieCpe?   @relation(fields: [serieCpeId], references: [id])
+  correlativo              String?     @db.VarChar(8)
+  moneda                   String      @default("PEN") @db.VarChar(3)
+  tipoCambio               Decimal     @default(1) @map("tipo_cambio") @db.Decimal(10, 4)
+  fechaVencimiento         DateTime?   @map("fecha_vencimiento") @db.Date
+  codigoTipoOperacionSunat String      @default("0101") @map("codigo_tipo_operacion_sunat") @db.VarChar(4)
+  anuladaEn                DateTime?   @map("anulada_en")
+  motivoAnulacion          String?     @map("motivo_anulacion") @db.Text
+  creadoEn                 DateTime    @default(now()) @map("creado_en")
+  actualizadoEn            DateTime    @updatedAt @map("actualizado_en")
+  eliminadoEn              DateTime?   @map("eliminado_en")
 
-  items           VentaItem[]
-  pagos           VentaPago[]
-  cuponUso        CuponUso?
-  notasCredito    NotaCredito[]
+  items                VentaItem[]
+  pagos                VentaPago[]
+  cuponUso             CuponUso?
+  notasCredito         NotaCredito[]
+  documentoElectronico DocumentoElectronico?
 
+  @@unique([tipoCpe, serieCpeId, correlativo])
   @@index([sucursalId, creadoEn])
   @@index([clienteId])
   @@index([cuponId])
@@ -438,28 +454,37 @@ enum EstadoNotaCredito {
 }
 
 model NotaCredito {
-  id              String            @id @default(uuid()) @db.Uuid
-  numero          String            @unique @db.VarChar(20)
-  ventaId         String            @map("venta_id") @db.Uuid
-  venta           Venta             @relation(fields: [ventaId], references: [id])
-  sucursalId      String            @map("sucursal_id") @db.Uuid
-  sucursal        Sucursal          @relation(fields: [sucursalId], references: [id])
-  clienteId       String?           @map("cliente_id") @db.Uuid
-  cliente         Cliente?          @relation(fields: [clienteId], references: [id])
-  emitidaPorId    String            @map("emitida_por_id") @db.Uuid
-  emitidaPor      Usuario           @relation(fields: [emitidaPorId], references: [id])
-  estado          EstadoNotaCredito @default(emitida)
-  motivo          String            @db.Text
-  subtotal        Decimal           @db.Decimal(12, 2)
-  total           Decimal           @db.Decimal(12, 2)
-  restituyeStock  Boolean           @default(true) @map("restituye_stock")
-  anuladaEn       DateTime?         @map("anulada_en")
-  motivoAnulacion String?           @map("motivo_anulacion") @db.Text
-  creadoEn        DateTime          @default(now()) @map("creado_en")
-  actualizadoEn   DateTime          @updatedAt @map("actualizado_en")
-  eliminadoEn     DateTime?         @map("eliminado_en")
+  id                     String            @id @default(uuid()) @db.Uuid
+  numero                 String            @unique @db.VarChar(20)
+  ventaId                String            @map("venta_id") @db.Uuid
+  venta                  Venta             @relation(fields: [ventaId], references: [id])
+  sucursalId             String            @map("sucursal_id") @db.Uuid
+  sucursal               Sucursal          @relation(fields: [sucursalId], references: [id])
+  clienteId              String?           @map("cliente_id") @db.Uuid
+  cliente                Cliente?          @relation(fields: [clienteId], references: [id])
+  emitidaPorId           String            @map("emitida_por_id") @db.Uuid
+  emitidaPor             Usuario           @relation(fields: [emitidaPorId], references: [id])
+  estado                 EstadoNotaCredito @default(emitida)
+  motivo                 String            @db.Text
+  codigoTipoNc           TipoNotaCredito   @default(devolucion_total) @map("codigo_tipo_nc")
+  tipoCpeOriginal        TipoCpe?          @map("tipo_cpe_original")
+  serieCpeOriginal       String?           @map("serie_cpe_original") @db.VarChar(4)
+  correlativoCpeOriginal String?           @map("correlativo_cpe_original") @db.VarChar(8)
+  tipoCpe                TipoCpe?          @map("tipo_cpe")
+  serieCpeId             String?           @map("serie_cpe_id") @db.Uuid
+  serieCpe               SerieCpe?         @relation(fields: [serieCpeId], references: [id])
+  correlativo            String?           @db.VarChar(8)
+  subtotal               Decimal           @db.Decimal(12, 2)
+  total                  Decimal           @db.Decimal(12, 2)
+  restituyeStock         Boolean           @default(true) @map("restituye_stock")
+  anuladaEn              DateTime?         @map("anulada_en")
+  motivoAnulacion        String?           @map("motivo_anulacion") @db.Text
+  creadoEn               DateTime          @default(now()) @map("creado_en")
+  actualizadoEn          DateTime          @updatedAt @map("actualizado_en")
+  eliminadoEn            DateTime?         @map("eliminado_en")
 
-  items           NotaCreditoItem[]
+  items                NotaCreditoItem[]
+  documentoElectronico DocumentoElectronico?
 
   @@index([ventaId])
   @@index([clienteId])
@@ -507,23 +532,23 @@ enum EstadoSesionCaja {
 }
 
 model SesionCaja {
-  id             String           @id @default(uuid()) @db.Uuid
-  sucursalId     String           @map("sucursal_id") @db.Uuid
-  sucursal       Sucursal         @relation(fields: [sucursalId], references: [id])
-  cajeroId       String           @map("cajero_id") @db.Uuid
-  cajero         Usuario          @relation(fields: [cajeroId], references: [id])
-  estado         EstadoSesionCaja @default(abierta)
-  montoApertura  Decimal          @map("monto_apertura") @db.Decimal(12, 2)
-  montoCierre    Decimal?         @map("monto_cierre") @db.Decimal(12, 2)
-  montoEsperado  Decimal?         @map("monto_esperado") @db.Decimal(12, 2)
-  diferencia     Decimal?         @db.Decimal(12, 2)
-  notasApertura  String?          @map("notas_apertura") @db.Text
-  notasCierre    String?          @map("notas_cierre") @db.Text
-  abiertaEn      DateTime         @default(now()) @map("abierta_en")
-  cerradaEn      DateTime?        @map("cerrada_en")
+  id            String           @id @default(uuid()) @db.Uuid
+  sucursalId    String           @map("sucursal_id") @db.Uuid
+  sucursal      Sucursal         @relation(fields: [sucursalId], references: [id])
+  cajeroId      String           @map("cajero_id") @db.Uuid
+  cajero        Usuario          @relation(fields: [cajeroId], references: [id])
+  estado        EstadoSesionCaja @default(abierta)
+  montoApertura Decimal          @map("monto_apertura") @db.Decimal(12, 2)
+  montoCierre   Decimal?         @map("monto_cierre") @db.Decimal(12, 2)
+  montoEsperado Decimal?         @map("monto_esperado") @db.Decimal(12, 2)
+  diferencia    Decimal?         @db.Decimal(12, 2)
+  notasApertura String?          @map("notas_apertura") @db.Text
+  notasCierre   String?          @map("notas_cierre") @db.Text
+  abiertaEn     DateTime         @default(now()) @map("abierta_en")
+  cerradaEn     DateTime?        @map("cerrada_en")
 
-  ventas         Venta[]
-  movimientos    MovimientoCaja[]
+  ventas      Venta[]
+  movimientos MovimientoCaja[]
 
   @@index([sucursalId, abiertaEn])
   @@map("sesiones_caja")
@@ -539,19 +564,19 @@ enum TipoMovimientoCaja {
 }
 
 model MovimientoCaja {
-  id            String             @id @default(uuid()) @db.Uuid
-  sesionId      String             @map("sesion_id") @db.Uuid
-  sesion        SesionCaja         @relation(fields: [sesionId], references: [id])
-  tipo          TipoMovimientoCaja
-  medio         MedioPago          @default(efectivo)
-  monto         Decimal            @db.Decimal(12, 2)
-  motivo        String             @db.VarChar(240)
-  comprobante   String?            @db.VarChar(60)
-  contraparte   String?            @db.VarChar(180)
-  creadoPorId   String?            @map("creado_por_id") @db.Uuid
-  creadoPor     Usuario?           @relation("MovimientosCajaCreados", fields: [creadoPorId], references: [id])
-  creadoEn      DateTime           @default(now()) @map("creado_en")
-  eliminadoEn   DateTime?          @map("eliminado_en")
+  id          String             @id @default(uuid()) @db.Uuid
+  sesionId    String             @map("sesion_id") @db.Uuid
+  sesion      SesionCaja         @relation(fields: [sesionId], references: [id])
+  tipo        TipoMovimientoCaja
+  medio       MedioPago          @default(efectivo)
+  monto       Decimal            @db.Decimal(12, 2)
+  motivo      String             @db.VarChar(240)
+  comprobante String?            @db.VarChar(60)
+  contraparte String?            @db.VarChar(180)
+  creadoPorId String?            @map("creado_por_id") @db.Uuid
+  creadoPor   Usuario?           @relation("MovimientosCajaCreados", fields: [creadoPorId], references: [id])
+  creadoEn    DateTime           @default(now()) @map("creado_en")
+  eliminadoEn DateTime?          @map("eliminado_en")
 
   @@index([sesionId, creadoEn])
   @@index([sesionId, tipo])
@@ -638,7 +663,7 @@ model Proveedor {
   actualizadoEn   DateTime      @updatedAt @map("actualizado_en")
   eliminadoEn     DateTime?     @map("eliminado_en")
 
-  compras         Compra[]
+  compras Compra[]
 
   @@unique([tipoDocumento, documento])
   @@index([eliminadoEn])
@@ -677,8 +702,8 @@ model Compra {
   actualizadoEn     DateTime              @updatedAt @map("actualizado_en")
   eliminadoEn       DateTime?             @map("eliminado_en")
 
-  items             CompraItem[]
-  pagos             PagoCompra[]
+  items CompraItem[]
+  pagos PagoCompra[]
 
   @@unique([proveedorId, tipoComprobante, serie, numeroComprobante])
   @@index([sucursalId, fechaEmision])
@@ -704,18 +729,18 @@ model CompraItem {
 }
 
 model PagoCompra {
-  id            String     @id @default(uuid()) @db.Uuid
-  compraId      String     @map("compra_id") @db.Uuid
-  compra        Compra     @relation(fields: [compraId], references: [id], onDelete: Cascade)
-  medio         MedioPago
-  monto         Decimal    @db.Decimal(14, 2)
-  referencia    String?    @db.VarChar(120)
-  fechaPago     DateTime   @map("fecha_pago") @db.Date
-  sesionCajaId  String?    @map("sesion_caja_id") @db.Uuid
-  usuarioId     String     @map("usuario_id") @db.Uuid
-  notas         String?    @db.Text
-  creadoEn      DateTime   @default(now()) @map("creado_en")
-  eliminadoEn   DateTime?  @map("eliminado_en")
+  id           String    @id @default(uuid()) @db.Uuid
+  compraId     String    @map("compra_id") @db.Uuid
+  compra       Compra    @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  medio        MedioPago
+  monto        Decimal   @db.Decimal(14, 2)
+  referencia   String?   @db.VarChar(120)
+  fechaPago    DateTime  @map("fecha_pago") @db.Date
+  sesionCajaId String?   @map("sesion_caja_id") @db.Uuid
+  usuarioId    String    @map("usuario_id") @db.Uuid
+  notas        String?   @db.Text
+  creadoEn     DateTime  @default(now()) @map("creado_en")
+  eliminadoEn  DateTime? @map("eliminado_en")
 
   @@index([compraId])
   @@map("pagos_compra")
@@ -794,7 +819,7 @@ model PlanCuenta {
   creadoEn         DateTime         @default(now()) @map("creado_en")
   actualizadoEn    DateTime         @updatedAt @map("actualizado_en")
 
-  detalles         AsientoDetalle[]
+  detalles AsientoDetalle[]
 
   @@index([padreCodigo])
   @@index([tipo])
@@ -802,15 +827,15 @@ model PlanCuenta {
 }
 
 model PeriodoContable {
-  id            String        @id @default(uuid()) @db.Uuid
-  anio          Int
-  mes           Int
-  estado        EstadoPeriodo @default(abierto)
-  cerradoEn     DateTime?     @map("cerrado_en")
-  cerradoPorId  String?       @map("cerrado_por_id") @db.Uuid
-  creadoEn      DateTime      @default(now()) @map("creado_en")
+  id           String        @id @default(uuid()) @db.Uuid
+  anio         Int
+  mes          Int
+  estado       EstadoPeriodo @default(abierto)
+  cerradoEn    DateTime?     @map("cerrado_en")
+  cerradoPorId String?       @map("cerrado_por_id") @db.Uuid
+  creadoEn     DateTime      @default(now()) @map("creado_en")
 
-  asientos      AsientoContable[]
+  asientos AsientoContable[]
 
   @@unique([anio, mes])
   @@map("periodos_contables")
@@ -836,7 +861,7 @@ model AsientoContable {
   creadoEn      DateTime           @default(now()) @map("creado_en")
   actualizadoEn DateTime           @updatedAt @map("actualizado_en")
 
-  detalles      AsientoDetalle[]
+  detalles AsientoDetalle[]
 
   @@index([periodoId, fecha])
   @@index([origenTipo, origenId])
@@ -903,39 +928,39 @@ enum AplicableACupon {
 }
 
 model Cupon {
-  id                      String              @id @default(uuid()) @db.Uuid
-  codigo                  String              @unique @db.VarChar(40)
-  nombre                  String              @db.VarChar(160)
-  descripcion             String?             @db.Text
-  tipoDescuento           TipoDescuentoCupon  @map("tipo_descuento")
-  valorDescuento          Decimal             @map("valor_descuento") @db.Decimal(12, 2)
-  montoMinimoCompra       Decimal?            @map("monto_minimo_compra") @db.Decimal(12, 2)
-  descuentoMaximo         Decimal?            @map("descuento_maximo") @db.Decimal(12, 2)
-  fechaInicio             DateTime            @map("fecha_inicio")
-  fechaFin                DateTime            @map("fecha_fin")
-  usosMaximosTotal        Int?                @map("usos_maximos_total")
-  usosMaximosPorCliente   Int                 @default(1) @map("usos_maximos_por_cliente")
-  segmento                SegmentoCupon       @default(todos)
-  clientesElegiblesIds    String[]            @default([]) @map("clientes_elegibles_ids") @db.Uuid
-  aplicableA              AplicableACupon     @default(toda_compra) @map("aplicable_a")
-  categoriasAplicablesIds String[]            @default([]) @map("categorias_aplicables_ids") @db.Uuid
-  productosAplicablesIds  String[]            @default([]) @map("productos_aplicables_ids") @db.Uuid
-  campania                String?             @db.VarChar(120)
-  plantilla               String?             @db.VarChar(60)
-  estado                  EstadoCupon         @default(activo)
-  pausadoEn               DateTime?           @map("pausado_en")
-  disenoColorPrimario     String              @default("#7c3aed") @map("diseno_color_primario") @db.VarChar(9)
-  disenoColorSecundario   String              @default("#1e1b4b") @map("diseno_color_secundario") @db.VarChar(9)
-  disenoMensaje           String?             @map("diseno_mensaje") @db.VarChar(240)
-  disenoEmoji             String?             @map("diseno_emoji") @db.VarChar(8)
-  creadoPorId             String?             @map("creado_por_id") @db.Uuid
-  creadoPor               Usuario?            @relation("CuponesCreados", fields: [creadoPorId], references: [id])
-  creadoEn                DateTime            @default(now()) @map("creado_en")
-  actualizadoEn           DateTime            @updatedAt @map("actualizado_en")
-  eliminadoEn             DateTime?           @map("eliminado_en")
+  id                      String             @id @default(uuid()) @db.Uuid
+  codigo                  String             @unique @db.VarChar(40)
+  nombre                  String             @db.VarChar(160)
+  descripcion             String?            @db.Text
+  tipoDescuento           TipoDescuentoCupon @map("tipo_descuento")
+  valorDescuento          Decimal            @map("valor_descuento") @db.Decimal(12, 2)
+  montoMinimoCompra       Decimal?           @map("monto_minimo_compra") @db.Decimal(12, 2)
+  descuentoMaximo         Decimal?           @map("descuento_maximo") @db.Decimal(12, 2)
+  fechaInicio             DateTime           @map("fecha_inicio")
+  fechaFin                DateTime           @map("fecha_fin")
+  usosMaximosTotal        Int?               @map("usos_maximos_total")
+  usosMaximosPorCliente   Int                @default(1) @map("usos_maximos_por_cliente")
+  segmento                SegmentoCupon      @default(todos)
+  clientesElegiblesIds    String[]           @default([]) @map("clientes_elegibles_ids") @db.Uuid
+  aplicableA              AplicableACupon    @default(toda_compra) @map("aplicable_a")
+  categoriasAplicablesIds String[]           @default([]) @map("categorias_aplicables_ids") @db.Uuid
+  productosAplicablesIds  String[]           @default([]) @map("productos_aplicables_ids") @db.Uuid
+  campania                String?            @db.VarChar(120)
+  plantilla               String?            @db.VarChar(60)
+  estado                  EstadoCupon        @default(activo)
+  pausadoEn               DateTime?          @map("pausado_en")
+  disenoColorPrimario     String             @default("#7c3aed") @map("diseno_color_primario") @db.VarChar(9)
+  disenoColorSecundario   String             @default("#1e1b4b") @map("diseno_color_secundario") @db.VarChar(9)
+  disenoMensaje           String?            @map("diseno_mensaje") @db.VarChar(240)
+  disenoEmoji             String?            @map("diseno_emoji") @db.VarChar(8)
+  creadoPorId             String?            @map("creado_por_id") @db.Uuid
+  creadoPor               Usuario?           @relation("CuponesCreados", fields: [creadoPorId], references: [id])
+  creadoEn                DateTime           @default(now()) @map("creado_en")
+  actualizadoEn           DateTime           @updatedAt @map("actualizado_en")
+  eliminadoEn             DateTime?          @map("eliminado_en")
 
-  usos                    CuponUso[]
-  ventas                  Venta[]
+  usos   CuponUso[]
+  ventas Venta[]
 
   @@index([codigo])
   @@index([estado, fechaFin])
@@ -944,18 +969,168 @@ model Cupon {
 }
 
 model CuponUso {
-  id              String   @id @default(uuid()) @db.Uuid
-  cuponId         String   @map("cupon_id") @db.Uuid
-  cupon           Cupon    @relation(fields: [cuponId], references: [id], onDelete: Cascade)
-  clienteId       String?  @map("cliente_id") @db.Uuid
-  cliente         Cliente? @relation(fields: [clienteId], references: [id])
-  ventaId         String   @unique @map("venta_id") @db.Uuid
-  venta           Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
-  montoDescuento  Decimal  @map("monto_descuento") @db.Decimal(12, 2)
-  montoVenta      Decimal  @map("monto_venta") @db.Decimal(12, 2)
-  aplicadoEn      DateTime @default(now()) @map("aplicado_en")
+  id             String   @id @default(uuid()) @db.Uuid
+  cuponId        String   @map("cupon_id") @db.Uuid
+  cupon          Cupon    @relation(fields: [cuponId], references: [id], onDelete: Cascade)
+  clienteId      String?  @map("cliente_id") @db.Uuid
+  cliente        Cliente? @relation(fields: [clienteId], references: [id])
+  ventaId        String   @unique @map("venta_id") @db.Uuid
+  venta          Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  montoDescuento Decimal  @map("monto_descuento") @db.Decimal(12, 2)
+  montoVenta     Decimal  @map("monto_venta") @db.Decimal(12, 2)
+  aplicadoEn     DateTime @default(now()) @map("aplicado_en")
 
   @@index([cuponId, aplicadoEn])
   @@index([clienteId])
   @@map("cupones_usos")
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// FACTURACIÓN ELECTRÓNICA SUNAT — Mifact OSE
+// Catálogos, series, documentos electrónicos y configuración del emisor.
+// Estos modelos viven en el schema del tenant (tenant_<code>).
+// ─────────────────────────────────────────────────────────────────────
+
+enum TipoCpe {
+  factura // SUNAT 01
+  boleta // SUNAT 03
+  nota_credito // SUNAT 07
+  nota_debito // SUNAT 08
+  guia_remitente // SUNAT 09
+  guia_transportista // SUNAT 31
+
+  @@map("tipo_cpe")
+}
+
+enum TipoAfectacionIgv {
+  gravado_onerosa // SUNAT 10
+  gravado_retiro_premio // SUNAT 11
+  gravado_retiro_donacion // SUNAT 12
+  gravado_retiro // SUNAT 13
+  gravado_retiro_publicidad // SUNAT 14
+  gravado_bonificaciones // SUNAT 15
+  gravado_retiro_trabajadores // SUNAT 16
+  gravado_ivap // SUNAT 17
+  exonerado_onerosa // SUNAT 20
+  exonerado_transferencia_gratuita // SUNAT 21
+  inafecto_onerosa // SUNAT 30
+  inafecto_retiro_bonificacion // SUNAT 31
+  inafecto_retiro // SUNAT 32
+  inafecto_retiro_muestras // SUNAT 33
+  inafecto_retiro_convenio // SUNAT 34
+  inafecto_retiro_premio // SUNAT 35
+  inafecto_retiro_publicidad // SUNAT 36
+  inafecto_transf_gratuita_no_grav // SUNAT 37
+  exportacion // SUNAT 40
+
+  @@map("tipo_afectacion_igv")
+}
+
+enum TipoNotaCredito {
+  anulacion_operacion // SUNAT 01
+  anulacion_error_ruc // SUNAT 02
+  correccion_descripcion // SUNAT 03
+  descuento_global // SUNAT 04
+  descuento_item // SUNAT 05
+  devolucion_total // SUNAT 06
+  devolucion_item // SUNAT 07
+  bonificacion // SUNAT 08
+  disminucion_valor // SUNAT 09
+  otros_conceptos // SUNAT 10
+  ajustes_exportacion // SUNAT 11
+  ajustes_montos_fechas_pago // SUNAT 12
+  ajustes_intereses_penalidades // SUNAT 13
+
+  @@map("tipo_nota_credito")
+}
+
+enum EstadoSunat {
+  pendiente // No enviado aún
+  en_proceso // Mifact 101
+  aceptado // Mifact 102
+  aceptado_observado // Mifact 103
+  rechazado // Mifact 104
+  anulado // Mifact 105
+  baja_pendiente // Mifact 108
+
+  @@map("estado_sunat")
+}
+
+model SerieCpe {
+  id                String   @id @default(uuid()) @db.Uuid
+  sucursalId        String   @map("sucursal_id") @db.Uuid
+  sucursal          Sucursal @relation(fields: [sucursalId], references: [id])
+  tipoCpe           TipoCpe  @map("tipo_cpe")
+  serie             String   @db.VarChar(4)
+  correlativoActual Int      @default(0) @map("correlativo_actual")
+  activa            Boolean  @default(true)
+  creadoEn          DateTime @default(now()) @map("creado_en")
+  actualizadoEn     DateTime @updatedAt @map("actualizado_en")
+
+  ventas       Venta[]
+  notasCredito NotaCredito[]
+
+  @@unique([sucursalId, tipoCpe, serie])
+  @@index([sucursalId, tipoCpe])
+  @@map("series_cpe")
+}
+
+model DocumentoElectronico {
+  id String @id @default(uuid()) @db.Uuid
+
+  ventaId       String?      @unique @map("venta_id") @db.Uuid
+  venta         Venta?       @relation(fields: [ventaId], references: [id])
+  notaCreditoId String?      @unique @map("nota_credito_id") @db.Uuid
+  notaCredito   NotaCredito? @relation(fields: [notaCreditoId], references: [id])
+
+  tipoCpe     TipoCpe @map("tipo_cpe")
+  serie       String  @db.VarChar(4)
+  correlativo String  @db.VarChar(8)
+
+  estadoSunat  EstadoSunat @default(pendiente) @map("estado_sunat")
+  codigoHash   String?     @map("codigo_hash") @db.VarChar(200)
+  cadenaQr     String?     @map("cadena_qr") @db.Text
+  mensajeSunat String?     @map("mensaje_sunat") @db.Text
+
+  xmlEnviadoUrl String? @map("xml_enviado_url") @db.VarChar(500)
+  cdrUrl        String? @map("cdr_url") @db.VarChar(500)
+  pdfUrl        String? @map("pdf_url") @db.VarChar(500)
+
+  numIntentos      Int       @default(0) @map("num_intentos")
+  ultimoErrorTexto String?   @map("ultimo_error_texto") @db.Text
+  enviadoEn        DateTime? @map("enviado_en")
+  aceptadoEn       DateTime? @map("aceptado_en")
+
+  creadoEn      DateTime @default(now()) @map("creado_en")
+  actualizadoEn DateTime @updatedAt @map("actualizado_en")
+
+  @@unique([tipoCpe, serie, correlativo])
+  @@index([estadoSunat])
+  @@map("documentos_electronicos")
+}
+
+model ConfiguracionFacturacion {
+  id String @id @default(uuid()) @db.Uuid
+
+  mifactTokenCifrado String @map("mifact_token_cifrado") @db.Text
+  mifactBaseUrl      String @default("https://demo.mifact.net.pe") @map("mifact_base_url") @db.VarChar(200)
+
+  ruc                String  @db.VarChar(11)
+  razonSocial        String  @map("razon_social") @db.VarChar(200)
+  nombreComercial    String? @map("nombre_comercial") @db.VarChar(200)
+  direccionFiscal    String  @map("direccion_fiscal") @db.VarChar(240)
+  ubigeoFiscalCodigo String  @map("ubigeo_fiscal_codigo") @db.VarChar(6)
+
+  enviarAutomaticoASunat Boolean @default(true) @map("enviar_automatico_a_sunat")
+  retornarPdf            Boolean @default(true) @map("retornar_pdf")
+  retornarXmlEnvio       Boolean @default(false) @map("retornar_xml_envio")
+  retornarXmlCdr         Boolean @default(false) @map("retornar_xml_cdr")
+  formatoImpresion       String  @default("001") @map("formato_impresion") @db.VarChar(3)
+  correoNotificacion     String? @map("correo_notificacion") @db.VarChar(160)
+  emitirAlConfirmar      Boolean @default(true) @map("emitir_al_confirmar")
+
+  creadoEn      DateTime @default(now()) @map("creado_en")
+  actualizadoEn DateTime @updatedAt @map("actualizado_en")
+
+  @@map("configuracion_facturacion")
 }

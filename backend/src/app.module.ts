@@ -21,6 +21,8 @@ import { ContabilidadModule } from './modules/contabilidad/contabilidad.module';
 import { PreferenciasModule } from './modules/preferencias/preferencias.module';
 import { CuponesModule } from './modules/cupones/cupones.module';
 import { NotasCreditoModule } from './modules/notas-credito/notas-credito.module';
+import { CatalogosModule } from './modules/catalogos/catalogos.module';
+import { FacturacionElectronicaModule } from './modules/facturacion-electronica/facturacion-electronica.module';
 
 @Module({
   imports: [
@@ -63,6 +65,8 @@ import { NotasCreditoModule } from './modules/notas-credito/notas-credito.module
     PreferenciasModule,
     CuponesModule,
     NotasCreditoModule,
+    CatalogosModule,
+    FacturacionElectronicaModule,
   ],
 })
 export class AppModule {}
