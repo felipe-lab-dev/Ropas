@@ -81,18 +81,21 @@ export function SelectorUbigeo({
   });
 
   // Cargar el ubigeo seleccionado para mostrar la etiqueta
-  const { data: ubigeoSeleccionado } = useQuery({
+  const { data: ubigeoSeleccionado, isFetching: cargandoSeleccionado } = useQuery({
     queryKey: ['ubigeos', 'selected', value] as const,
     queryFn: () => (value ? obtenerUbigeo(value) : Promise.resolve([])),
-    staleTime: Infinity,
+    staleTime: 5 * 60_000,
+    refetchOnMount: 'always',
     enabled: !!value,
     select: (data) => data.find((u) => u.codigo === value),
   });
 
   const etiquetaActual = ubigeoSeleccionado
     ? etiquetaUbigeo(ubigeoSeleccionado)
-    : value
+    : value && cargandoSeleccionado
     ? `Cargando ${value}...`
+    : value
+    ? value
     : placeholder;
 
   return (
