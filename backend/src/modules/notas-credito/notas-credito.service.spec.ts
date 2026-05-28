@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { NotasCreditoService } from './notas-credito.service';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { InventarioService } from '../inventario/inventario.service';
+import { SerieCpeService } from '../facturacion-electronica/series-cpe/series-cpe.service';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import {
   ErrorConflicto,
@@ -28,8 +29,16 @@ function crearTxMock() {
     update: jest.fn(),
   };
   const cliente: Mocked<{ update: unknown }> = { update: jest.fn() };
+  // serieCpe se usa al asignar correlativo para NC cuando la venta tiene CPE.
+  // Los tests legacy mockean venta sin documentoElectronico, así que estas
+  // funciones quedan sin invocar — pero deben existir para que el código
+  // compile y pueda inyectarse si el test lo requiere.
+  const serieCpe: Mocked<{ findFirst: unknown; update: unknown }> = {
+    findFirst: jest.fn(),
+    update: jest.fn(),
+  };
   const $executeRaw = jest.fn();
-  return { venta, notaCredito, cliente, $executeRaw };
+  return { venta, notaCredito, cliente, serieCpe, $executeRaw };
 }
 
 const ctx = {
@@ -51,11 +60,16 @@ describe('NotasCreditoService', () => {
     };
     const prisma = { forTenant: jest.fn().mockReturnValue(cliente) };
 
+    const serieCpeService = {
+      asignarProximoCorrelativo: jest.fn(),
+      asignarProximoCorrelativoEnTenant: jest.fn(),
+    };
     const mod = await Test.createTestingModule({
       providers: [
         NotasCreditoService,
         { provide: PrismaTenantService, useValue: prisma },
         { provide: InventarioService, useValue: inventario },
+        { provide: SerieCpeService, useValue: serieCpeService },
       ],
     }).compile();
     service = mod.get(NotasCreditoService);

@@ -21,12 +21,13 @@ import {
 import { DocumentoElectronicoService } from '../documento-electronico/documento-electronico.service';
 import { AuthGuard, RequierePermiso } from '../../auth/auth.guard';
 import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../../saas/catalogo-modulos';
 import { Tenant } from '../../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../../core/tenancy/tenant-context';
 
 @Controller('ventas')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('ventas')
+@ModuloHabilitado(CATALOGO_MODULOS.VENTAS)
 export class EmisionCpeController {
   constructor(private readonly documentoService: DocumentoElectronicoService) {}
 

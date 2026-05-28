@@ -20,10 +20,11 @@ import {
   ModuloHabilitado,
   ModuloHabilitadoGuard,
 } from '../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../saas/catalogo-modulos';
 
 @Controller('proveedores')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('proveedores')
+@ModuloHabilitado(CATALOGO_MODULOS.PROVEEDORES)
 export class ProveedoresController {
   constructor(private readonly service: ProveedoresService) {}
 

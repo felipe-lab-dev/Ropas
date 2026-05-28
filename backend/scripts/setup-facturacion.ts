@@ -20,8 +20,7 @@
  *
  * Flags opcionales:
  *   --nombre-comercial "Empresa Demo"
- *   --correo-notificacion facturacion@empresa.com
- *   --mifact-base-url https://api.mifact.net.pe   (default: demo)
+ *   --mifact-base-url https://mifact.net.pe/xmifactapi   (default: demo, equivalente a https://demo.mifact.net.pe/api)
  *   --serie-factura F002
  *   --serie-boleta B002
  *   --dry-run    (muestra qué haría sin tocar la DB)
@@ -63,8 +62,7 @@ const args = {
   ubigeo:              getArg('--ubigeo'),
   mifactToken:         getArg('--mifact-token'),
   nombreComercial:     getArg('--nombre-comercial'),
-  correoNotificacion:  getArg('--correo-notificacion'),
-  mifactBaseUrl:       getArg('--mifact-base-url') ?? 'https://demo.mifact.net.pe',
+  mifactBaseUrl:       getArg('--mifact-base-url') ?? 'https://demo.mifact.net.pe/api',
   serieFactura:        getArg('--serie-factura')   ?? 'F001',
   serieBoleta:         getArg('--serie-boleta')    ?? 'B001',
   dryRun:              hasFlag('--dry-run'),
@@ -156,7 +154,6 @@ console.log(`  Mifact URL:        ${args.mifactBaseUrl}`);
 console.log(`  Token Mifact:      ${tokenPreview}`);
 console.log(`  Serie factura:     ${args.serieFactura}`);
 console.log(`  Serie boleta:      ${args.serieBoleta}`);
-console.log(`  Email notif:       ${args.correoNotificacion ?? '(no configurado)'}`);
 console.log('');
 console.log(`  Tenant schema:     ${schemaName}`);
 console.log(`  Master key:        ✓ encontrada en .env`);
@@ -260,7 +257,6 @@ async function main() {
         nombreComercial,
         direccionFiscal,
         ubigeoFiscalCodigo:      ubigeo,
-        correoNotificacion:      args.correoNotificacion ?? null,
         formatoImpresion:        '001',
         enviarAutomaticoASunat:  true,
         emitirAlConfirmar:       true,

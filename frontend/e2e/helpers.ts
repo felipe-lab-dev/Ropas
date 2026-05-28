@@ -1,4 +1,4 @@
-import { type Page, expect, request as playwrightRequest } from '@playwright/test';
+import { type APIRequestContext, type Page, expect, request as playwrightRequest } from '@playwright/test';
 
 export const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3001';
 export const TENANT_CODE = process.env.E2E_TENANT_CODE ?? 'mi-tienda';
@@ -134,4 +134,274 @@ export async function esperarToast(page: Page, texto: RegExp | string): Promise<
   await expect(page.locator('[data-sonner-toast]').filter({ hasText: texto }).first()).toBeVisible({
     timeout: 8_000,
   });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SEEDERS vía API — para fixtures que no dependan de la UI.
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Devuelve un APIRequestContext con headers de tenant + Bearer token listos.
+ * Usar para llamar endpoints autenticados desde tests.
+ */
+export async function apiContext(): Promise<APIRequestContext> {
+  const sesion = await obtenerSesion();
+  return playwrightRequest.newContext({
+    baseURL: API_URL,
+    extraHTTPHeaders: {
+      'X-Tenant-Code': TENANT_CODE,
+      Authorization: `Bearer ${sesion.accessToken}`,
+    },
+  });
+}
+
+/**
+ * Devuelve la sucursal que va a tener seleccionada el POS por defecto:
+ * - usuario.sucursalDefecto si existe
+ * - sino, la primera de GET /sucursales
+ *
+ * Útil para sembrar stock en la sucursal correcta antes de un test del POS.
+ */
+export async function sucursalActivaDelPos(api: APIRequestContext): Promise<string> {
+  const sesion = await obtenerSesion();
+  if (sesion.usuario.sucursalDefecto) return sesion.usuario.sucursalDefecto;
+  const res = await api.get('/api/v1/sucursales');
+  if (!res.ok()) throw new Error(`GET /sucursales falló: ${await res.text()}`);
+  const sucursales = (await res.json()).datos ?? [];
+  if (!Array.isArray(sucursales) || sucursales.length === 0) {
+    throw new Error('No hay sucursales en el tenant.');
+  }
+  return sucursales[0].id;
+}
+
+/**
+ * Sufijo aleatorio para evitar choque entre corridas (RUC, SKU, etc.).
+ */
+export function sufijoAleatorio(largo = 6): string {
+  const chars = '0123456789';
+  return Array.from({ length: largo }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+/**
+ * RUC válido para SUNAT (11 dígitos, primer dígito 1 o 2).
+ * No verifica dígito verificador — suficiente para tests, no para producción.
+ */
+export function rucAleatorio(): string {
+  const prefijo = Math.random() < 0.5 ? '10' : '20';
+  return prefijo + sufijoAleatorio(9);
+}
+
+export function dniAleatorio(): string {
+  // DNI Perú: 8 dígitos, no empieza en 0
+  return String(Math.floor(Math.random() * 9) + 1) + sufijoAleatorio(7);
+}
+
+interface SeedProveedorInput {
+  tipoDocumento?: 'ruc' | 'dni';
+  documento?: string;
+  razonSocial?: string;
+  email?: string;
+  condicionPago?: 'contado' | 'credito_15' | 'credito_30' | 'credito_60';
+}
+
+interface ProveedorSeed {
+  id: string;
+  razonSocial: string;
+  documento: string;
+}
+
+export async function seedProveedor(
+  api: APIRequestContext,
+  input: SeedProveedorInput = {},
+): Promise<ProveedorSeed> {
+  const documento = input.documento ?? rucAleatorio();
+  const tipoDocumento = input.tipoDocumento ?? 'ruc';
+  const razonSocial = input.razonSocial ?? `PROVEEDOR E2E ${sufijoAleatorio(4)}`;
+  const body = {
+    tipoDocumento,
+    documento,
+    razonSocial,
+    email: input.email,
+    condicionPago: input.condicionPago ?? 'contado',
+    diasCredito: 0,
+  };
+  const res = await api.post('/api/v1/proveedores', { data: body });
+  if (!res.ok()) {
+    throw new Error(`seedProveedor falló (${res.status()}): ${await res.text()}`);
+  }
+  const json = await res.json();
+  // Algunos endpoints devuelven { exito, datos } y otros { datos } — soportamos ambos.
+  const datos = json.datos ?? json;
+  return { id: datos.id, razonSocial, documento };
+}
+
+interface SeedClienteInput {
+  tipoDocumento?: 'dni' | 'ruc' | 'pasaporte';
+  documento?: string;
+  nombre?: string;
+  email?: string;
+}
+
+interface ClienteSeed {
+  id: string;
+  nombre: string;
+  documento: string;
+  tipoDocumento: string;
+}
+
+export async function seedCliente(
+  api: APIRequestContext,
+  input: SeedClienteInput = {},
+): Promise<ClienteSeed> {
+  const tipoDocumento = input.tipoDocumento ?? 'dni';
+  const documento = input.documento ?? (tipoDocumento === 'ruc' ? rucAleatorio() : dniAleatorio());
+  const nombre = input.nombre ?? `Cliente E2E ${sufijoAleatorio(4)}`;
+  const body = {
+    tipoDocumento,
+    documento,
+    nombre,
+    email: input.email,
+  };
+  const res = await api.post('/api/v1/clientes', { data: body });
+  if (!res.ok()) {
+    throw new Error(`seedCliente falló (${res.status()}): ${await res.text()}`);
+  }
+  const json = await res.json();
+  const datos = json.datos ?? json;
+  return { id: datos.id, nombre, documento, tipoDocumento };
+}
+
+interface SeedProductoInput {
+  nombre?: string;
+  precioVenta?: number;
+  precioCompra?: number;
+  stockInicial?: number;
+  talla?: string;
+  color?: string;
+  /** Forzar la sucursal donde se carga el stock inicial. Útil para POS:
+   *  el POS arranca con `usuario.sucursalDefecto` si existe, no con la primera. */
+  sucursalId?: string;
+}
+
+interface ProductoSeed {
+  id: string;
+  nombre: string;
+  sku: string;
+  varianteId: string;
+  varianteSku: string;
+  sucursalId: string;
+  categoriaId: string;
+}
+
+/**
+ * Crea un producto con UNA variante y stock inicial en la primera sucursal.
+ * Usa la primera categoría disponible.
+ */
+export async function seedProducto(
+  api: APIRequestContext,
+  input: SeedProductoInput = {},
+): Promise<ProductoSeed> {
+  // 1. Resolver categoria + sucursal
+  const [catRes, sucRes] = await Promise.all([
+    api.get('/api/v1/categorias'),
+    api.get('/api/v1/sucursales'),
+  ]);
+  if (!catRes.ok()) throw new Error(`GET /categorias falló: ${await catRes.text()}`);
+  if (!sucRes.ok()) throw new Error(`GET /sucursales falló: ${await sucRes.text()}`);
+
+  const categorias = (await catRes.json()).datos ?? [];
+  const sucursales = (await sucRes.json()).datos ?? [];
+  if (!Array.isArray(categorias) || categorias.length === 0) {
+    throw new Error('No hay categorías sembradas en el tenant.');
+  }
+  if (!Array.isArray(sucursales) || sucursales.length === 0) {
+    throw new Error('No hay sucursales sembradas en el tenant.');
+  }
+  const categoriaId = categorias[0].id;
+  const sucursalId = input.sucursalId ?? sucursales[0].id;
+
+  const sufijo = sufijoAleatorio(5);
+  const nombre = input.nombre ?? `Producto E2E ${sufijo}`;
+  const body = {
+    nombre,
+    sku: `E2E-${sufijo}`,
+    categoriaId,
+    precioVenta: input.precioVenta ?? 100,
+    precioCompra: input.precioCompra ?? 60,
+    variantes: [
+      {
+        talla: input.talla ?? 'M',
+        color: input.color ?? 'Negro',
+        sku: `E2E-V-${sufijo}`,
+        stockInicial: input.stockInicial ?? 10,
+        sucursalId,
+      },
+    ],
+  };
+  const res = await api.post('/api/v1/productos', { data: body });
+  if (!res.ok()) {
+    throw new Error(`seedProducto falló (${res.status()}): ${await res.text()}`);
+  }
+  const datos = (await res.json()).datos;
+  const variante = datos.variantes?.[0] ?? {};
+  const varianteBodyDefault = body.variantes[0]!;
+  return {
+    id: datos.id,
+    nombre,
+    sku: datos.sku ?? body.sku,
+    varianteId: variante.id,
+    varianteSku: variante.sku ?? varianteBodyDefault.sku,
+    sucursalId,
+    categoriaId,
+  };
+}
+
+/**
+ * Guarda configuración de Facturación Electrónica vía API.
+ * Útil para preparar flags antes de probar emisión.
+ *
+ * Si querés solo cambiar algunos campos, pasá un partial: el seeder hace
+ * GET previo y mergea con los valores actuales.
+ */
+export async function setConfiguracionFE(
+  api: APIRequestContext,
+  patch: Partial<{
+    ruc: string;
+    razonSocial: string;
+    direccionFiscal: string;
+    ubigeoFiscalCodigo: string;
+    mifactToken: string;
+    mifactBaseUrl: string;
+    enviarAutomaticoASunat: boolean;
+    emitirAlConfirmar: boolean;
+    retornarPdf: boolean;
+    retornarXmlEnvio: boolean;
+    retornarXmlCdr: boolean;
+    formatoImpresion: '001' | '002' | '004';
+  }>,
+): Promise<void> {
+  const res = await api.get('/api/v1/configuracion-facturacion');
+  const actual = res.ok() ? ((await res.json()).datos ?? {}) : {};
+  const body = {
+    ruc: actual.ruc ?? '20100100100',
+    razonSocial: actual.razonSocial ?? 'TIENDA E2E SAC',
+    direccionFiscal: actual.direccionFiscal ?? 'Av. La Marina 123',
+    ubigeoFiscalCodigo: actual.ubigeoFiscalCodigo ?? '150101',
+    mifactBaseUrl: actual.mifactBaseUrl ?? 'https://demo.mifact.net.pe/api',
+    enviarAutomaticoASunat: actual.enviarAutomaticoASunat ?? true,
+    emitirAlConfirmar: actual.emitirAlConfirmar ?? true,
+    retornarPdf: actual.retornarPdf ?? true,
+    retornarXmlEnvio: actual.retornarXmlEnvio ?? false,
+    retornarXmlCdr: actual.retornarXmlCdr ?? false,
+    formatoImpresion: actual.formatoImpresion ?? '001',
+    ...patch,
+  };
+  const guardar = await api.put('/api/v1/configuracion-facturacion', { data: body });
+  if (!guardar.ok()) {
+    // Probar POST por si el endpoint solo acepta uno u otro
+    const post = await api.post('/api/v1/configuracion-facturacion', { data: body });
+    if (!post.ok()) {
+      throw new Error(`setConfiguracionFE falló: PUT (${guardar.status()}) y POST (${post.status()}): ${await post.text()}`);
+    }
+  }
 }

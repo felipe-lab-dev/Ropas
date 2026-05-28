@@ -151,6 +151,7 @@ export default function NuevaCompraPage() {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold">Proveedor *</label>
               <select
+                data-testid="select-proveedor-compra"
                 className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] px-3 text-sm"
                 value={proveedorId}
                 onChange={e => setProveedorId(e.target.value)}
@@ -164,6 +165,7 @@ export default function NuevaCompraPage() {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold">Sucursal destino *</label>
               <select
+                data-testid="select-sucursal-compra"
                 className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] px-3 text-sm"
                 value={sucursalId}
                 onChange={e => setSucursalId(e.target.value)}
@@ -188,11 +190,20 @@ export default function NuevaCompraPage() {
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold">Serie</label>
-                <Input value={serie} onChange={e => setSerie(e.target.value.toUpperCase())} />
+                <Input
+                  data-testid="input-serie-compra"
+                  value={serie}
+                  onChange={e => setSerie(e.target.value.toUpperCase())}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold">Número</label>
-                <Input value={numeroComprobante} onChange={e => setNumeroComprobante(e.target.value)} placeholder="0000123" />
+                <Input
+                  data-testid="input-numero-comprobante-compra"
+                  value={numeroComprobante}
+                  onChange={e => setNumeroComprobante(e.target.value)}
+                  placeholder="0000123"
+                />
               </div>
             </div>
             <div className="space-y-1.5">
@@ -219,6 +230,7 @@ export default function NuevaCompraPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[hsl(var(--text-muted))]" />
               <Input
+                data-testid="input-buscar-producto-compra"
                 placeholder="Buscar producto / SKU / variante…"
                 value={busqueda}
                 onChange={e => setBusqueda(e.target.value)}
@@ -230,6 +242,7 @@ export default function NuevaCompraPage() {
                     <button
                       key={v.id}
                       type="button"
+                      data-testid={`btn-agregar-producto-compra-${v.sku ?? v.id}`}
                       onClick={() => agregarItem(v)}
                       className="w-full px-3 py-2 text-left hover:bg-[hsl(var(--surface-2))] text-sm flex justify-between"
                     >
@@ -311,6 +324,7 @@ export default function NuevaCompraPage() {
           <Button
             size="lg"
             className="w-full"
+            data-testid="btn-registrar-compra"
             disabled={!puede || mutar.isPending}
             onClick={() => mutar.mutate()}
           >

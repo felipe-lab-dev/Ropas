@@ -1056,11 +1056,25 @@ enum EstadoSunat {
   @@map("estado_sunat")
 }
 
+/// Serie de comprobante electrónico.
+///
+/// `aplicaA` discrimina el subtipo cuando `tipoCpe` es uno transversal (NC, ND
+/// que aplican sobre factura o boleta). Para factura/boleta normales, `aplicaA`
+/// es null. Reglas:
+///   - tipoCpe in {nota_credito, nota_debito} → aplicaA in {factura, boleta} (obligatorio)
+///   - tipoCpe in {factura, boleta, guia_*}    → aplicaA es null
+///
+/// Unicidad de serie activa: existe a lo sumo UNA serie activa por
+/// (sucursalId, tipoCpe, aplicaA). Cuando una serie llena su correlativo
+/// (99999999), se desactiva y se abre la siguiente. El unique parcial se
+/// implementa via CREATE UNIQUE INDEX ... WHERE activa = true (no expresable
+/// nativamente en Prisma — vive en la migration SQL).
 model SerieCpe {
   id                String   @id @default(uuid()) @db.Uuid
   sucursalId        String   @map("sucursal_id") @db.Uuid
   sucursal          Sucursal @relation(fields: [sucursalId], references: [id])
   tipoCpe           TipoCpe  @map("tipo_cpe")
+  aplicaA           TipoCpe? @map("aplica_a")
   serie             String   @db.VarChar(4)
   correlativoActual Int      @default(0) @map("correlativo_actual")
   activa            Boolean  @default(true)
@@ -1070,8 +1084,8 @@ model SerieCpe {
   ventas       Venta[]
   notasCredito NotaCredito[]
 
-  @@unique([sucursalId, tipoCpe, serie])
-  @@index([sucursalId, tipoCpe])
+  @@unique([sucursalId, tipoCpe, aplicaA, serie])
+  @@index([sucursalId, tipoCpe, aplicaA])
   @@map("series_cpe")
 }
 
@@ -1113,7 +1127,7 @@ model ConfiguracionFacturacion {
   id String @id @default(uuid()) @db.Uuid
 
   mifactTokenCifrado String @map("mifact_token_cifrado") @db.Text
-  mifactBaseUrl      String @default("https://demo.mifact.net.pe") @map("mifact_base_url") @db.VarChar(200)
+  mifactBaseUrl      String @default("https://demo.mifact.net.pe/api") @map("mifact_base_url") @db.VarChar(200)
 
   ruc                String  @db.VarChar(11)
   razonSocial        String  @map("razon_social") @db.VarChar(200)
@@ -1126,7 +1140,6 @@ model ConfiguracionFacturacion {
   retornarXmlEnvio       Boolean @default(false) @map("retornar_xml_envio")
   retornarXmlCdr         Boolean @default(false) @map("retornar_xml_cdr")
   formatoImpresion       String  @default("001") @map("formato_impresion") @db.VarChar(3)
-  correoNotificacion     String? @map("correo_notificacion") @db.VarChar(160)
   emitirAlConfirmar      Boolean @default(true) @map("emitir_al_confirmar")
 
   creadoEn      DateTime @default(now()) @map("creado_en")

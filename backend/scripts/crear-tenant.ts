@@ -3,15 +3,20 @@
  *   1. Crea el schema PostgreSQL `tenant_<code>`
  *   2. Aplica las tablas DDL al schema nuevo
  *   3. Inserta seed: rol admin, sucursal principal, categorías base, usuario admin
- *   4. Registra metadata en `public.tenants`
+ *   4. Registra metadata en `public.tenants` con los módulos del plan elegido
  *
  * Uso:
- *   pnpm tenant:crear -- --code mi-tienda --nombre "Mi Tienda S.A.C." --admin admin@mi-tienda.com
+ *   pnpm tenant:crear -- --code mi-tienda --nombre "Mi Tienda S.A.C." \
+ *     --admin admin@mi-tienda.com --plan fiscal
+ *
+ * --plan acepta: basico | comercial | fiscal | full (default: full)
+ * Ver `src/saas/catalogo-planes.ts` para el detalle de cada uno.
  */
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { PLANES, esPlanValido, PlanId } from '../src/saas/catalogo-planes';
 
 cargarEnv();
 
@@ -26,7 +31,7 @@ function cargarEnv() {
   }
 }
 
-interface Args { code: string; nombre: string; admin: string; dni?: string; password?: string }
+interface Args { code: string; nombre: string; admin: string; dni?: string; password?: string; plan: PlanId }
 
 function parseArgs(): Args {
   const a = process.argv.slice(2);
@@ -37,11 +42,16 @@ function parseArgs(): Args {
   const code = get('code');
   const nombre = get('nombre');
   const admin = get('admin') ?? `admin@${code}.local`;
+  const planRaw = get('plan') ?? 'full';
   if (!code || !nombre) {
-    console.error('Uso: --code <codigo> --nombre "Nombre legible" [--admin email] [--dni 12345678] [--password pass]');
+    console.error('Uso: --code <codigo> --nombre "Nombre legible" [--admin email] [--dni 12345678] [--password pass] [--plan basico|comercial|fiscal|full]');
     process.exit(1);
   }
-  return { code, nombre, admin, dni: get('dni'), password: get('password') };
+  if (!esPlanValido(planRaw)) {
+    console.error(`Plan inválido: "${planRaw}". Valores permitidos: ${Object.keys(PLANES).join(', ')}`);
+    process.exit(1);
+  }
+  return { code, nombre, admin, dni: get('dni'), password: get('password'), plan: planRaw };
 }
 
 const CATEGORIAS_BASE = [
@@ -56,11 +66,6 @@ const CATEGORIAS_BASE = [
 ];
 
 const PERMISOS_ADMIN = ['*'];
-const MODULOS = [
-  'productos', 'inventario', 'ventas', 'caja', 'clientes',
-  'proveedores', 'compras', 'contabilidad', 'reportes', 'usuarios', 'configuracion',
-  'cupones', 'notas-credito',
-];
 
 async function main() {
   const args = parseArgs();
@@ -90,6 +95,7 @@ async function main() {
     await sembrarPlanCuentas(prismaPublic, schema);
     console.log(`  ✓ Plan de cuentas PCGE`);
 
+    const modulosDelPlan = [...PLANES[args.plan]];
     await prismaPublic.tenant.upsert({
       where: { codigo: args.code },
       create: {
@@ -97,12 +103,18 @@ async function main() {
         nombre: args.nombre,
         schemaName: schema,
         estado: 'activo',
-        planNombre: 'Local Dev',
-        modulosHabilitados: MODULOS,
+        planNombre: args.plan,
+        modulosHabilitados: modulosDelPlan,
       },
-      update: { nombre: args.nombre, schemaName: schema, estado: 'activo' },
+      update: {
+        nombre: args.nombre,
+        schemaName: schema,
+        estado: 'activo',
+        planNombre: args.plan,
+        modulosHabilitados: modulosDelPlan,
+      },
     });
-    console.log(`  ✓ Registrado en public.tenants`);
+    console.log(`  ✓ Registrado en public.tenants (plan: ${args.plan}, ${modulosDelPlan.length} módulos)`);
 
     console.log(`\n✅ Tenant "${args.code}" creado con éxito\n`);
     console.log(`   Schema:    ${schema}`);

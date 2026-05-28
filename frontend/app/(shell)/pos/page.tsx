@@ -306,6 +306,7 @@ export default function PosPage() {
             <Input
               autoFocus
               data-busqueda
+              data-testid="pos-buscar-producto"
               placeholder="Buscar producto por nombre, SKU o escanear código de barras…"
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
@@ -338,6 +339,7 @@ export default function PosPage() {
                   return (
                     <button
                       key={v.id}
+                      data-testid={`pos-resultado-${v.sku}`}
                       disabled={sinStock}
                       onClick={() => agregar(v, p)}
                       className={`text-left p-3 rounded-lg border bg-[hsl(var(--surface))] transition-all ${
@@ -666,6 +668,7 @@ export default function PosPage() {
           <Button
             size="xl"
             className="w-full glow-brand"
+            data-testid="btn-cobrar-pos"
             disabled={carrito.length === 0 || cobrar.isPending || !sucursalId || total <= 0}
             onClick={() => cobrar.mutate()}
           >

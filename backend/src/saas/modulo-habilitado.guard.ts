@@ -7,10 +7,11 @@ import {
 import { Reflector } from '@nestjs/core';
 import { ErrorProhibido } from '../core/errors/errores';
 import { SaasConfigCacheService } from './saas-config-cache.service';
+import { ModuloId } from './catalogo-modulos';
 
 const MODULO_KEY = 'saas.modulo';
 
-export const ModuloHabilitado = (modulo: string): MethodDecorator & ClassDecorator =>
+export const ModuloHabilitado = (modulo: ModuloId): MethodDecorator & ClassDecorator =>
   SetMetadata(MODULO_KEY, modulo);
 
 @Injectable()
@@ -22,8 +23,8 @@ export class ModuloHabilitadoGuard implements CanActivate {
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const modulo =
-      this.reflector.get<string>(MODULO_KEY, ctx.getHandler()) ??
-      this.reflector.get<string>(MODULO_KEY, ctx.getClass());
+      this.reflector.get<ModuloId>(MODULO_KEY, ctx.getHandler()) ??
+      this.reflector.get<ModuloId>(MODULO_KEY, ctx.getClass());
     if (!modulo) return true;
 
     const config = await this.cache.obtener();

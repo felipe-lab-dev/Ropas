@@ -18,6 +18,8 @@
     "schema:snapshot": "tsx scripts/generar-snapshot-schema.ts",
     "tenant:crear": "tsx scripts/crear-tenant.ts",
     "tenant:migrar": "tsx scripts/migrar-tenants.ts",
+    "tenant:modulo": "tsx scripts/tenant-modulo.ts",
+    "tenant:plan": "tsx scripts/tenant-plan.ts",
     "seed": "tsx scripts/seed.ts",
     "seed:mujer": "tsx scripts/seed-mujer.ts",
     "seed:ventas": "tsx scripts/seed-ventas.ts",

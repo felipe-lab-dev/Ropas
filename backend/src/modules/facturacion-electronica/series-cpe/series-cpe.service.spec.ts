@@ -365,6 +365,47 @@ describe('SerieCpeService', () => {
       ).rejects.toThrow(ErrorNoEncontrado);
     });
 
+    // ─── 9b. Crear sin sucursalId → resuelve sucursal principal ──────────
+
+    it('crear sin sucursalId resuelve la sucursal principal automáticamente', async () => {
+      prisma.sucursal.findFirst.mockResolvedValue({ ...sucursalExistente, esPrincipal: true });
+      const serieCreada = crearSerie();
+      prisma.serieCpe.create.mockResolvedValue(serieCreada);
+
+      const resultado = await service.crear(CTX_TEST, {
+        tipoCpe: 'factura',
+        serie: 'F001',
+      });
+
+      expect(resultado).toEqual(serieCreada);
+      // Debe haber buscado la sucursal principal (esPrincipal: true, sin id explícito)
+      expect(prisma.sucursal.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ esPrincipal: true, eliminadoEn: null }),
+        }),
+      );
+      // El create debe usar el id resuelto de la sucursal principal
+      expect(prisma.serieCpe.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ sucursalId: sucursalExistente.id }),
+        }),
+      );
+    });
+
+    // ─── 9c. Crear sin sucursalId y sin sucursal principal → ErrorNoEncontrado
+
+    it('crear sin sucursalId y sin sucursal principal lanza ErrorNoEncontrado', async () => {
+      prisma.sucursal.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.crear(CTX_TEST, { tipoCpe: 'factura', serie: 'F001' }),
+      ).rejects.toThrow(ErrorNoEncontrado);
+
+      await expect(
+        service.crear(CTX_TEST, { tipoCpe: 'factura', serie: 'F001' }),
+      ).rejects.toThrow(/sucursal principal/i);
+    });
+
     // ─── 10. Actualizar activa=false ───────────────────────────────────────
 
     it('actualizar activa=false deja la serie inactiva', async () => {

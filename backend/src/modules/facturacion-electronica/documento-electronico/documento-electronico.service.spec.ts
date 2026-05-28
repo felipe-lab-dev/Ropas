@@ -47,7 +47,7 @@ function crearMockConfiguracion() {
   return {
     obtenerConfiguracion: jest.fn().mockResolvedValue({
       mifactToken: 'token-descifrado',
-      mifactBaseUrl: 'https://demo.mifact.net.pe',
+      mifactBaseUrl: 'https://demo.mifact.net.pe/api',
       ruc: '20100100100',
       razonSocial: 'EMPRESA TEST SAC',
       nombreComercial: 'Test Store',
@@ -58,7 +58,6 @@ function crearMockConfiguracion() {
       retornarXmlEnvio: false,
       retornarXmlCdr: false,
       formatoImpresion: '001',
-      correoNotificacion: null,
     }),
   };
 }

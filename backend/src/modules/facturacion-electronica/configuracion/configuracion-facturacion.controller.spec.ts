@@ -25,7 +25,7 @@ const CTX_TEST: TenantContext = {
 
 const CONFIG_RESUELTA = {
   mifactToken: 'token-secreto-que-no-debe-salir',
-  mifactBaseUrl: 'https://demo.mifact.net.pe',
+  mifactBaseUrl: 'https://demo.mifact.net.pe/api',
   ruc: '20123456789',
   razonSocial: 'Mi Tienda S.A.C.',
   nombreComercial: 'Mi Tienda',
@@ -36,7 +36,6 @@ const CONFIG_RESUELTA = {
   retornarXmlEnvio: false,
   retornarXmlCdr: false,
   formatoImpresion: '001',
-  correoNotificacion: null,
   emitirAlConfirmar: true,
 };
 
@@ -117,14 +116,13 @@ describe('ConfiguracionFacturacionController', () => {
       nombreComercial: null,
       direccionFiscal: 'Av. Principal 123, Cusco',
       ubigeoFiscalCodigo: '080101',
-      mifactBaseUrl: 'https://demo.mifact.net.pe',
+      mifactBaseUrl: 'https://demo.mifact.net.pe/api',
       enviarAutomaticoASunat: true,
       emitirAlConfirmar: true,
       retornarPdf: true,
       retornarXmlEnvio: false,
       retornarXmlCdr: false,
       formatoImpresion: '001',
-      correoNotificacion: null,
     };
     mockGuardar.mockResolvedValue(resultadoGuardado);
 

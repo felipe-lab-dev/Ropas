@@ -38,7 +38,6 @@ export class ConfiguracionFacturacionController {
           retornarXmlEnvio: config.retornarXmlEnvio,
           retornarXmlCdr: config.retornarXmlCdr,
           formatoImpresion: config.formatoImpresion,
-          correoNotificacion: config.correoNotificacion,
         },
       };
     } catch (err) {

@@ -12,7 +12,6 @@ import type {
   AnularCpeInput,
   ConsultarEstadoInput,
   ObtenerCpeInput,
-  EnviarCorreoInput,
   MifactRespuestaCruda,
 } from './types';
 import type { MifactCpePayload } from '../cpe-builder/types';
@@ -55,7 +54,7 @@ function crearHttpServiceMock(data: unknown = respuestaCanned) {
 }
 
 const config: MifactConfig = {
-  baseUrl: 'https://demo.mifact.net.pe',
+  baseUrl: 'https://demo.mifact.net.pe/api',
   token: 'gN8zNRBV+/FVxTLwdaZx0w==',
 };
 
@@ -187,35 +186,6 @@ describe('MifactService', () => {
         }),
       );
       expect(resultado.pdfBytes).toBe('base64-pdf==');
-    });
-  });
-
-  // ── enviarCorreo ───────────────────────────────────────────────────────────
-
-  describe('enviarCorreo', () => {
-    it('POST a SendMailInvoice con TOKEN + correo destino; retorna respuesta parseada', async () => {
-      const httpService = crearHttpServiceMock();
-      const service = new MifactService(httpService as never);
-
-      const input: EnviarCorreoInput = {
-        NUM_NIF_EMIS: '20100100100',
-        COD_TIP_CPE: '01',
-        NUM_SERIE_CPE: 'F004',
-        NUM_CORRE_CPE: '00000027',
-        TXT_CORREO_ENVIO: 'mifact@outlook.com',
-        FEC_EMIS: '2021-06-19',
-      };
-
-      const resultado = await service.enviarCorreo(config, input);
-
-      expect(httpService.post).toHaveBeenCalledWith(
-        'https://demo.mifact.net.pe/api/invoiceService.svc/SendMailInvoice',
-        expect.objectContaining({
-          TOKEN: config.token,
-          TXT_CORREO_ENVIO: 'mifact@outlook.com',
-        }),
-      );
-      expect(resultado.estadoSunat).toBe('aceptado');
     });
   });
 

@@ -26,10 +26,11 @@ import { Tenant } from '../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { AuthGuard, RequierePermiso } from '../auth/auth.guard';
 import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../saas/catalogo-modulos';
 
 @Controller('productos')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('productos')
+@ModuloHabilitado(CATALOGO_MODULOS.PRODUCTOS)
 export class ProductosController {
   constructor(
     private readonly service: ProductosService,

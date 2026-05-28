@@ -8,6 +8,7 @@
  *  - correlativoActual es read-only (solo se muestra, nunca editable).
  *  - serie y tipoCpe son inmutables post-creación.
  *  - correlativoInicial: configurable al crear (para migraciones desde otro sistema).
+ *  - 1 tenant = 1 sucursal siempre. La UI no expone sucursal.
  */
 import * as React from 'react';
 import { useForm, Controller } from 'react-hook-form';
@@ -19,16 +20,13 @@ import {
   Hash,
   Plus,
   ChevronRight,
+  ChevronDown,
   Loader2,
   AlertTriangle,
-  Building2,
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/ui/page-header';
 import {
@@ -46,40 +44,43 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { obtener } from '@/lib/api/client';
 import { mensajeError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import {
   useSeriesCpe,
   useCrearSerie,
   useActualizarSerie,
-  LABEL_TIPO_CPE,
-  TIPOS_CPE,
+  CATEGORIAS_SERIE,
+  categoriaDeSerie,
+  labelDeSerie,
+  type CategoriaSerie,
   type SerieCpe,
   type TipoCpe,
 } from '@/lib/api/hooks/use-series-cpe';
 
-// ─── Sucursal (local, sin hook dedicado — consume /sucursales) ────────────────
-
-interface Sucursal {
-  id: string;
-  nombre: string;
-  esPrincipal: boolean;
-  activa: boolean;
-}
-
-function useSucursales() {
-  return useQuery<Sucursal[]>({
-    queryKey: ['sucursales-listado'],
-    queryFn: () => obtener<Sucursal[]>('/sucursales'),
-    staleTime: 60_000,
-  });
-}
+// ─── Categorías habilitadas para creación desde UI ───────────────────────────
+// Guías (remitente/transportista) y NC/ND de débito siguen soportadas por
+// backend pero el negocio aún no las usa — se ocultan del dropdown de creación.
+const CATEGORIAS_CREACION_HABILITADAS: readonly CategoriaSerie[] = [
+  'factura',
+  'boleta',
+  'nota_credito_factura',
+  'nota_credito_boleta',
+] as const;
 
 // ─── Schema del formulario ────────────────────────────────────────────────────
 
 const schemaNuevaSerie = z.object({
-  sucursalId: z.string().uuid('Selecciona una sucursal'),
+  categoria: z.enum([
+    'factura',
+    'boleta',
+    'nota_credito_factura',
+    'nota_credito_boleta',
+    'nota_debito_factura',
+    'nota_debito_boleta',
+    'guia_remitente',
+    'guia_transportista',
+  ] as const),
   tipoCpe: z.enum([
     'factura',
     'boleta',
@@ -123,45 +124,51 @@ function Toggle({
       onClick={() => !disabled && onChange(!checked)}
       disabled={disabled}
       className={cn(
-        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
-        'transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--brand-primary))] min-w-[44px] min-h-[44px] items-center justify-center',
-        checked
-          ? 'bg-[hsl(var(--brand-primary))]'
-          : 'bg-[hsl(var(--border))]',
-        disabled && 'opacity-50 cursor-not-allowed',
+        'group inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md bg-transparent p-2',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--brand-primary))]/40 focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg))]',
+        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
       )}
     >
       <span
         className={cn(
-          'pointer-events-none inline-block size-5 rounded-full bg-white shadow-md',
-          'transform transition duration-200 ease-in-out',
-          checked ? 'translate-x-5' : 'translate-x-0',
+          'pointer-events-none relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ease-in-out',
+          checked ? 'bg-[hsl(var(--brand-primary))]' : 'bg-[hsl(var(--border))]',
         )}
-      />
+      >
+        <span
+          className={cn(
+            'inline-block size-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out',
+            checked ? 'translate-x-[18px]' : 'translate-x-0.5',
+          )}
+        />
+      </span>
     </button>
   );
 }
 
 // ─── Componente: Badge de tipo CPE ───────────────────────────────────────────
 
-const COLOR_TIPO: Record<TipoCpe, string> = {
-  factura: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  boleta: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  nota_credito: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  nota_debito: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  guia_remitente: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  guia_transportista: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+const COLOR_CATEGORIA: Record<CategoriaSerie, string> = {
+  factura:              'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  boleta:               'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  nota_credito_factura: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  nota_credito_boleta:  'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  nota_debito_factura:  'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  nota_debito_boleta:   'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  guia_remitente:       'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  guia_transportista:   'bg-rose-500/10 text-rose-400 border-rose-500/20',
 };
 
-function BadgeTipo({ tipo }: { tipo: TipoCpe }) {
+function BadgeTipo({ serie }: { serie: { tipoCpe: TipoCpe; aplicaA: TipoCpe | null } }) {
+  const categoria = categoriaDeSerie(serie);
   return (
     <span
       className={cn(
         'inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap',
-        COLOR_TIPO[tipo],
+        COLOR_CATEGORIA[categoria],
       )}
     >
-      {LABEL_TIPO_CPE[tipo]}
+      {labelDeSerie(serie)}
     </span>
   );
 }
@@ -177,11 +184,8 @@ function FilaSerie({ serie, onToggle }: { serie: SerieCpe; onToggle: (s: SerieCp
         !serie.activa && 'opacity-50',
       )}
     >
-      <TableCell className="font-medium">
-        {serie.sucursal.nombre}
-      </TableCell>
       <TableCell>
-        <BadgeTipo tipo={serie.tipoCpe} />
+        <BadgeTipo serie={serie} />
       </TableCell>
       <TableCell>
         <code className="rounded bg-[hsl(var(--surface-2))]/60 px-1.5 py-0.5 font-mono text-[13px]">
@@ -218,12 +222,8 @@ function CardSerie({ serie, onToggle }: { serie: SerieCpe; onToggle: (s: SerieCp
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-[hsl(var(--text-muted))]">
-            <Building2 className="size-3 inline-block mr-1" />
-            {serie.sucursal.nombre}
-          </p>
           <div className="mt-1">
-            <BadgeTipo tipo={serie.tipoCpe} />
+            <BadgeTipo serie={serie} />
           </div>
         </div>
         <Toggle
@@ -253,11 +253,9 @@ function CardSerie({ serie, onToggle }: { serie: SerieCpe; onToggle: (s: SerieCp
 function ModalNuevaSerie({
   open,
   onClose,
-  sucursales,
 }: {
   open: boolean;
   onClose: () => void;
-  sucursales: Sucursal[];
 }) {
   const crear = useCrearSerie();
 
@@ -271,7 +269,6 @@ function ModalNuevaSerie({
   } = useForm<FormNuevaSerie>({
     resolver: zodResolver(schemaNuevaSerie),
     defaultValues: {
-      sucursalId: sucursales[0]?.id ?? '',
       tipoCpe: 'factura',
       serie: '',
       correlativoInicial: 0,
@@ -292,7 +289,6 @@ function ModalNuevaSerie({
   const onSubmit = async (valores: FormNuevaSerie) => {
     try {
       await crear.mutateAsync({
-        sucursalId: valores.sucursalId,
         tipoCpe: valores.tipoCpe,
         serie: valores.serie,
         correlativoInicial: valores.correlativoInicial,
@@ -317,50 +313,33 @@ function ModalNuevaSerie({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Hash className="size-4 text-[hsl(var(--brand-primary))]" />
-            Nueva serie CPE
+            Nueva serie
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
-          {/* Sucursal */}
-          <div className="space-y-1.5">
-            <Label>Sucursal</Label>
-            <select
-              {...register('sucursalId')}
-              className={cn(
-                'flex h-10 w-full appearance-none rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] pl-3.5 pr-9 py-2 text-sm',
-                'focus-visible:outline-none focus-visible:border-[hsl(var(--brand-primary))]/60',
-                'focus-visible:ring-[3px] focus-visible:ring-[hsl(var(--brand-primary))]/15 transition-all',
-              )}
-              data-testid="select-sucursal"
-            >
-              {sucursales.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombre}{s.esPrincipal ? ' (Principal)' : ''}
-                </option>
-              ))}
-            </select>
-            {errors.sucursalId && (
-              <p className="text-xs text-[hsl(var(--brand-danger))]">{errors.sucursalId.message}</p>
-            )}
-          </div>
-
           {/* Tipo CPE */}
           <div className="space-y-1.5">
             <Label>Tipo de comprobante</Label>
-            <select
-              {...register('tipoCpe')}
-              className={cn(
-                'flex h-10 w-full appearance-none rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] pl-3.5 pr-9 py-2 text-sm',
-                'focus-visible:outline-none focus-visible:border-[hsl(var(--brand-primary))]/60',
-                'focus-visible:ring-[3px] focus-visible:ring-[hsl(var(--brand-primary))]/15 transition-all',
-              )}
-              data-testid="select-tipo-cpe"
-            >
-              {TIPOS_CPE.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                {...register('tipoCpe')}
+                className={cn(
+                  'flex h-10 w-full appearance-none rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] pl-3.5 pr-9 py-2 text-sm cursor-pointer',
+                  'focus-visible:outline-none focus-visible:border-[hsl(var(--brand-primary))]/60',
+                  'focus-visible:ring-[3px] focus-visible:ring-[hsl(var(--brand-primary))]/15 transition-all',
+                )}
+                data-testid="select-tipo-cpe"
+              >
+                {TIPOS_CPE.filter((t) => TIPOS_CREACION_HABILITADOS.includes(t.value)).map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-[hsl(var(--text-muted))]"
+                aria-hidden="true"
+              />
+            </div>
             {errors.tipoCpe && (
               <p className="text-xs text-[hsl(var(--brand-danger))]">{errors.tipoCpe.message}</p>
             )}
@@ -416,20 +395,49 @@ function ModalNuevaSerie({
           </div>
 
           {/* Activa */}
-          <div className="flex items-center gap-3">
-            <Controller
-              name="activa"
-              control={control}
-              render={({ field }) => (
-                <Toggle
-                  checked={field.value}
-                  onChange={field.onChange}
-                  label="Serie activa"
-                />
-              )}
-            />
-            <span className="text-sm text-[hsl(var(--text))]">Serie activa desde el inicio</span>
-          </div>
+          <Controller
+            name="activa"
+            control={control}
+            render={({ field }) => (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={field.value}
+                onClick={() => field.onChange(!field.value)}
+                className={cn(
+                  'flex w-full items-center gap-3 rounded-lg border px-3.5 py-3 text-left transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--brand-primary))]/40',
+                  field.value
+                    ? 'border-[hsl(var(--brand-primary))]/30 bg-[hsl(var(--brand-primary))]/5 hover:bg-[hsl(var(--brand-primary))]/10'
+                    : 'border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/40 hover:bg-[hsl(var(--surface-2))]/70',
+                )}
+              >
+                <span
+                  className={cn(
+                    'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
+                    field.value
+                      ? 'bg-[hsl(var(--brand-primary))]'
+                      : 'bg-[hsl(var(--border))]',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'pointer-events-none inline-block size-4 rounded-full bg-white shadow-sm transform transition-transform duration-200',
+                      field.value ? 'translate-x-[18px]' : 'translate-x-0.5',
+                    )}
+                  />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-medium text-[hsl(var(--text))]">
+                    Activar al crearla
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-[hsl(var(--text-muted))]">
+                    Si está apagada, la serie queda creada pero no podrá emitir comprobantes hasta que la actives desde la tabla.
+                  </span>
+                </span>
+              </button>
+            )}
+          />
 
           {/* Advertencia coherencia letra↔tipo */}
           <AnimatePresence>
@@ -496,11 +504,9 @@ function TablaSkleton() {
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function SeriesCpePage() {
-  const [sucursalFiltro, setSucursalFiltro] = React.useState<string | undefined>();
   const [modalOpen, setModalOpen] = React.useState(false);
 
-  const { data: series = [], isLoading: loadingSeries } = useSeriesCpe(sucursalFiltro);
-  const { data: sucursales = [], isLoading: loadingSucursales } = useSucursales();
+  const { data: series = [], isLoading: loadingSeries } = useSeriesCpe();
   const actualizarSerie = useActualizarSerie();
 
   const handleToggle = async (serie: SerieCpe) => {
@@ -515,16 +521,16 @@ export default function SeriesCpePage() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-[hsl(var(--text-muted))]">
         <span>Configuración</span>
         <ChevronRight className="size-3.5" />
-        <span className="text-[hsl(var(--text))] font-medium">Series CPE</span>
+        <span className="text-[hsl(var(--text))] font-medium">Series de comprobantes</span>
       </div>
 
       <PageHeader
-        titulo="Series CPE"
+        titulo="Series de comprobantes electrónicos"
         descripcion="Series para emitir comprobantes electrónicos (Factura, Boleta, etc.)."
         acciones={
           <Button
@@ -537,29 +543,6 @@ export default function SeriesCpePage() {
           </Button>
         }
       />
-
-      {/* Filtro por sucursal */}
-      {sucursales.length > 1 && (
-        <div className="flex items-center gap-3">
-          <Label className="text-sm whitespace-nowrap">Filtrar por sucursal</Label>
-          <select
-            value={sucursalFiltro ?? ''}
-            onChange={(e) => setSucursalFiltro(e.target.value || undefined)}
-            className={cn(
-              'h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] px-3 py-1.5 text-sm',
-              'focus-visible:outline-none focus-visible:border-[hsl(var(--brand-primary))]/60',
-              'focus-visible:ring-[3px] focus-visible:ring-[hsl(var(--brand-primary))]/15 transition-all',
-              'max-w-[240px]',
-            )}
-            data-testid="filtro-sucursal"
-          >
-            <option value="">Todas las sucursales</option>
-            {sucursales.map((s) => (
-              <option key={s.id} value={s.id}>{s.nombre}</option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {/* ── Tabla desktop ─────────────────────────────────────────────────── */}
       <div className="hidden md:block">
@@ -588,8 +571,7 @@ export default function SeriesCpePage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Sucursal</TableHead>
-                  <TableHead>Tipo CPE</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Serie</TableHead>
                   <TableHead>Correlativo actual</TableHead>
                   <TableHead>Activa</TableHead>
@@ -642,7 +624,6 @@ export default function SeriesCpePage() {
       <ModalNuevaSerie
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        sucursales={sucursales}
       />
     </div>
   );

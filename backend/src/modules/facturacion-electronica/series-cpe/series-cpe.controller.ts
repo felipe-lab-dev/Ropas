@@ -23,12 +23,13 @@ import { CrearSerieCpeDto } from './dto/crear-serie-cpe.dto';
 import { ActualizarSerieCpeDto } from './dto/actualizar-serie-cpe.dto';
 import { AuthGuard, RequierePermiso } from '../../auth/auth.guard';
 import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../../saas/catalogo-modulos';
 import { Tenant } from '../../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../../core/tenancy/tenant-context';
 
 @Controller('series-cpe')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('facturacion-electronica')
+@ModuloHabilitado(CATALOGO_MODULOS.FACTURACION_ELECTRONICA)
 export class SerieCpeController {
   constructor(private readonly serieCpeService: SerieCpeService) {}
 

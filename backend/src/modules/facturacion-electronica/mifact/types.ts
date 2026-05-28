@@ -6,7 +6,6 @@
  *   - ANULACION_DOCUMENTO.txt (LowInvoice)
  *   - "CONSULTAR ESTADO_DOCUMENTO.txt" (GetEstatusInvoice)
  *   - CONSULTAR_PDF_XML_CDR.txt (GetInvoice)
- *   - ENVIAR_CORREO_A_DEMANDA.txt (SendMailInvoice)
  *   - RespuestaInvoice.cs (shape de respuesta)
  */
 import { z } from 'zod';
@@ -76,20 +75,6 @@ export interface ObtenerCpeInput {
   RETORNA_PDF?: string;
   /** Formato PDF: '001'=A4, '002'=A5, '004'=ticket80mm */
   COD_FORM_IMPR?: string;
-}
-
-/**
- * Payload para enviar correo con el CPE adjunto (SendMailInvoice).
- * Ref: ENVIAR_CORREO_A_DEMANDA.txt
- */
-export interface EnviarCorreoInput {
-  NUM_NIF_EMIS: string;
-  COD_TIP_CPE: string;
-  NUM_SERIE_CPE: string;
-  NUM_CORRE_CPE: string;
-  TXT_CORREO_ENVIO: string;
-  /** Fecha de emisión — obligatorio desde nov-2021 */
-  FEC_EMIS: string;
 }
 
 // ─── Respuesta cruda de Mifact ────────────────────────────────────────────────

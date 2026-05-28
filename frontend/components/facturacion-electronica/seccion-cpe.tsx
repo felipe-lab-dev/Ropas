@@ -50,10 +50,10 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
   function handleEmitir() {
     emitir.mutate(undefined, {
       onSuccess: (doc) => {
-        toast.success(`CPE emitido — estado: ${doc.estadoSunat}`);
+        toast.success(`Comprobante emitido — estado: ${doc.estadoSunat}`);
       },
       onError: (err) => {
-        toast.error(`No se pudo emitir el CPE: ${mensajeError(err)}`);
+        toast.error(`No se pudo emitir el comprobante: ${mensajeError(err)}`);
       },
     });
   }
@@ -61,7 +61,7 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
   function handleReintentar() {
     reintentar.mutate(undefined, {
       onSuccess: (doc) => {
-        toast.success(`CPE reenviado — estado: ${doc.estadoSunat}`);
+        toast.success(`Comprobante reenviado — estado: ${doc.estadoSunat}`);
       },
       onError: (err) => {
         toast.error(`No se pudo reintentar: ${mensajeError(err)}`);
@@ -116,7 +116,7 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
                 ) : (
                   <Send className="size-4" />
                 )}
-                {emitir.isPending ? 'Emitiendo…' : 'Emitir CPE'}
+                {emitir.isPending ? 'Emitiendo…' : 'Emitir comprobante'}
               </Button>
             )}
           </div>

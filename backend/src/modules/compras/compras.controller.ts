@@ -21,10 +21,11 @@ import {
   ModuloHabilitado,
   ModuloHabilitadoGuard,
 } from '../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../saas/catalogo-modulos';
 
 @Controller('compras')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('compras')
+@ModuloHabilitado(CATALOGO_MODULOS.COMPRAS)
 export class ComprasController {
   constructor(private readonly service: ComprasService) {}
 

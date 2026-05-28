@@ -31,7 +31,7 @@ function crearDocElectronicoMock() {
 function configResuelta(emitirAlConfirmar: boolean): ConfiguracionFacturacionResuelta {
   return {
     mifactToken: 'tok',
-    mifactBaseUrl: 'https://demo.mifact.net.pe',
+    mifactBaseUrl: 'https://demo.mifact.net.pe/api',
     ruc: '20123456789',
     razonSocial: 'Mi Tienda S.A.C.',
     nombreComercial: null,
@@ -42,7 +42,6 @@ function configResuelta(emitirAlConfirmar: boolean): ConfiguracionFacturacionRes
     retornarXmlEnvio: false,
     retornarXmlCdr: false,
     formatoImpresion: '001',
-    correoNotificacion: null,
     emitirAlConfirmar,
   };
 }

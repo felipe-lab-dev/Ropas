@@ -18,9 +18,16 @@ const TIPOS_CPE: TipoCpe[] = [
   'guia_transportista',
 ];
 
+/**
+ * Subtipos válidos para `aplicaA`. Solo aplica a NC y ND (que pueden referenciar
+ * factura o boleta). Para otros `tipoCpe`, `aplicaA` debe ser null.
+ */
+const APLICA_A_VALIDOS: TipoCpe[] = ['factura', 'boleta'];
+
 export class CrearSerieCpeDto {
+  @IsOptional()
   @IsUUID()
-  sucursalId!: string;
+  sucursalId?: string;
 
   @IsIn(TIPOS_CPE, {
     message: `tipoCpe debe ser uno de: ${TIPOS_CPE.join(', ')}`,
@@ -28,10 +35,25 @@ export class CrearSerieCpeDto {
   tipoCpe!: TipoCpe;
 
   /**
-   * Formato: 1 letra mayúscula + 3 dígitos. Ej: F001, B001, FA02.
-   * Convención (no estricta SUNAT pero útil):
-   *   factura → debe empezar con 'F'
-   *   boleta  → debe empezar con 'B'
+   * Subtipo cuando `tipoCpe` es transversal (nota_credito, nota_debito).
+   * Obligatorio si tipoCpe es nota_credito o nota_debito; debe ser null
+   * para los demás tipos. La coherencia se valida en el service.
+   *
+   * Valores permitidos: 'factura' | 'boleta' (o null/undefined).
+   */
+  @IsOptional()
+  @IsIn(APLICA_A_VALIDOS, {
+    message: `aplicaA debe ser uno de: ${APLICA_A_VALIDOS.join(', ')} (o null)`,
+  })
+  aplicaA?: TipoCpe | null;
+
+  /**
+   * Formato: 1 letra mayúscula + 3 dígitos. Ej: F001, B001.
+   * Convención (validada en service):
+   *   factura                      → debe empezar con 'F'
+   *   boleta                       → debe empezar con 'B'
+   *   nota_credito + aplicaA=factura → debe empezar con 'F' (referencia facturas)
+   *   nota_credito + aplicaA=boleta  → debe empezar con 'B' (referencia boletas)
    */
   @Matches(/^[A-Z]\d{3}$/, {
     message: 'La serie debe tener el formato: 1 letra mayúscula seguida de 3 dígitos (ej: F001, B002)',

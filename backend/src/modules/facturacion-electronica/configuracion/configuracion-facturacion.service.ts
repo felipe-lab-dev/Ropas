@@ -31,7 +31,6 @@ export interface ConfiguracionFacturacionGuardada {
   retornarXmlEnvio: boolean;
   retornarXmlCdr: boolean;
   formatoImpresion: string;
-  correoNotificacion: string | null;
 }
 
 export interface ConfiguracionFacturacionResuelta {
@@ -47,7 +46,6 @@ export interface ConfiguracionFacturacionResuelta {
   retornarXmlEnvio: boolean;
   retornarXmlCdr: boolean;
   formatoImpresion: string;
-  correoNotificacion: string | null;
   emitirAlConfirmar: boolean;
 }
 
@@ -85,7 +83,6 @@ export class ConfiguracionFacturacionService {
       retornarXmlEnvio: config.retornarXmlEnvio,
       retornarXmlCdr: config.retornarXmlCdr,
       formatoImpresion: config.formatoImpresion,
-      correoNotificacion: config.correoNotificacion,
       emitirAlConfirmar: config.emitirAlConfirmar,
     };
   }
@@ -128,14 +125,13 @@ export class ConfiguracionFacturacionService {
       direccionFiscal: dto.direccionFiscal,
       ubigeoFiscalCodigo: dto.ubigeoFiscalCodigo,
       mifactTokenCifrado: tokenCifrado,
-      mifactBaseUrl: dto.mifactBaseUrl ?? 'https://demo.mifact.net.pe',
+      mifactBaseUrl: dto.mifactBaseUrl ?? 'https://demo.mifact.net.pe/api',
       enviarAutomaticoASunat: dto.enviarAutomaticoASunat ?? true,
       emitirAlConfirmar: dto.emitirAlConfirmar ?? true,
       retornarPdf: dto.retornarPdf ?? true,
       retornarXmlEnvio: dto.retornarXmlEnvio ?? false,
       retornarXmlCdr: dto.retornarXmlCdr ?? false,
       formatoImpresion: dto.formatoImpresion ?? '001',
-      correoNotificacion: dto.correoNotificacion ?? null,
     };
 
     if (existente) {
@@ -162,7 +158,6 @@ export class ConfiguracionFacturacionService {
       retornarXmlEnvio: data.retornarXmlEnvio,
       retornarXmlCdr: data.retornarXmlCdr,
       formatoImpresion: data.formatoImpresion,
-      correoNotificacion: data.correoNotificacion,
     };
   }
 }
