@@ -64,10 +64,6 @@ export class GuardarConfiguracionFacturacionDto {
 
   @IsOptional()
   @IsBoolean()
-  emitirAlConfirmar?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
   retornarPdf?: boolean;
 
   @IsOptional()

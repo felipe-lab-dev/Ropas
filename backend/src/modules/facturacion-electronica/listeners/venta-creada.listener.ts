@@ -1,13 +1,14 @@
 /**
  * VentaCreadaListener — escucha el evento 'venta.creada' y dispara la
- * auto-emisión del CPE si el tenant tiene emitirAlConfirmar=true.
+ * auto-emisión del CPE.
  *
  * Suscripción: se registra en onModuleInit() sobre el AppEventEmitter.
- * Errores de emisión: capturados con log warn, nunca re-lanzados.
+ * Errores de emisión: capturados con log warn, nunca re-lanzados. Si el tenant
+ * no tiene ConfiguracionFacturacion, `emitirCpe` lanza ErrorNoEncontrado, que
+ * cae en el catch y el documento queda para reintento manual o vía cron.
  */
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AppEventEmitter } from '../../../core/events/app-event-emitter';
-import { ConfiguracionFacturacionService } from '../configuracion/configuracion-facturacion.service';
 import { DocumentoElectronicoService } from '../documento-electronico/documento-electronico.service';
 import type { TenantContext } from '../../../core/tenancy/tenant-context';
 
@@ -39,7 +40,6 @@ export class VentaCreadaListener implements OnModuleInit {
 
   constructor(
     private readonly eventEmitter: AppEventEmitter,
-    private readonly configuracionService: ConfiguracionFacturacionService,
     private readonly documentoElectronicoService: DocumentoElectronicoService,
   ) {}
 
@@ -54,17 +54,10 @@ export class VentaCreadaListener implements OnModuleInit {
   async manejar(payload: VentaCreadaPayload): Promise<void> {
     try {
       const ctx = ctxDesdeCodigo(payload.tenantCode);
-      const config = await this.configuracionService.obtenerConfiguracion(ctx);
-      if (!config.emitirAlConfirmar) {
-        this.logger.log(
-          `Tenant ${payload.tenantCode}: emitirAlConfirmar=false, skipeando emit auto`,
-        );
-        return;
-      }
       await this.documentoElectronicoService.emitirCpe(ctx, payload.ventaId);
     } catch (err) {
-      // Cualquier error: log y NO re-lanzar. El doc queda en 'pendiente' o sin doc,
-      // se reintenta luego vía endpoint /reintentar o cron.
+      // Cualquier error (sin config, Mifact down, venta sin tipoCpe): log y NO re-lanzar.
+      // El doc queda en 'pendiente' o sin doc, se reintenta luego vía endpoint o cron.
       this.logger.warn(
         `Auto-emit CPE falló para venta ${payload.ventaId}: ${err instanceof Error ? err.message : err}`,
       );

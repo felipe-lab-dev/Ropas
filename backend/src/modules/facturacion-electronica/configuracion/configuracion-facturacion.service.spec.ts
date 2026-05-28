@@ -70,7 +70,6 @@ function filaConfig(overrides: Partial<{
   retornarXmlEnvio: boolean;
   retornarXmlCdr: boolean;
   formatoImpresion: string;
-  emitirAlConfirmar: boolean;
 }> = {}) {
   return {
     id: 'cfg-uuid-001',
@@ -86,7 +85,6 @@ function filaConfig(overrides: Partial<{
     retornarXmlEnvio: false,
     retornarXmlCdr: false,
     formatoImpresion: '001',
-    emitirAlConfirmar: true,
     creadoEn: new Date(),
     actualizadoEn: new Date(),
     ...overrides,
@@ -108,7 +106,6 @@ function filaExistente(overrides: object = {}) {
     retornarXmlEnvio: false,
     retornarXmlCdr: false,
     formatoImpresion: '001',
-    emitirAlConfirmar: true,
     creadoEn: new Date(),
     actualizadoEn: new Date(),
     ...overrides,

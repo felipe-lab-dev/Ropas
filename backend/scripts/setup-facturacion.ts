@@ -259,7 +259,6 @@ async function main() {
         ubigeoFiscalCodigo:      ubigeo,
         formatoImpresion:        '001',
         enviarAutomaticoASunat:  true,
-        emitirAlConfirmar:       true,
         retornarPdf:             true,
         retornarXmlEnvio:        false,
         retornarXmlCdr:          false,
@@ -353,7 +352,7 @@ async function main() {
     console.log('');
     console.log('Próximos pasos:');
     console.log('  1. Crear una venta normal en el POS');
-    console.log('  2. El sistema auto-emite el CPE (porque emitirAlConfirmar=true)');
+    console.log('  2. El sistema auto-emite el CPE al confirmar');
     console.log('  3. Ver el estado:');
     console.log('       GET /api/v1/ventas/<id>/documento-electronico');
     console.log('     o consultar manualmente:');

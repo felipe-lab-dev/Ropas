@@ -33,7 +33,6 @@ export class ConfiguracionFacturacionController {
           mifactBaseUrl: config.mifactBaseUrl,
           tokenConfigurado: !!config.mifactToken, // NUNCA exponer el token plano
           enviarAutomaticoASunat: config.enviarAutomaticoASunat,
-          emitirAlConfirmar: config.emitirAlConfirmar,
           retornarPdf: config.retornarPdf,
           retornarXmlEnvio: config.retornarXmlEnvio,
           retornarXmlCdr: config.retornarXmlCdr,

@@ -43,7 +43,6 @@ const schema = z.object({
   mifactToken: z.string().optional(),
   mifactBaseUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   enviarAutomaticoASunat: z.boolean(),
-  emitirAlConfirmar: z.boolean(),
   retornarPdf: z.boolean(),
   retornarXmlEnvio: z.boolean(),
   retornarXmlCdr: z.boolean(),
@@ -300,7 +299,6 @@ export default function ConfiguracionFacturacionPage() {
       mifactToken: '',
       mifactBaseUrl: 'https://demo.mifact.net.pe/api',
       enviarAutomaticoASunat: true,
-      emitirAlConfirmar: true,
       retornarPdf: true,
       retornarXmlEnvio: false,
       retornarXmlCdr: false,
@@ -320,7 +318,6 @@ export default function ConfiguracionFacturacionPage() {
         mifactToken: '',
         mifactBaseUrl: config.mifactBaseUrl,
         enviarAutomaticoASunat: config.enviarAutomaticoASunat,
-        emitirAlConfirmar: config.emitirAlConfirmar,
         retornarPdf: config.retornarPdf,
         retornarXmlEnvio: config.retornarXmlEnvio,
         retornarXmlCdr: config.retornarXmlCdr,
@@ -339,7 +336,6 @@ export default function ConfiguracionFacturacionPage() {
         ubigeoFiscalCodigo: valores.ubigeoFiscalCodigo,
         mifactBaseUrl: valores.mifactBaseUrl || undefined,
         enviarAutomaticoASunat: valores.enviarAutomaticoASunat,
-        emitirAlConfirmar: valores.emitirAlConfirmar,
         retornarPdf: valores.retornarPdf,
         retornarXmlEnvio: valores.retornarXmlEnvio,
         retornarXmlCdr: valores.retornarXmlCdr,
@@ -469,18 +465,6 @@ export default function ConfiguracionFacturacionPage() {
         {/* ── Comportamiento ───────────────────────────────────────── */}
         <Seccion titulo="Comportamiento">
           <div className="space-y-4">
-            <Controller
-              name="emitirAlConfirmar"
-              control={control}
-              render={({ field }) => (
-                <Toggle
-                  checked={field.value}
-                  onChange={field.onChange}
-                  label="Emitir comprobante electrónico automáticamente al confirmar venta"
-                  descripcion="El comprobante se genera en el momento en que se registra la venta."
-                />
-              )}
-            />
             <Controller
               name="enviarAutomaticoASunat"
               control={control}

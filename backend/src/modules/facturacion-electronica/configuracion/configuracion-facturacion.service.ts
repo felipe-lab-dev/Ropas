@@ -26,7 +26,6 @@ export interface ConfiguracionFacturacionGuardada {
   ubigeoFiscalCodigo: string;
   mifactBaseUrl: string;
   enviarAutomaticoASunat: boolean;
-  emitirAlConfirmar: boolean;
   retornarPdf: boolean;
   retornarXmlEnvio: boolean;
   retornarXmlCdr: boolean;
@@ -46,7 +45,6 @@ export interface ConfiguracionFacturacionResuelta {
   retornarXmlEnvio: boolean;
   retornarXmlCdr: boolean;
   formatoImpresion: string;
-  emitirAlConfirmar: boolean;
 }
 
 @Injectable()
@@ -83,7 +81,6 @@ export class ConfiguracionFacturacionService {
       retornarXmlEnvio: config.retornarXmlEnvio,
       retornarXmlCdr: config.retornarXmlCdr,
       formatoImpresion: config.formatoImpresion,
-      emitirAlConfirmar: config.emitirAlConfirmar,
     };
   }
 
@@ -127,7 +124,6 @@ export class ConfiguracionFacturacionService {
       mifactTokenCifrado: tokenCifrado,
       mifactBaseUrl: dto.mifactBaseUrl ?? 'https://demo.mifact.net.pe/api',
       enviarAutomaticoASunat: dto.enviarAutomaticoASunat ?? true,
-      emitirAlConfirmar: dto.emitirAlConfirmar ?? true,
       retornarPdf: dto.retornarPdf ?? true,
       retornarXmlEnvio: dto.retornarXmlEnvio ?? false,
       retornarXmlCdr: dto.retornarXmlCdr ?? false,
@@ -153,7 +149,6 @@ export class ConfiguracionFacturacionService {
       ubigeoFiscalCodigo: data.ubigeoFiscalCodigo,
       mifactBaseUrl: data.mifactBaseUrl,
       enviarAutomaticoASunat: data.enviarAutomaticoASunat,
-      emitirAlConfirmar: data.emitirAlConfirmar,
       retornarPdf: data.retornarPdf,
       retornarXmlEnvio: data.retornarXmlEnvio,
       retornarXmlCdr: data.retornarXmlCdr,

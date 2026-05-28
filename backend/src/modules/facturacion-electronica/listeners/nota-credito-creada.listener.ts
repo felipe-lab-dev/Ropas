@@ -1,6 +1,6 @@
 /**
  * NotaCreditoCreadaListener — escucha el evento 'nota-credito.creada' y dispara
- * la auto-emisión del CPE de la NC si el tenant tiene emitirAlConfirmar=true.
+ * la auto-emisión del CPE de la NC.
  *
  * Suscripción: se registra en onModuleInit() sobre el AppEventEmitter.
  * Errores de emisión: capturados con log warn, nunca re-lanzados — la NC ya
@@ -8,7 +8,6 @@
  */
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AppEventEmitter } from '../../../core/events/app-event-emitter';
-import { ConfiguracionFacturacionService } from '../configuracion/configuracion-facturacion.service';
 import { DocumentoElectronicoService } from '../documento-electronico/documento-electronico.service';
 import type { TenantContext } from '../../../core/tenancy/tenant-context';
 
@@ -35,7 +34,6 @@ export class NotaCreditoCreadaListener implements OnModuleInit {
 
   constructor(
     private readonly eventEmitter: AppEventEmitter,
-    private readonly configuracionService: ConfiguracionFacturacionService,
     private readonly documentoElectronicoService: DocumentoElectronicoService,
   ) {}
 
@@ -50,13 +48,6 @@ export class NotaCreditoCreadaListener implements OnModuleInit {
   async manejar(payload: NotaCreditoCreadaPayload): Promise<void> {
     try {
       const ctx = ctxDesdeCodigo(payload.tenantCode);
-      const config = await this.configuracionService.obtenerConfiguracion(ctx);
-      if (!config.emitirAlConfirmar) {
-        this.logger.log(
-          `Tenant ${payload.tenantCode}: emitirAlConfirmar=false, skipeando emit auto NC`,
-        );
-        return;
-      }
       await this.documentoElectronicoService.emitirCpeNotaCredito(ctx, payload.notaCreditoId);
     } catch (err) {
       // ErrorConflicto típico: NC sin datos SUNAT (tenant sin facElec) — log y seguir.

@@ -27,7 +27,6 @@ interface ConfigFE {
   mifactBaseUrl: string;
   tokenConfigurado: boolean;
   enviarAutomaticoASunat: boolean;
-  emitirAlConfirmar: boolean;
   retornarPdf: boolean;
   retornarXmlEnvio: boolean;
   retornarXmlCdr: boolean;
@@ -74,7 +73,6 @@ test.describe('Configuración · Facturación Electrónica (Modo A — sin tocar
       ubigeoFiscalCodigo: snapshot.ubigeoFiscalCodigo,
       mifactBaseUrl: snapshot.mifactBaseUrl,
       enviarAutomaticoASunat: snapshot.enviarAutomaticoASunat,
-      emitirAlConfirmar: snapshot.emitirAlConfirmar,
       retornarPdf: snapshot.retornarPdf,
       retornarXmlEnvio: snapshot.retornarXmlEnvio,
       retornarXmlCdr: snapshot.retornarXmlCdr,
@@ -88,7 +86,7 @@ test.describe('Configuración · Facturación Electrónica (Modo A — sin tocar
     await login(page);
   });
 
-  test('persiste config completa: RUC + razón social + dirección + ubigeo + 5 toggles ON + formato Ticket', async ({
+  test('persiste config completa: RUC + razón social + dirección + ubigeo + 4 toggles ON + formato Ticket', async ({
     page,
   }) => {
     await gotoY(page, '/configuracion/facturacion-electronica');
@@ -112,8 +110,7 @@ test.describe('Configuración · Facturación Electrónica (Modo A — sin tocar
     // El CommandItem renderiza el código como texto — clickeamos el primero
     await page.getByText('150101').first().click();
 
-    // 3. Toggles de comportamiento — los 5 ON
-    await asegurarSwitch(page, /emitir comprobante electr[oó]nico autom[aá]ticamente/i, true);
+    // 3. Toggles de comportamiento — los 4 ON
     await asegurarSwitch(page, /enviar a sunat en forma sincr[oó]nica/i, true);
     await asegurarSwitch(page, /retornar pdf/i, true);
     await asegurarSwitch(page, /retornar xml enviado/i, true);
@@ -136,7 +133,6 @@ test.describe('Configuración · Facturación Electrónica (Modo A — sin tocar
     expect(guardado!.razonSocial).toBe('TIENDA E2E PRUEBA SAC');
     expect(guardado!.direccionFiscal).toBe('Av. La Marina 123');
     expect(guardado!.ubigeoFiscalCodigo).toBe('150101');
-    expect(guardado!.emitirAlConfirmar).toBe(true);
     expect(guardado!.enviarAutomaticoASunat).toBe(true);
     expect(guardado!.retornarPdf).toBe(true);
     expect(guardado!.retornarXmlEnvio).toBe(true);
@@ -230,7 +226,6 @@ test.describe('Facturación Electrónica (Modo B — emisión real a SUNAT vía 
 
     // 1. Asegurar config FE con todos los flags de retorno activos
     await setConfiguracionFE(api, {
-      emitirAlConfirmar: true,
       enviarAutomaticoASunat: true,
       retornarPdf: true,
       retornarXmlEnvio: true,

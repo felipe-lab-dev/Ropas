@@ -28,7 +28,6 @@ const CONFIG_COMPLETA = {
   mifactBaseUrl: 'https://demo.mifact.net.pe/api',
   tokenConfigurado: true,
   enviarAutomaticoASunat: true,
-  emitirAlConfirmar: true,
   retornarPdf: true,
   retornarXmlEnvio: false,
   retornarXmlCdr: false,

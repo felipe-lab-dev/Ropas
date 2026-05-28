@@ -373,7 +373,6 @@ export async function setConfiguracionFE(
     mifactToken: string;
     mifactBaseUrl: string;
     enviarAutomaticoASunat: boolean;
-    emitirAlConfirmar: boolean;
     retornarPdf: boolean;
     retornarXmlEnvio: boolean;
     retornarXmlCdr: boolean;
@@ -389,7 +388,6 @@ export async function setConfiguracionFE(
     ubigeoFiscalCodigo: actual.ubigeoFiscalCodigo ?? '150101',
     mifactBaseUrl: actual.mifactBaseUrl ?? 'https://demo.mifact.net.pe/api',
     enviarAutomaticoASunat: actual.enviarAutomaticoASunat ?? true,
-    emitirAlConfirmar: actual.emitirAlConfirmar ?? true,
     retornarPdf: actual.retornarPdf ?? true,
     retornarXmlEnvio: actual.retornarXmlEnvio ?? false,
     retornarXmlCdr: actual.retornarXmlCdr ?? false,

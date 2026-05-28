@@ -36,7 +36,6 @@ const CONFIG_RESUELTA = {
   retornarXmlEnvio: false,
   retornarXmlCdr: false,
   formatoImpresion: '001',
-  emitirAlConfirmar: true,
 };
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
@@ -118,7 +117,6 @@ describe('ConfiguracionFacturacionController', () => {
       ubigeoFiscalCodigo: '080101',
       mifactBaseUrl: 'https://demo.mifact.net.pe/api',
       enviarAutomaticoASunat: true,
-      emitirAlConfirmar: true,
       retornarPdf: true,
       retornarXmlEnvio: false,
       retornarXmlCdr: false,

@@ -768,7 +768,6 @@ CREATE TABLE IF NOT EXISTS "configuracion_facturacion" (
     "retornar_xml_envio" BOOLEAN NOT NULL DEFAULT false,
     "retornar_xml_cdr" BOOLEAN NOT NULL DEFAULT false,
     "formato_impresion" VARCHAR(3) NOT NULL DEFAULT '001',
-    "emitir_al_confirmar" BOOLEAN NOT NULL DEFAULT true,
     "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "actualizado_en" TIMESTAMP(3) NOT NULL,
 

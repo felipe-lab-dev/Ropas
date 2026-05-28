@@ -1137,7 +1137,6 @@ model ConfiguracionFacturacion {
   retornarXmlEnvio       Boolean @default(false) @map("retornar_xml_envio")
   retornarXmlCdr         Boolean @default(false) @map("retornar_xml_cdr")
   formatoImpresion       String  @default("001") @map("formato_impresion") @db.VarChar(3)
-  emitirAlConfirmar      Boolean @default(true) @map("emitir_al_confirmar")
 
   creadoEn      DateTime @default(now()) @map("creado_en")
   actualizadoEn DateTime @updatedAt @map("actualizado_en")
