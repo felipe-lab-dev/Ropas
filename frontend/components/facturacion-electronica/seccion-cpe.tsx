@@ -20,16 +20,30 @@ import {
   useEmitirCpe,
   useReintentarCpe,
   useConsultarEstadoCpe,
+  esVistaCompleta,
+  type OrigenCpe,
 } from '@/lib/api/hooks/use-documento-electronico';
 import { mensajeError } from '@/lib/api/client';
 import { formatearFecha } from '@/lib/utils';
+import { tienePermiso, useSesion } from '@/lib/store/sesion';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
-interface SeccionCpeProps {
+interface SeccionCpePropsLegacy {
+  /** @deprecated Usar `origen` */
   ventaId: string;
   puedeEmitir: boolean;
+  origen?: never;
 }
+
+interface SeccionCpePropsNueva {
+  /** Origen del CPE: venta o nota de crédito. */
+  origen: OrigenCpe;
+  puedeEmitir: boolean;
+  ventaId?: never;
+}
+
+type SeccionCpeProps = SeccionCpePropsLegacy | SeccionCpePropsNueva;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,20 +54,38 @@ function truncarHash(hash: string | null): string {
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
-  const { data: documento, isLoading } = useDocumentoElectronico(ventaId);
+export function SeccionCpe(props: SeccionCpeProps) {
+  const origen: OrigenCpe =
+    'origen' in props && props.origen
+      ? props.origen
+      : { tipo: 'venta', id: (props as SeccionCpePropsLegacy).ventaId };
+  const { puedeEmitir } = props;
 
-  const emitir = useEmitirCpe(ventaId);
-  const reintentar = useReintentarCpe(ventaId);
-  const consultarEstado = useConsultarEstadoCpe(ventaId);
+  const permisos = useSesion((s) => s.usuario?.permisos);
+  const esContabilidad = tienePermiso(permisos, 'contabilidad:leer');
+
+  const { data: documento, isLoading } = useDocumentoElectronico(origen);
+
+  const emitir = useEmitirCpe(origen);
+  const reintentar = useReintentarCpe(origen);
+  const consultarEstado = useConsultarEstadoCpe(origen);
 
   function handleEmitir() {
     emitir.mutate(undefined, {
       onSuccess: (doc) => {
-        toast.success(`Comprobante emitido — estado: ${doc.estadoSunat}`);
+        // Toast genérico para no-contabilidad: nunca exponer el estado SUNAT.
+        if (esContabilidad && esVistaCompleta(doc)) {
+          toast.success(`Comprobante emitido — estado: ${doc.estadoSunat}`);
+        } else {
+          toast.success('Comprobante enviado');
+        }
       },
       onError: (err) => {
-        toast.error(`No se pudo emitir el comprobante: ${mensajeError(err)}`);
+        if (esContabilidad) {
+          toast.error(`No se pudo emitir el comprobante: ${mensajeError(err)}`);
+        } else {
+          toast.error('No se pudo emitir el comprobante. Contabilidad ya fue notificada.');
+        }
       },
     });
   }
@@ -61,10 +93,18 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
   function handleReintentar() {
     reintentar.mutate(undefined, {
       onSuccess: (doc) => {
-        toast.success(`Comprobante reenviado — estado: ${doc.estadoSunat}`);
+        if (esContabilidad && esVistaCompleta(doc)) {
+          toast.success(`Comprobante reenviado — estado: ${doc.estadoSunat}`);
+        } else {
+          toast.success('Comprobante reenviado');
+        }
       },
       onError: (err) => {
-        toast.error(`No se pudo reintentar: ${mensajeError(err)}`);
+        if (esContabilidad) {
+          toast.error(`No se pudo reintentar: ${mensajeError(err)}`);
+        } else {
+          toast.error('No se pudo reenviar el comprobante.');
+        }
       },
     });
   }
@@ -72,24 +112,38 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
   function handleConsultarEstado() {
     consultarEstado.mutate(undefined, {
       onSuccess: (doc) => {
-        toast.success(`Estado actualizado: ${doc.estadoSunat}`);
+        if (esContabilidad && esVistaCompleta(doc)) {
+          toast.success(`Estado actualizado: ${doc.estadoSunat}`);
+        } else {
+          toast.success('Estado actualizado');
+        }
       },
       onError: (err) => {
-        toast.error(`No se pudo consultar el estado: ${mensajeError(err)}`);
+        if (esContabilidad) {
+          toast.error(`No se pudo consultar el estado: ${mensajeError(err)}`);
+        } else {
+          toast.error('No se pudo consultar el estado.');
+        }
       },
     });
   }
 
+  // ── Visibilidad: no-contabilidad sin documento → no renderizar nada ─────────
+  // El backend ya filtró: si llega null y no es contabilidad, significa
+  // que el CPE no está aceptado o no existe. Silencio total.
+  if (!isLoading && !documento && !esContabilidad) {
+    return null;
+  }
+
   return (
     <Card className="overflow-hidden" data-testid="seccion-cpe">
-      {/* Header */}
       <div className="p-4 border-b border-[hsl(var(--border))] flex items-center gap-2">
         <FileText className="size-4 text-[hsl(var(--text-muted))]" />
         <h2 className="font-semibold text-sm">Facturación Electrónica</h2>
       </div>
 
       <div className="p-4">
-        {/* Estado: cargando */}
+        {/* Cargando */}
         {isLoading && (
           <div className="space-y-3" data-testid="cpe-skeleton">
             <Skeleton className="h-6 w-32" />
@@ -98,11 +152,11 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
           </div>
         )}
 
-        {/* Sin documento — ofrecer emisión */}
-        {!isLoading && documento === null && (
+        {/* Sin documento — solo contabilidad ve este estado (ofrecer emisión) */}
+        {!isLoading && !documento && esContabilidad && (
           <div className="space-y-3" data-testid="cpe-sin-documento">
             <p className="text-sm text-[hsl(var(--text-muted))]">
-              Aún no se ha emitido el comprobante electrónico para esta venta.
+              Aún no se ha emitido el comprobante electrónico.
             </p>
             {puedeEmitir && (
               <Button
@@ -111,21 +165,37 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
                 onClick={handleEmitir}
                 data-testid="btn-emitir-cpe"
               >
-                {emitir.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Send className="size-4" />
-                )}
+                {emitir.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 {emitir.isPending ? 'Emitiendo…' : 'Emitir comprobante'}
               </Button>
             )}
           </div>
         )}
 
-        {/* Con documento */}
-        {!isLoading && documento !== null && documento !== undefined && (
+        {/* Con documento + NO-contabilidad (vista reducida → solo PDF) */}
+        {!isLoading && documento && !esVistaCompleta(documento) && (
+          <div className="space-y-3" data-testid="cpe-vista-reducida">
+            <p className="text-xs text-[hsl(var(--text-muted))]">
+              Comprobante electrónico {documento.serie}-{documento.correlativo}
+            </p>
+            <a
+              href={documento.pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="link-pdf"
+            >
+              <Button variant="outline" size="sm">
+                <FileText className="size-3.5" />
+                Descargar PDF
+                <ExternalLink className="size-3" />
+              </Button>
+            </a>
+          </div>
+        )}
+
+        {/* Con documento + CONTABILIDAD (vista completa) */}
+        {!isLoading && documento && esVistaCompleta(documento) && (
           <div className="space-y-3" data-testid="cpe-con-documento">
-            {/* Badge + serie/correlativo */}
             <div className="flex items-center gap-3 flex-wrap">
               <EstadoCpeBadge estado={documento.estadoSunat} />
               <span className="font-mono text-sm font-semibold tracking-wide text-[hsl(var(--text-muted))]">
@@ -133,24 +203,19 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
               </span>
             </div>
 
-            {/* Error SUNAT */}
             {documento.ultimoErrorTexto &&
-              (documento.estadoSunat === 'pendiente' ||
-                documento.estadoSunat === 'rechazado') && (
+              (documento.estadoSunat === 'pendiente' || documento.estadoSunat === 'rechazado') && (
                 <p className="text-xs text-[hsl(var(--brand-danger,355_75%_60%))] bg-red-500/10 rounded px-2 py-1.5 font-mono break-all">
                   {documento.ultimoErrorTexto}
                 </p>
               )}
 
-            {/* Mensaje SUNAT (obs) */}
-            {documento.mensajeSunat &&
-              documento.estadoSunat === 'aceptado_observado' && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded px-2 py-1.5">
-                  {documento.mensajeSunat}
-                </p>
-              )}
+            {documento.mensajeSunat && documento.estadoSunat === 'aceptado_observado' && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded px-2 py-1.5">
+                {documento.mensajeSunat}
+              </p>
+            )}
 
-            {/* Hash + Enviado */}
             {documento.codigoHash && (
               <div className="text-xs text-[hsl(var(--text-muted))] space-y-0.5">
                 <span className="font-mono">
@@ -163,18 +228,15 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
             )}
             {documento.enviadoEn && (
               <p className="text-xs text-[hsl(var(--text-muted))]">
-                Enviado:{' '}
-                {formatearFecha(documento.enviadoEn, 'completa')}
+                Enviado: {formatearFecha(documento.enviadoEn, 'completa')}
               </p>
             )}
             {documento.aceptadoEn && (
               <p className="text-xs text-[hsl(var(--text-muted))]">
-                Aceptado:{' '}
-                {formatearFecha(documento.aceptadoEn, 'completa')}
+                Aceptado: {formatearFecha(documento.aceptadoEn, 'completa')}
               </p>
             )}
 
-            {/* QR como texto copiable si está disponible */}
             {documento.cadenaQr && (
               <details className="text-xs text-[hsl(var(--text-muted))]">
                 <summary className="cursor-pointer select-none hover:text-[hsl(var(--text-default))]">
@@ -188,17 +250,9 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
 
             {/* Links PDF / XML / CDR */}
             {(documento.pdfUrl || documento.xmlEnviadoUrl || documento.cdrUrl) && (
-              <div
-                className="flex flex-wrap gap-2 pt-1"
-                data-testid="cpe-links"
-              >
+              <div className="flex flex-wrap gap-2 pt-1" data-testid="cpe-links">
                 {documento.pdfUrl && (
-                  <a
-                    href={documento.pdfUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-testid="link-pdf"
-                  >
+                  <a href={documento.pdfUrl} target="_blank" rel="noopener noreferrer" data-testid="link-pdf">
                     <Button variant="outline" size="sm">
                       <FileText className="size-3.5" />
                       PDF
@@ -207,12 +261,7 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
                   </a>
                 )}
                 {documento.xmlEnviadoUrl && (
-                  <a
-                    href={documento.xmlEnviadoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-testid="link-xml"
-                  >
+                  <a href={documento.xmlEnviadoUrl} target="_blank" rel="noopener noreferrer" data-testid="link-xml">
                     <Button variant="outline" size="sm">
                       <FileCode className="size-3.5" />
                       XML
@@ -221,12 +270,7 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
                   </a>
                 )}
                 {documento.cdrUrl && (
-                  <a
-                    href={documento.cdrUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-testid="link-cdr"
-                  >
+                  <a href={documento.cdrUrl} target="_blank" rel="noopener noreferrer" data-testid="link-cdr">
                     <Button variant="outline" size="sm">
                       <FileCheck2 className="size-3.5" />
                       CDR
@@ -239,9 +283,7 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
 
             {/* Acciones según estado */}
             <div className="flex flex-wrap gap-2 pt-1">
-              {/* Reintentar: pendiente o rechazado */}
-              {(documento.estadoSunat === 'pendiente' ||
-                documento.estadoSunat === 'rechazado') &&
+              {(documento.estadoSunat === 'pendiente' || documento.estadoSunat === 'rechazado') &&
                 puedeEmitir && (
                   <Button
                     size="sm"
@@ -258,7 +300,6 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
                   </Button>
                 )}
 
-              {/* Consultar estado: en_proceso */}
               {documento.estadoSunat === 'en_proceso' && (
                 <Button
                   variant="outline"
@@ -272,9 +313,7 @@ export function SeccionCpe({ ventaId, puedeEmitir }: SeccionCpeProps) {
                   ) : (
                     <RefreshCw className="size-4" />
                   )}
-                  {consultarEstado.isPending
-                    ? 'Consultando…'
-                    : 'Consultar estado SUNAT'}
+                  {consultarEstado.isPending ? 'Consultando…' : 'Consultar estado SUNAT'}
                 </Button>
               )}
             </div>

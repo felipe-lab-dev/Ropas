@@ -117,7 +117,7 @@ export class PollEstadosCpeCron {
         actualizadoEn: { lt: new Date(Date.now() - MIN_INTERVALO_DOC_MS) },
       },
       take: MAX_DOCS_POR_TENANT,
-      select: { ventaId: true, id: true },
+      select: { ventaId: true, notaCreditoId: true, id: true },
     });
 
     if (docs.length === 0) return;
@@ -129,12 +129,15 @@ export class PollEstadosCpeCron {
     const docSvc = this.crearDocSvc();
 
     for (const doc of docs) {
-      if (!doc.ventaId) continue;
       try {
-        await docSvc.consultarEstadoCpe(ctx, doc.ventaId);
+        if (doc.ventaId) {
+          await docSvc.consultarEstadoCpe(ctx, doc.ventaId);
+        } else if (doc.notaCreditoId) {
+          await docSvc.consultarEstadoCpeNotaCredito(ctx, doc.notaCreditoId);
+        }
       } catch (err) {
         this.logger.warn(
-          `tenant ${tenant.codigo} doc ${doc.id}: consultarEstadoCpe falló: ${(err as Error).message}`,
+          `tenant ${tenant.codigo} doc ${doc.id}: consultarEstado falló: ${(err as Error).message}`,
         );
       }
     }

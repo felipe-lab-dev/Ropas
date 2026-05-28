@@ -16,6 +16,7 @@ import { crearResultadoPaginado } from '../../core/responses/respuesta.intercept
 import { InventarioService } from '../inventario/inventario.service';
 import { SerieCpeService } from '../facturacion-electronica/series-cpe/series-cpe.service';
 import { TipoCpe } from '../../core/sunat/codigos';
+import { AppEventEmitter } from '../../core/events/app-event-emitter';
 import { CrearNotaCreditoDto } from './dto/crear-nota-credito.dto';
 
 // Lock advisory (estable por tenant) para serializar generación del número NC.
@@ -45,6 +46,7 @@ export class NotasCreditoService {
     private readonly prisma: PrismaTenantService,
     private readonly inventario: InventarioService,
     private readonly serieCpeService: SerieCpeService,
+    private readonly eventEmitter: AppEventEmitter,
   ) {}
 
   async listar(query: ListarNotasQuery, ctx: TenantContext) {
@@ -104,7 +106,7 @@ export class NotasCreditoService {
     if (!motivo) throw new ErrorValidacion('El motivo es obligatorio');
 
     const cliente = this.prisma.forTenant(ctx);
-    return cliente.$transaction(async tx => {
+    const nota = await cliente.$transaction(async tx => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${LOCK_KEY_NUMERO_NC})`;
 
       const venta = await tx.venta.findFirst({
@@ -316,6 +318,15 @@ export class NotasCreditoService {
 
       return nota;
     });
+
+    // Emitir DESPUÉS del commit. El listener decidirá si emite CPE
+    // (solo si el tenant tiene facElec activa y la NC tiene datos SUNAT).
+    this.eventEmitter.emit('nota-credito.creada', {
+      notaCreditoId: nota.id,
+      tenantCode: ctx.codigo,
+    });
+
+    return nota;
   }
 
   async anular(id: string, motivo: string, ctx: TenantContext, usuarioId: string) {
