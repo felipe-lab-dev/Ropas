@@ -7,10 +7,11 @@ import { Tenant } from '../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { AuthGuard, RequierePermiso } from '../auth/auth.guard';
 import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../saas/catalogo-modulos';
 
 @Controller('clientes')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('clientes')
+@ModuloHabilitado(CATALOGO_MODULOS.CLIENTES)
 export class ClientesController {
   constructor(
     private readonly service: ClientesService,

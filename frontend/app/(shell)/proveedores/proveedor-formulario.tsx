@@ -117,6 +117,7 @@ export function ProveedorFormulario({
         <Campo label="Tipo doc." error={errores.tipoDocumento}>
           <Select
             name="tipoDocumento"
+            data-testid="select-tipo-doc-proveedor"
             value={form.tipoDocumento}
             onChange={e => set('tipoDocumento', e.target.value as ProveedorFormValues['tipoDocumento'])}
           >
@@ -128,6 +129,7 @@ export function ProveedorFormulario({
         <Campo label="Documento *" error={errores.documento} className="md:col-span-2">
           <Input
             name="documento"
+            data-testid="input-documento-proveedor"
             value={form.documento}
             onChange={e => set('documento', e.target.value)}
             placeholder={placeholderDoc(form.tipoDocumento)}
@@ -141,6 +143,7 @@ export function ProveedorFormulario({
       <Campo label="Razón social *" error={errores.razonSocial}>
         <Input
           name="razonSocial"
+          data-testid="input-razon-social-proveedor"
           value={form.razonSocial}
           onChange={e => set('razonSocial', e.target.value)}
           placeholder="DISTRIBUIDORA TEXTIL SAC"
@@ -151,6 +154,7 @@ export function ProveedorFormulario({
       <Campo label="Nombre comercial" error={errores.nombreComercial}>
         <Input
           name="nombreComercial"
+          data-testid="input-nombre-comercial-proveedor"
           value={form.nombreComercial ?? ''}
           onChange={e => set('nombreComercial', e.target.value)}
           placeholder="Como se conoce a la empresa"
@@ -215,6 +219,7 @@ export function ProveedorFormulario({
         <Campo label="Condición de pago" error={errores.condicionPago}>
           <Select
             name="condicionPago"
+            data-testid="select-condicion-pago-proveedor"
             value={form.condicionPago}
             onChange={e => cambiarCondicion(e.target.value as ProveedorFormValues['condicionPago'])}
           >
@@ -274,13 +279,20 @@ export function ProveedorFormulario({
 
       <div className="flex flex-wrap gap-3 justify-end pt-2">
         {onCancelar && (
-          <Button variant="ghost" onClick={onCancelar} type="button" disabled={guardando}>
+          <Button
+            variant="ghost"
+            data-testid="btn-cancelar-proveedor"
+            onClick={onCancelar}
+            type="button"
+            disabled={guardando}
+          >
             Cancelar
           </Button>
         )}
         <Button
           size="lg"
           type="button"
+          data-testid="btn-guardar-proveedor"
           disabled={guardando}
           onClick={submit}
         >

@@ -4,7 +4,6 @@
  * Instanciamos el controller directamente (sin NestJS DI completo)
  * mockeando SerieCpeService directamente.
  */
-import { ParseUUIDPipe } from '@nestjs/common';
 import { SerieCpeController } from './series-cpe.controller';
 import { SerieCpeService } from './series-cpe.service';
 import { TenantContext } from '../../../core/tenancy/tenant-context';
@@ -33,7 +32,6 @@ function crearSerie(overrides: Partial<Record<string, unknown>> = {}) {
     tipoCpe: 'factura',
     serie: 'F001',
     correlativoActual: 32,
-    activa: true,
     creadoEn: new Date(),
     actualizadoEn: new Date(),
     sucursal: { id: SUCURSAL_ID, nombre: 'Principal' },
@@ -45,18 +43,15 @@ function crearSerie(overrides: Partial<Record<string, unknown>> = {}) {
 
 let mockListar: jest.Mock;
 let mockCrear: jest.Mock;
-let mockActualizar: jest.Mock;
 let controller: SerieCpeController;
 
 function crearController() {
   mockListar = jest.fn();
   mockCrear = jest.fn();
-  mockActualizar = jest.fn();
 
   const mockService = {
     listar: mockListar,
     crear: mockCrear,
-    actualizar: mockActualizar,
   } as unknown as SerieCpeService;
 
   return new SerieCpeController(mockService);
@@ -111,24 +106,5 @@ describe('SerieCpeController', () => {
 
     expect(resultado).toEqual({ datos: serieCreada });
     expect(mockCrear).toHaveBeenCalledWith(CTX_TEST, dto);
-  });
-
-  // ─── 3. PATCH → llama service.actualizar ─────────────────────────────────
-
-  it('PATCH llama service.actualizar y retorna { datos: serieCpe }', async () => {
-    const serieInactiva = crearSerie({ activa: false });
-    mockActualizar.mockResolvedValue(serieInactiva);
-
-    const resultado = await controller.actualizar(CTX_TEST, SERIE_ID, { activa: false });
-
-    expect(resultado).toEqual({ datos: serieInactiva });
-    expect(mockActualizar).toHaveBeenCalledWith(CTX_TEST, SERIE_ID, { activa: false });
-  });
-
-  // ─── 4. ParseUUIDPipe está disponible para validación de :id ─────────────
-
-  it('ParseUUIDPipe puede instanciarse para el parámetro :id', () => {
-    const pipe = new ParseUUIDPipe();
-    expect(pipe).toBeInstanceOf(ParseUUIDPipe);
   });
 });

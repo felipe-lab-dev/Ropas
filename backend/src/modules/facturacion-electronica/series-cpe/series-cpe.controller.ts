@@ -1,9 +1,8 @@
 /**
- * SerieCpeController — CRUD de series CPE para configuración.
+ * SerieCpeController — CRUD de series de comprobantes para configuración.
  *
- * DELETE no existe: las series nunca se eliminan físicamente (regla fiscal).
- * Una serie "en desuso" se desactiva (activa=false) pero permanece en DB.
- * Solo se permite toggle de `activa` vía PATCH.
+ * DELETE no existe (regla fiscal: una serie que emitió queda "burned" en SUNAT).
+ * PUT (editar) solo procede si la serie no tiene comprobantes emitidos.
  *
  * Nota: vive bajo el prefijo global 'api/v1' del AppModule.
  */
@@ -13,22 +12,23 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
-  Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { SerieCpeService } from './series-cpe.service';
 import { CrearSerieCpeDto } from './dto/crear-serie-cpe.dto';
-import { ActualizarSerieCpeDto } from './dto/actualizar-serie-cpe.dto';
+import { EditarSerieCpeDto } from './dto/editar-serie-cpe.dto';
 import { AuthGuard, RequierePermiso } from '../../auth/auth.guard';
 import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../../saas/catalogo-modulos';
 import { Tenant } from '../../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../../core/tenancy/tenant-context';
 
 @Controller('series-cpe')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('facturacion-electronica')
+@ModuloHabilitado(CATALOGO_MODULOS.FACTURACION_ELECTRONICA)
 export class SerieCpeController {
   constructor(private readonly serieCpeService: SerieCpeService) {}
 
@@ -47,7 +47,7 @@ export class SerieCpeController {
 
   /**
    * POST /api/v1/series-cpe
-   * Crea una nueva serie CPE. Valida unicidad, formato y coherencia letra↔tipo.
+   * Crea una nueva serie. Valida unicidad, formato y coherencia letra↔tipo.
    */
   @Post()
   @RequierePermiso('configuracion:editar')
@@ -59,17 +59,17 @@ export class SerieCpeController {
   }
 
   /**
-   * PATCH /api/v1/series-cpe/:id
-   * Permite SOLO toggle de `activa`. Campos inmutables (serie, tipoCpe,
-   * correlativoActual, sucursalId) se ignoran si vienen en el body.
+   * PUT /api/v1/series-cpe/:id
+   * Edita una serie existente. Solo procede si la serie no tiene comprobantes
+   * emitidos. Los campos omitidos mantienen su valor.
    */
-  @Patch(':id')
+  @Put(':id')
   @RequierePermiso('configuracion:editar')
-  async actualizar(
+  async editar(
     @Tenant() ctx: TenantContext,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: ActualizarSerieCpeDto,
+    @Body() dto: EditarSerieCpeDto,
   ) {
-    return { datos: await this.serieCpeService.actualizar(ctx, id, dto) };
+    return { datos: await this.serieCpeService.editar(ctx, id, dto) };
   }
 }

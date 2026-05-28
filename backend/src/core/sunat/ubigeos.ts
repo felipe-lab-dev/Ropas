@@ -35,16 +35,23 @@ export function ubigeoExiste(codigo: string): boolean {
 }
 
 /**
- * Búsqueda case-insensitive contra distrito + provincia + departamento.
- * Útil para autocomplete en frontend.
+ * Búsqueda case-insensitive contra código + distrito + provincia + departamento.
+ * Útil para autocomplete en frontend y para resolver la etiqueta de un código
+ * UBIGEO ya seleccionado (el frontend nos lo pasa como `q`).
  */
 export function buscarUbigeos(query: string, limite = 20): readonly Ubigeo[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
 
+  // Si parece un código UBIGEO (6 dígitos), priorizar lookup exacto O(1).
+  if (/^\d{6}$/.test(q)) {
+    const exacto = indicePorCodigo.get(q);
+    if (exacto) return [exacto];
+  }
+
   const resultados: Ubigeo[] = [];
   for (const u of ubigeos) {
-    const hay = `${u.distrito} ${u.provincia} ${u.departamento}`.toLowerCase();
+    const hay = `${u.codigo} ${u.distrito} ${u.provincia} ${u.departamento}`.toLowerCase();
     if (hay.includes(q)) {
       resultados.push(u);
       if (resultados.length >= limite) break;

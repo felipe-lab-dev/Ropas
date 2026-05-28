@@ -200,7 +200,7 @@ test.describe('Facturación Electrónica — Sección CPE en detalle de venta', 
     await btnEmitir.click();
 
     // Toast de éxito
-    await esperarToast(page, /CPE emitido/i);
+    await esperarToast(page, /Comprobante emitido/i);
 
     // Badge "Aceptado" visible
     await expect(page.getByTestId('estado-cpe-badge')).toContainText('Aceptado', {
@@ -270,6 +270,6 @@ test.describe('Facturación Electrónica — Sección CPE en detalle de venta', 
     await btnReintentar.click();
 
     // Toast de éxito
-    await esperarToast(page, /CPE reenviado/i);
+    await esperarToast(page, /Comprobante reenviado/i);
   });
 });

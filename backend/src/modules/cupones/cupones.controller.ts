@@ -26,10 +26,11 @@ import {
   ModuloHabilitado,
   ModuloHabilitadoGuard,
 } from '../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../saas/catalogo-modulos';
 
 @Controller('cupones')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('cupones')
+@ModuloHabilitado(CATALOGO_MODULOS.CUPONES)
 export class CuponesController {
   constructor(
     private readonly service: CuponesService,

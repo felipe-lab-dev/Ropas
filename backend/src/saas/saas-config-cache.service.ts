@@ -3,21 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import { EnkiClient, ConfigEnki } from './enki.client';
 import { PrismaPublicService } from '../core/prisma/prisma-public.service';
 import { ErrorNoEncontrado } from '../core/errors/errores';
+import { esModuloValido, ModuloId } from './catalogo-modulos';
+import { PLANES } from './catalogo-planes';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-const MODULOS_OFFLINE = [
-  'productos',
-  'inventario',
-  'ventas',
-  'caja',
-  'clientes',
-  'proveedores',
-  'compras',
-  'reportes',
-  'usuarios',
-  'configuracion',
-];
+// Fallback cuando el tenant tiene `modulos_habilitados` vacío. Usamos el plan
+// `full` para no bloquear features en dev/offline. En prod real (ENKI integrado)
+// este fallback no se dispara — ENKI siempre devuelve la lista del plan contratado.
+const MODULOS_OFFLINE: readonly ModuloId[] = PLANES.full;
 
 interface EntradaCache {
   config: ConfigEnki;
@@ -79,9 +73,13 @@ export class SaasConfigCacheService {
     });
     if (!tenant) throw new ErrorNoEncontrado(`Tenant "${codigo}" no existe`);
 
-    const modulos = Array.isArray(tenant.modulosHabilitados)
-      ? (tenant.modulosHabilitados as string[])
-      : MODULOS_OFFLINE;
+    const crudos = Array.isArray(tenant.modulosHabilitados)
+      ? (tenant.modulosHabilitados as unknown[])
+      : [];
+    // Filtramos strings desconocidos (defensivo: si en DB hay un módulo viejo
+    // que ya no existe en el catálogo, lo ignoramos para no inflar la config).
+    const modulos = crudos.filter(esModuloValido);
+    const finales: readonly ModuloId[] = modulos.length > 0 ? modulos : MODULOS_OFFLINE;
 
     return {
       tenant: {
@@ -96,7 +94,7 @@ export class SaasConfigCacheService {
         nombre: tenant.planNombre ?? 'Offline Full',
         limites: (tenant.limites as Record<string, number>) ?? {},
       },
-      modulosHabilitados: modulos.length > 0 ? modulos : MODULOS_OFFLINE,
+      modulosHabilitados: [...finales],
       accesoPermitido: tenant.estado === 'activo' || tenant.estado === 'trial',
     };
   }

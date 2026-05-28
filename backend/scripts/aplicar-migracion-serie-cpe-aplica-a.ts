@@ -1,9 +1,9 @@
 /**
- * Aplica la migración 20260527_emitir_al_confirmar (agrega emitir_al_confirmar a configuracion_facturacion)
- * a todos los schemas tenant_* (o solo al tenant indicado con --tenant <name>).
+ * Aplica la migración 20260527_serie_cpe_aplica_a a todos los schemas tenant_*
+ * (o solo al tenant indicado con --tenant <name>).
  *
- *   Uso: pnpm exec tsx scripts/aplicar-migracion-emitir-al-confirmar.ts
- *        pnpm exec tsx scripts/aplicar-migracion-emitir-al-confirmar.ts --tenant tenant_mi_tienda
+ *   Uso: pnpm exec tsx scripts/aplicar-migracion-serie-cpe-aplica-a.ts
+ *        pnpm exec tsx scripts/aplicar-migracion-serie-cpe-aplica-a.ts --tenant tenant_mi_tienda
  */
 import { PrismaClient } from '@prisma/client';
 import { existsSync, readFileSync } from 'node:fs';
@@ -22,7 +22,7 @@ const SQL_PATH = join(
   '..',
   'prisma',
   'migrations',
-  '20260527_emitir_al_confirmar',
+  '20260527_serie_cpe_aplica_a',
   'migration.sql',
 );
 
@@ -48,7 +48,7 @@ async function main() {
 
   if (schemasFiltrados.length === 0) {
     console.log(tenantFiltro
-      ? `No se encontró el tenant '${tenantFiltro}'. Verifica el nombre.`
+      ? `No se encontró el tenant '${tenantFiltro}'.`
       : 'No hay tenants.');
     await p.$disconnect();
     return;
@@ -65,29 +65,25 @@ async function main() {
       for (const s of sentencias) {
         if (s.trim()) await p.$executeRawUnsafe(s);
       }
-      console.log(`  ✓ DDL aplicado`);
+      console.log(`  ✓ Migración aplicada`);
       exitosos++;
     } catch (err) {
       console.error(`  ✗ ERROR en ${schema_name}:`, err);
       fallidos++;
-      // Continuamos con el siguiente tenant — no abortamos.
     }
   }
 
   await p.$disconnect();
 
   console.log('');
-  console.log(`✅ emitir_al_confirmar: migración completada.`);
+  console.log(`✅ serie_cpe_aplica_a: migración completada.`);
   console.log(`   Exitosos: ${exitosos} / ${schemasFiltrados.length}`);
   if (fallidos > 0) {
-    console.log(`   ⚠  Fallidos: ${fallidos} — revisar errores arriba y re-aplicar manualmente.`);
+    console.log(`   ⚠  Fallidos: ${fallidos} — revisar errores.`);
     process.exit(1);
   }
 }
 
-/**
- * Parte un script SQL en sentencias completas respetando bloques DO $$...$$.
- */
 function partirSql(sql: string): string[] {
   const sentencias: string[] = [];
   let buffer = '';

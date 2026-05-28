@@ -8,6 +8,7 @@ import { ParseUUIDPipe } from '@nestjs/common';
 import { EmisionCpeController } from './emision-cpe.controller';
 import { ErrorNoEncontrado, ErrorConflicto } from '../../../core/errors/errores';
 import type { TenantContext } from '../../../core/tenancy/tenant-context';
+import type { Request } from 'express';
 
 // ─── Datos de prueba ──────────────────────────────────────────────────────────
 
@@ -22,6 +23,11 @@ const CTX_TEST: TenantContext = {
   limites: {},
   accesoPermitido: true,
 };
+
+/** Mock de request con usuario que tiene `contabilidad:leer` → ve doc completo. */
+const REQ_CONTABILIDAD = {
+  usuario: { permisos: ['contabilidad:leer', 'ventas:emitir-cpe'] },
+} as unknown as Request;
 
 function crearDocumento() {
   return {
@@ -69,7 +75,7 @@ describe('EmisionCpeController', () => {
     const doc = crearDocumento();
     documentoService.obtenerPorVentaId.mockResolvedValue(doc);
 
-    const resultado = await controller.obtener(VENTA_ID, CTX_TEST);
+    const resultado = await controller.obtener(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD);
 
     expect(resultado).toEqual({ datos: doc });
     expect(documentoService.obtenerPorVentaId).toHaveBeenCalledWith(CTX_TEST, VENTA_ID);
@@ -78,7 +84,7 @@ describe('EmisionCpeController', () => {
   it('obtener: retorna {datos: null} cuando no existe documento para la venta', async () => {
     documentoService.obtenerPorVentaId.mockResolvedValue(null);
 
-    const resultado = await controller.obtener(VENTA_ID, CTX_TEST);
+    const resultado = await controller.obtener(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD);
 
     expect(resultado).toEqual({ datos: null });
     expect(documentoService.obtenerPorVentaId).toHaveBeenCalledWith(CTX_TEST, VENTA_ID);
@@ -90,7 +96,7 @@ describe('EmisionCpeController', () => {
     const doc = crearDocumento();
     documentoService.emitirCpe.mockResolvedValue(doc);
 
-    const resultado = await controller.emitir(VENTA_ID, CTX_TEST);
+    const resultado = await controller.emitir(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD);
 
     expect(resultado).toEqual({ datos: doc });
     expect(documentoService.emitirCpe).toHaveBeenCalledWith(CTX_TEST, VENTA_ID);
@@ -103,8 +109,8 @@ describe('EmisionCpeController', () => {
       new ErrorNoEncontrado('Venta no encontrada'),
     );
 
-    await expect(controller.emitir(VENTA_ID, CTX_TEST)).rejects.toThrow(ErrorNoEncontrado);
-    await expect(controller.emitir(VENTA_ID, CTX_TEST)).rejects.toThrow(/venta no encontrada/i);
+    await expect(controller.emitir(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD)).rejects.toThrow(ErrorNoEncontrado);
+    await expect(controller.emitir(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD)).rejects.toThrow(/venta no encontrada/i);
   });
 
   // ─── 3. Service lanza error genérico ─────────────────────────────────────
@@ -113,7 +119,7 @@ describe('EmisionCpeController', () => {
     const err = new Error('Error inesperado de red');
     documentoService.emitirCpe.mockRejectedValue(err);
 
-    await expect(controller.emitir(VENTA_ID, CTX_TEST)).rejects.toThrow('Error inesperado de red');
+    await expect(controller.emitir(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD)).rejects.toThrow('Error inesperado de red');
   });
 
   // ─── 4. ParseUUIDPipe está configurado ───────────────────────────────────
@@ -136,7 +142,7 @@ describe('EmisionCpeController', () => {
     const doc = crearDocumento();
     documentoService.reintentarCpe.mockResolvedValue(doc);
 
-    const resultado = await controller.reintentar(VENTA_ID, CTX_TEST);
+    const resultado = await controller.reintentar(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD);
 
     expect(resultado).toEqual({ datos: doc });
     expect(documentoService.reintentarCpe).toHaveBeenCalledWith(CTX_TEST, VENTA_ID);
@@ -149,8 +155,8 @@ describe('EmisionCpeController', () => {
       new ErrorConflicto('El documento ya fue aceptado por SUNAT. No se puede reintentar.'),
     );
 
-    await expect(controller.reintentar(VENTA_ID, CTX_TEST)).rejects.toThrow(ErrorConflicto);
-    await expect(controller.reintentar(VENTA_ID, CTX_TEST)).rejects.toThrow(/ya fue aceptado/i);
+    await expect(controller.reintentar(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD)).rejects.toThrow(ErrorConflicto);
+    await expect(controller.reintentar(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD)).rejects.toThrow(/ya fue aceptado/i);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -163,7 +169,7 @@ describe('EmisionCpeController', () => {
     const doc = crearDocumento();
     documentoService.consultarEstadoCpe.mockResolvedValue(doc);
 
-    const resultado = await controller.consultarEstado(VENTA_ID, CTX_TEST);
+    const resultado = await controller.consultarEstado(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD);
 
     expect(resultado).toEqual({ datos: doc });
     expect(documentoService.consultarEstadoCpe).toHaveBeenCalledWith(CTX_TEST, VENTA_ID);
@@ -176,8 +182,8 @@ describe('EmisionCpeController', () => {
       new ErrorNoEncontrado('No hay documento electrónico para esta venta.'),
     );
 
-    await expect(controller.consultarEstado(VENTA_ID, CTX_TEST)).rejects.toThrow(ErrorNoEncontrado);
-    await expect(controller.consultarEstado(VENTA_ID, CTX_TEST)).rejects.toThrow(
+    await expect(controller.consultarEstado(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD)).rejects.toThrow(ErrorNoEncontrado);
+    await expect(controller.consultarEstado(VENTA_ID, CTX_TEST, REQ_CONTABILIDAD)).rejects.toThrow(
       /no hay documento electrónico/i,
     );
   });

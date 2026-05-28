@@ -374,6 +374,7 @@ CREATE TABLE IF NOT EXISTS "ventas" (
     "tipo_cpe" "tipo_cpe",
     "serie_cpe_id" UUID,
     "correlativo" VARCHAR(8),
+    "es_nota_de_venta" BOOLEAN NOT NULL DEFAULT false,
     "moneda" VARCHAR(3) NOT NULL DEFAULT 'PEN',
     "tipo_cambio" DECIMAL(10,4) NOT NULL DEFAULT 1,
     "fecha_vencimiento" DATE,
@@ -384,7 +385,8 @@ CREATE TABLE IF NOT EXISTS "ventas" (
     "actualizado_en" TIMESTAMP(3) NOT NULL,
     "eliminado_en" TIMESTAMP(3),
 
-    CONSTRAINT "ventas_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "ventas_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "ventas_modalidad_excluyente_chk" CHECK (NOT ("es_nota_de_venta" = true AND "tipo_cpe" IS NOT NULL))
 );
 
 -- CreateTable
@@ -719,9 +721,9 @@ CREATE TABLE IF NOT EXISTS "series_cpe" (
     "id" UUID NOT NULL,
     "sucursal_id" UUID NOT NULL,
     "tipo_cpe" "tipo_cpe" NOT NULL,
+    "aplica_a" "tipo_cpe",
     "serie" VARCHAR(4) NOT NULL,
     "correlativo_actual" INTEGER NOT NULL DEFAULT 0,
-    "activa" BOOLEAN NOT NULL DEFAULT true,
     "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "actualizado_en" TIMESTAMP(3) NOT NULL,
 
@@ -757,7 +759,7 @@ CREATE TABLE IF NOT EXISTS "documentos_electronicos" (
 CREATE TABLE IF NOT EXISTS "configuracion_facturacion" (
     "id" UUID NOT NULL,
     "mifact_token_cifrado" TEXT NOT NULL,
-    "mifact_base_url" VARCHAR(200) NOT NULL DEFAULT 'https://demo.mifact.net.pe',
+    "mifact_base_url" VARCHAR(200) NOT NULL DEFAULT 'https://demo.mifact.net.pe/api',
     "ruc" VARCHAR(11) NOT NULL,
     "razon_social" VARCHAR(200) NOT NULL,
     "nombre_comercial" VARCHAR(200),
@@ -768,8 +770,6 @@ CREATE TABLE IF NOT EXISTS "configuracion_facturacion" (
     "retornar_xml_envio" BOOLEAN NOT NULL DEFAULT false,
     "retornar_xml_cdr" BOOLEAN NOT NULL DEFAULT false,
     "formato_impresion" VARCHAR(3) NOT NULL DEFAULT '001',
-    "correo_notificacion" VARCHAR(160),
-    "emitir_al_confirmar" BOOLEAN NOT NULL DEFAULT true,
     "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "actualizado_en" TIMESTAMP(3) NOT NULL,
 
@@ -975,10 +975,21 @@ CREATE INDEX IF NOT EXISTS "cupones_usos_cupon_id_aplicado_en_idx" ON "cupones_u
 CREATE INDEX IF NOT EXISTS "cupones_usos_cliente_id_idx" ON "cupones_usos"("cliente_id");
 
 -- CreateIndex
-CREATE INDEX IF NOT EXISTS "series_cpe_sucursal_id_tipo_cpe_idx" ON "series_cpe"("sucursal_id", "tipo_cpe");
+CREATE INDEX IF NOT EXISTS "series_cpe_sucursal_id_tipo_cpe_aplica_a_idx" ON "series_cpe"("sucursal_id", "tipo_cpe", "aplica_a");
 
--- CreateIndex
-CREATE UNIQUE INDEX IF NOT EXISTS "series_cpe_sucursal_id_tipo_cpe_serie_key" ON "series_cpe"("sucursal_id", "tipo_cpe", "serie");
+-- Unicidad TOTAL: a lo sumo UNA fila por (sucursal, tipoCpe, aplicaA), sin
+-- importar `activa`. El toggle activa/inactiva es para "pausar" la serie, no
+-- para coexistir con otra del mismo tipo.
+-- Dos índices parciales separados porque Postgres trata cada NULL como distinto
+-- en UNIQUE normal, así que aplica_a=NULL (factura/boleta/guias) necesita su
+-- propio índice condicionado.
+CREATE UNIQUE INDEX IF NOT EXISTS "series_cpe_unicidad_sin_aplica_a"
+  ON "series_cpe" ("sucursal_id", "tipo_cpe")
+  WHERE "aplica_a" IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS "series_cpe_unicidad_con_aplica_a"
+  ON "series_cpe" ("sucursal_id", "tipo_cpe", "aplica_a")
+  WHERE "aplica_a" IS NOT NULL;
 
 -- CreateIndex
 CREATE UNIQUE INDEX IF NOT EXISTS "documentos_electronicos_venta_id_key" ON "documentos_electronicos"("venta_id");

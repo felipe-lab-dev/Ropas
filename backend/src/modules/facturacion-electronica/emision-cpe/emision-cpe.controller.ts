@@ -1,32 +1,39 @@
 /**
- * EmisionCpeController — endpoint REST para emitir CPE de una venta.
+ * EmisionCpeController — endpoints REST para emitir CPE de una venta.
  *
- * POST /ventas/:id/emitir-cpe
+ * Endpoints (todos bajo prefijo global 'api/v1' del AppModule):
+ *   GET  /ventas/:id/documento-electronico
+ *   POST /ventas/:id/emitir-cpe
+ *   POST /ventas/:id/reintentar-cpe
+ *   POST /ventas/:id/consultar-estado-cpe
  *
- * El controller vive bajo el prefijo global 'api/v1' que configura el AppModule.
- * El interceptor RespuestaInterceptor envuelve la respuesta en {exito:true, datos:...}
- * automáticamente — el controller solo retorna {datos: documento}.
- *
- * Nota: reutiliza los guards de VentasModule (ModuloHabilitadoGuard + AuthGuard)
- * y el permiso 'ventas:emitir-cpe'.
+ * Visibilidad por rol (regla 2026-05-28):
+ *   - Usuario con `contabilidad:leer` → objeto DocumentoElectronico completo.
+ *   - Otros usuarios → solo `{pdfUrl, serie, correlativo}` SI el CPE ya está
+ *     aceptado por SUNAT; sino null. NUNCA expone estado/error/hash/XML/CDR.
  */
 import {
+  Body,
   Controller,
   Get,
   Param,
   ParseUUIDPipe,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { DocumentoElectronicoService } from '../documento-electronico/documento-electronico.service';
 import { AuthGuard, RequierePermiso } from '../../auth/auth.guard';
 import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../../saas/catalogo-modulos';
 import { Tenant } from '../../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../../core/tenancy/tenant-context';
+import { filtrarDocumentoSegunPermisos } from './filtrar-documento-segun-permisos';
 
 @Controller('ventas')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('ventas')
+@ModuloHabilitado(CATALOGO_MODULOS.VENTAS)
 export class EmisionCpeController {
   constructor(private readonly documentoService: DocumentoElectronicoService) {}
 
@@ -35,9 +42,10 @@ export class EmisionCpeController {
   async obtener(
     @Param('id', ParseUUIDPipe) ventaId: string,
     @Tenant() ctx: TenantContext,
+    @Req() req: Request,
   ) {
     const documento = await this.documentoService.obtenerPorVentaId(ctx, ventaId);
-    return { datos: documento };
+    return { datos: filtrarDocumentoSegunPermisos(documento, req.usuario!.permisos) };
   }
 
   @Post(':id/emitir-cpe')
@@ -45,9 +53,10 @@ export class EmisionCpeController {
   async emitir(
     @Param('id', ParseUUIDPipe) ventaId: string,
     @Tenant() ctx: TenantContext,
+    @Req() req: Request,
   ) {
     const datos = await this.documentoService.emitirCpe(ctx, ventaId);
-    return { datos };
+    return { datos: filtrarDocumentoSegunPermisos(datos, req.usuario!.permisos) };
   }
 
   @Post(':id/reintentar-cpe')
@@ -55,9 +64,10 @@ export class EmisionCpeController {
   async reintentar(
     @Param('id', ParseUUIDPipe) ventaId: string,
     @Tenant() ctx: TenantContext,
+    @Req() req: Request,
   ) {
     const documento = await this.documentoService.reintentarCpe(ctx, ventaId);
-    return { datos: documento };
+    return { datos: filtrarDocumentoSegunPermisos(documento, req.usuario!.permisos) };
   }
 
   @Post(':id/consultar-estado-cpe')
@@ -65,8 +75,29 @@ export class EmisionCpeController {
   async consultarEstado(
     @Param('id', ParseUUIDPipe) ventaId: string,
     @Tenant() ctx: TenantContext,
+    @Req() req: Request,
   ) {
     const documento = await this.documentoService.consultarEstadoCpe(ctx, ventaId);
-    return { datos: documento };
+    return { datos: filtrarDocumentoSegunPermisos(documento, req.usuario!.permisos) };
+  }
+
+  /**
+   * Solicita la BAJA del CPE a SUNAT (LowInvoice).
+   *
+   * Distinto de emitir una NC: la anulación deshace el comprobante en SUNAT
+   * como si nunca hubiera existido. Solo aplica sobre CPEs aceptados.
+   *
+   * Body: `{ motivo: string }` — mínimo 5 caracteres.
+   */
+  @Post(':id/anular-cpe')
+  @RequierePermiso('ventas:emitir-cpe')
+  async anular(
+    @Param('id', ParseUUIDPipe) ventaId: string,
+    @Body() body: { motivo?: string },
+    @Tenant() ctx: TenantContext,
+    @Req() req: Request,
+  ) {
+    const documento = await this.documentoService.anularCpeVenta(ctx, ventaId, body?.motivo ?? '');
+    return { datos: filtrarDocumentoSegunPermisos(documento, req.usuario!.permisos) };
   }
 }

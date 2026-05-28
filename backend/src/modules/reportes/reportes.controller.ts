@@ -4,10 +4,11 @@ import { Tenant } from '../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { AuthGuard, RequierePermiso } from '../auth/auth.guard';
 import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../saas/catalogo-modulos';
 
 @Controller('reportes')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('reportes')
+@ModuloHabilitado(CATALOGO_MODULOS.REPORTES)
 export class ReportesController {
   constructor(private readonly service: ReportesService) {}
 

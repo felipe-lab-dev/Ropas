@@ -25,15 +25,13 @@ const CONFIG_COMPLETA = {
   nombreComercial: 'Mi Tienda',
   direccionFiscal: 'Av. Principal 123, Cusco',
   ubigeoFiscalCodigo: '080101',
-  mifactBaseUrl: 'https://demo.mifact.net.pe',
+  mifactBaseUrl: 'https://demo.mifact.net.pe/api',
   tokenConfigurado: true,
   enviarAutomaticoASunat: true,
-  emitirAlConfirmar: true,
   retornarPdf: true,
   retornarXmlEnvio: false,
   retornarXmlCdr: false,
   formatoImpresion: '001',
-  correoNotificacion: null,
 };
 
 const UBIGEOS_MIRAFLO = [

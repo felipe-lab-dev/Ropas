@@ -23,12 +23,10 @@ export interface ConfiguracionFacturacion {
   /** El token NUNCA viene en plano del backend — solo este booleano */
   tokenConfigurado: boolean;
   enviarAutomaticoASunat: boolean;
-  emitirAlConfirmar: boolean;
   retornarPdf: boolean;
   retornarXmlEnvio: boolean;
   retornarXmlCdr: boolean;
   formatoImpresion: string;
-  correoNotificacion: string | null;
 }
 
 export interface GuardarConfiguracionFacturacionInput {
@@ -41,12 +39,10 @@ export interface GuardarConfiguracionFacturacionInput {
   mifactToken?: string;
   mifactBaseUrl?: string;
   enviarAutomaticoASunat?: boolean;
-  emitirAlConfirmar?: boolean;
   retornarPdf?: boolean;
   retornarXmlEnvio?: boolean;
   retornarXmlCdr?: boolean;
   formatoImpresion?: string;
-  correoNotificacion?: string | null;
 }
 
 // ─── Query key ────────────────────────────────────────────────────────────────
@@ -75,7 +71,7 @@ export function useGuardarConfiguracionFacturacion() {
   return useMutation<ConfiguracionFacturacion, Error, GuardarConfiguracionFacturacionInput>({
     mutationFn: async (dto) => {
       const { data } = await api.put<{ exito: boolean; datos: ConfiguracionFacturacion }>(
-        '/api/v1/configuracion-facturacion',
+        '/configuracion-facturacion',
         dto,
       );
       return data.datos;

@@ -70,13 +70,11 @@ function filaConfig(overrides: Partial<{
   retornarXmlEnvio: boolean;
   retornarXmlCdr: boolean;
   formatoImpresion: string;
-  correoNotificacion: string | null;
-  emitirAlConfirmar: boolean;
 }> = {}) {
   return {
     id: 'cfg-uuid-001',
     mifactTokenCifrado: cifrar(TOKEN_REAL, MASTER_KEY_TEST),
-    mifactBaseUrl: 'https://demo.mifact.net.pe',
+    mifactBaseUrl: 'https://demo.mifact.net.pe/api',
     ruc: '20123456789',
     razonSocial: 'Mi Tienda S.A.C.',
     nombreComercial: 'Mi Tienda',
@@ -87,8 +85,6 @@ function filaConfig(overrides: Partial<{
     retornarXmlEnvio: false,
     retornarXmlCdr: false,
     formatoImpresion: '001',
-    correoNotificacion: null,
-    emitirAlConfirmar: true,
     creadoEn: new Date(),
     actualizadoEn: new Date(),
     ...overrides,
@@ -99,7 +95,7 @@ function filaExistente(overrides: object = {}) {
   return {
     id: 'cfg-uuid-001',
     mifactTokenCifrado: cifrar(TOKEN_REAL, MASTER_KEY_TEST),
-    mifactBaseUrl: 'https://demo.mifact.net.pe',
+    mifactBaseUrl: 'https://demo.mifact.net.pe/api',
     ruc: '20123456789',
     razonSocial: 'Mi Tienda S.A.C.',
     nombreComercial: null,
@@ -110,8 +106,6 @@ function filaExistente(overrides: object = {}) {
     retornarXmlEnvio: false,
     retornarXmlCdr: false,
     formatoImpresion: '001',
-    correoNotificacion: null,
-    emitirAlConfirmar: true,
     creadoEn: new Date(),
     actualizadoEn: new Date(),
     ...overrides,
@@ -158,13 +152,12 @@ describe('ConfiguracionFacturacionService', () => {
       expect(resultado.mifactToken).toBe(TOKEN_REAL);
       expect(resultado.ruc).toBe('20123456789');
       expect(resultado.razonSocial).toBe('Mi Tienda S.A.C.');
-      expect(resultado.mifactBaseUrl).toBe('https://demo.mifact.net.pe');
+      expect(resultado.mifactBaseUrl).toBe('https://demo.mifact.net.pe/api');
       expect(resultado.enviarAutomaticoASunat).toBe(true);
       expect(resultado.retornarPdf).toBe(true);
       expect(resultado.retornarXmlEnvio).toBe(false);
       expect(resultado.retornarXmlCdr).toBe(false);
       expect(resultado.formatoImpresion).toBe('001');
-      expect(resultado.correoNotificacion).toBeNull();
     });
 
     // ─── 2. Sin config ──────────────────────────────────────────────────────

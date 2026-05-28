@@ -86,7 +86,12 @@ export default function NuevoClientePage() {
             <Button asChild variant="ghost" type="button">
               <Link href="/clientes"><ArrowLeft className="size-4" /> Cancelar</Link>
             </Button>
-            <Button type="submit" size="lg" disabled={crear.isPending}>
+            <Button
+              type="submit"
+              size="lg"
+              data-testid="btn-guardar-cliente"
+              disabled={crear.isPending}
+            >
               {crear.isPending ? 'Guardando…' : 'Crear cliente'}
             </Button>
           </>
@@ -103,6 +108,7 @@ export default function NuevoClientePage() {
             <Label htmlFor="tipoDocumento">Tipo de documento</Label>
             <Select
               id="tipoDocumento"
+              data-testid="select-tipo-doc-cliente"
               value={tipoDocumento}
               onChange={e => setTipoDocumento(e.target.value)}
             >
@@ -115,6 +121,7 @@ export default function NuevoClientePage() {
             <Label htmlFor="documento">Número de documento</Label>
             <Input
               id="documento"
+              data-testid="input-documento-cliente"
               value={documento}
               onChange={e => setDocumento(e.target.value)}
               placeholder={tipoDocumento === 'ruc' ? '20123456789' : '12345678'}
@@ -136,6 +143,7 @@ export default function NuevoClientePage() {
           <Label htmlFor="nombre">Nombre completo *</Label>
           <Input
             id="nombre"
+            data-testid="input-nombre-cliente"
             value={nombre}
             onChange={e => setNombre(e.target.value)}
             placeholder="María García López"
@@ -155,6 +163,7 @@ export default function NuevoClientePage() {
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
+              data-testid="input-email-cliente"
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
@@ -165,6 +174,7 @@ export default function NuevoClientePage() {
             <Label htmlFor="telefono">Teléfono</Label>
             <Input
               id="telefono"
+              data-testid="input-telefono-cliente"
               value={telefono}
               onChange={e => setTelefono(e.target.value)}
               placeholder="987654321"

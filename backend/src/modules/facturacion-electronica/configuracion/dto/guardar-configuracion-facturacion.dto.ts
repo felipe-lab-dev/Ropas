@@ -1,6 +1,5 @@
 import {
   IsBoolean,
-  IsEmail,
   IsOptional,
   IsString,
   Matches,
@@ -65,10 +64,6 @@ export class GuardarConfiguracionFacturacionDto {
 
   @IsOptional()
   @IsBoolean()
-  emitirAlConfirmar?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
   retornarPdf?: boolean;
 
   @IsOptional()
@@ -84,9 +79,4 @@ export class GuardarConfiguracionFacturacionDto {
   @IsString()
   @Matches(/^(001|002|004)$/, { message: 'Formato debe ser 001 (A4), 002 (A5) o 004 (Ticket 80mm)' })
   formatoImpresion?: string;
-
-  @IsOptional()
-  @Transform(trimToNull)
-  @IsEmail({}, { message: 'Email de notificación inválido' })
-  correoNotificacion?: string | null;
 }

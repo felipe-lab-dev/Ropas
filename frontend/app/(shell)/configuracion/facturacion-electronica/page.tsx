@@ -43,17 +43,10 @@ const schema = z.object({
   mifactToken: z.string().optional(),
   mifactBaseUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   enviarAutomaticoASunat: z.boolean(),
-  emitirAlConfirmar: z.boolean(),
   retornarPdf: z.boolean(),
   retornarXmlEnvio: z.boolean(),
   retornarXmlCdr: z.boolean(),
   formatoImpresion: z.enum(['001', '002', '004']),
-  correoNotificacion: z
-    .string()
-    .email('Email inválido')
-    .optional()
-    .nullable()
-    .or(z.literal('')),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -304,14 +297,12 @@ export default function ConfiguracionFacturacionPage() {
       direccionFiscal: '',
       ubigeoFiscalCodigo: '',
       mifactToken: '',
-      mifactBaseUrl: 'https://demo.mifact.net.pe',
+      mifactBaseUrl: 'https://demo.mifact.net.pe/api',
       enviarAutomaticoASunat: true,
-      emitirAlConfirmar: true,
       retornarPdf: true,
       retornarXmlEnvio: false,
       retornarXmlCdr: false,
       formatoImpresion: '001',
-      correoNotificacion: '',
     },
   });
 
@@ -327,12 +318,10 @@ export default function ConfiguracionFacturacionPage() {
         mifactToken: '',
         mifactBaseUrl: config.mifactBaseUrl,
         enviarAutomaticoASunat: config.enviarAutomaticoASunat,
-        emitirAlConfirmar: config.emitirAlConfirmar,
         retornarPdf: config.retornarPdf,
         retornarXmlEnvio: config.retornarXmlEnvio,
         retornarXmlCdr: config.retornarXmlCdr,
         formatoImpresion: config.formatoImpresion as '001' | '002' | '004',
-        correoNotificacion: config.correoNotificacion ?? '',
       });
     }
   }, [config, reset]);
@@ -347,12 +336,10 @@ export default function ConfiguracionFacturacionPage() {
         ubigeoFiscalCodigo: valores.ubigeoFiscalCodigo,
         mifactBaseUrl: valores.mifactBaseUrl || undefined,
         enviarAutomaticoASunat: valores.enviarAutomaticoASunat,
-        emitirAlConfirmar: valores.emitirAlConfirmar,
         retornarPdf: valores.retornarPdf,
         retornarXmlEnvio: valores.retornarXmlEnvio,
         retornarXmlCdr: valores.retornarXmlCdr,
         formatoImpresion: valores.formatoImpresion,
-        correoNotificacion: valores.correoNotificacion || null,
       };
       if (valores.mifactToken?.trim()) {
         dto.mifactToken = valores.mifactToken;
@@ -368,7 +355,7 @@ export default function ConfiguracionFacturacionPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-5xl">
+      <div className="space-y-6">
         <PageHeader
           titulo="Facturación Electrónica"
           descripcion="Configuración SUNAT / Mifact OSE"
@@ -379,7 +366,7 @@ export default function ConfiguracionFacturacionPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-[hsl(var(--text-muted))]">
         <span>Configuración</span>
@@ -393,6 +380,8 @@ export default function ConfiguracionFacturacionPage() {
       />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+        <div className="space-y-4">
         {/* ── Datos del emisor ─────────────────────────────────────── */}
         <Seccion titulo="Datos del emisor">
           <div className="grid sm:grid-cols-2 gap-4">
@@ -444,13 +433,15 @@ export default function ConfiguracionFacturacionPage() {
             />
           </Campo>
         </Seccion>
+        </div>
 
+        <div className="space-y-4">
         {/* ── Conexión Mifact OSE ──────────────────────────────────── */}
         <Seccion titulo="Conexión Mifact OSE">
           <Campo label="Base URL" error={errors.mifactBaseUrl?.message}>
             <Input
               {...register('mifactBaseUrl')}
-              placeholder="https://demo.mifact.net.pe"
+              placeholder="https://demo.mifact.net.pe/api"
               type="url"
             />
           </Campo>
@@ -475,18 +466,6 @@ export default function ConfiguracionFacturacionPage() {
         <Seccion titulo="Comportamiento">
           <div className="space-y-4">
             <Controller
-              name="emitirAlConfirmar"
-              control={control}
-              render={({ field }) => (
-                <Toggle
-                  checked={field.value}
-                  onChange={field.onChange}
-                  label="Emitir CPE automáticamente al confirmar venta"
-                  descripcion="El comprobante se genera en el momento en que se registra la venta."
-                />
-              )}
-            />
-            <Controller
               name="enviarAutomaticoASunat"
               control={control}
               render={({ field }) => (
@@ -494,7 +473,7 @@ export default function ConfiguracionFacturacionPage() {
                   checked={field.value}
                   onChange={field.onChange}
                   label="Enviar a SUNAT en forma sincrónica"
-                  descripcion="El CPE se envía a SUNAT en el mismo request. Si está desactivado, se encola."
+                  descripcion="El comprobante se envía a SUNAT en el mismo request. Si está desactivado, se encola."
                 />
               )}
             />
@@ -553,16 +532,8 @@ export default function ConfiguracionFacturacionPage() {
           </div>
         </Seccion>
 
-        {/* ── Notificaciones ───────────────────────────────────────── */}
-        <Seccion titulo="Notificaciones">
-          <Campo label="Email de notificación" error={errors.correoNotificacion?.message} opcional>
-            <Input
-              {...register('correoNotificacion')}
-              type="email"
-              placeholder="admin@mitienda.com"
-            />
-          </Campo>
-        </Seccion>
+        </div>
+        </div>
 
         {/* ── Acciones ─────────────────────────────────────────────── */}
         <motion.div

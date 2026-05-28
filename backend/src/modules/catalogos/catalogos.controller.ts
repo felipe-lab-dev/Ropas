@@ -40,10 +40,13 @@ const ETIQUETAS_AFECTACION: Record<TipoAfectacionIgv, string> = {
 export class CatalogosController {
   /**
    * Ubigeos SUNAT — data pública, sin auth.
-   * Cache-Control largo: los ubigeos son estáticos y cambian cada 5+ años.
+   * Cache moderado: los ubigeos son estáticos (cambian cada 5+ años) pero un
+   * max-age agresivo (24h) hace que un response transitoriamente vacío
+   * envenene el cache del browser por mucho tiempo. 5 min de fresco +
+   * stale-while-revalidate de 1 día da rapidez con autocuración.
    */
   @Get('ubigeos')
-  @Header('Cache-Control', 'public, max-age=86400')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=86400')
   listarUbigeos(
     @Query('q') q?: string,
     @Query('limite') limite?: string,

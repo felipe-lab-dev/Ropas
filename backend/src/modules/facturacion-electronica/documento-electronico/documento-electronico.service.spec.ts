@@ -47,7 +47,7 @@ function crearMockConfiguracion() {
   return {
     obtenerConfiguracion: jest.fn().mockResolvedValue({
       mifactToken: 'token-descifrado',
-      mifactBaseUrl: 'https://demo.mifact.net.pe',
+      mifactBaseUrl: 'https://demo.mifact.net.pe/api',
       ruc: '20100100100',
       razonSocial: 'EMPRESA TEST SAC',
       nombreComercial: 'Test Store',
@@ -58,7 +58,6 @@ function crearMockConfiguracion() {
       retornarXmlEnvio: false,
       retornarXmlCdr: false,
       formatoImpresion: '001',
-      correoNotificacion: null,
     }),
   };
 }
@@ -83,6 +82,7 @@ function crearMockMifact() {
   return {
     enviarCpe: jest.fn(),
     consultarEstado: jest.fn(),
+    anularCpe: jest.fn(),
   };
 }
 
@@ -509,12 +509,12 @@ describe('DocumentoElectronicoService', () => {
 
     // ─── 5. Documento en_proceso → ErrorConflicto ────────────────────────────
 
-    it('lanza ErrorConflicto cuando el documento está en_proceso, con mensaje sobre consultarEstadoCpe', async () => {
+    it('lanza ErrorConflicto cuando el documento está en_proceso, con mensaje sobre consultarEstado', async () => {
       prisma.documentoElectronico.findFirst.mockResolvedValue(crearDocumentoExistente('en_proceso'));
 
       await expect(service.reintentarCpe(CTX_TEST, VENTA_ID)).rejects.toThrow(ErrorConflicto);
       await expect(service.reintentarCpe(CTX_TEST, VENTA_ID)).rejects.toThrow(
-        /consultarEstadoCpe/i,
+        /consultarEstado/i,
       );
     });
 
@@ -691,6 +691,132 @@ describe('DocumentoElectronicoService', () => {
         }),
       );
       expect(resultado.estadoSunat).toBe('en_proceso');
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // emitirCpe — defensa contra nota de venta
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('emitirCpe (nota de venta)', () => {
+    it('lanza ErrorConflicto si la venta es nota de venta interna y NO toca Mifact ni serie', async () => {
+      prisma.documentoElectronico.findFirst.mockResolvedValue(null);
+      prisma.venta.findUnique.mockResolvedValue({
+        ...crearVenta(crearClienteRuc()),
+        numero: 'V-000099',
+        esNotaDeVenta: true,
+      });
+
+      await expect(service.emitirCpe(CTX_TEST, VENTA_ID)).rejects.toThrow(ErrorConflicto);
+      await expect(service.emitirCpe(CTX_TEST, VENTA_ID)).rejects.toThrow(
+        /nota de venta interna/i,
+      );
+      // No debe asignar serie ni llamar a Mifact.
+      expect(serieCpeService.asignarProximoCorrelativo).not.toHaveBeenCalled();
+      expect(mifactService.enviarCpe).not.toHaveBeenCalled();
+      expect(prisma.documentoElectronico.upsert).not.toHaveBeenCalled();
+    });
+
+    it('venta normal (esNotaDeVenta=false) → flujo de emisión continúa', async () => {
+      prisma.documentoElectronico.findFirst.mockResolvedValue(null);
+      prisma.venta.findUnique.mockResolvedValue({
+        ...crearVenta(crearClienteRuc()),
+        esNotaDeVenta: false,
+      });
+      mifactService.enviarCpe.mockResolvedValue(crearRespuestaMifact({ estadoSunat: 'aceptado' }));
+      prisma.documentoElectronico.upsert.mockResolvedValue(crearDocumentoExistente('aceptado'));
+
+      await expect(service.emitirCpe(CTX_TEST, VENTA_ID)).resolves.toBeDefined();
+      expect(mifactService.enviarCpe).toHaveBeenCalled();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // anularCpeVenta (LowInvoice)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('anularCpeVenta', () => {
+    it('happy path: doc aceptado + motivo válido → llama Mifact.anularCpe y persiste baja_pendiente', async () => {
+      prisma.documentoElectronico.findFirst.mockResolvedValue(crearDocumentoExistente('aceptado'));
+      mifactService.anularCpe.mockResolvedValue(
+        crearRespuestaMifact({ estadoSunat: 'baja_pendiente', sunatDescription: 'Baja registrada' }),
+      );
+      prisma.documentoElectronico.update.mockResolvedValue(crearDocumentoExistente('baja_pendiente'));
+
+      const resultado = await service.anularCpeVenta(CTX_TEST, VENTA_ID, 'Error en datos del receptor');
+
+      expect(mifactService.anularCpe).toHaveBeenCalledWith(
+        expect.objectContaining({ baseUrl: expect.any(String), token: 'token-descifrado' }),
+        expect.objectContaining({
+          NUM_NIF_EMIS: '20100100100',
+          COD_TIP_CPE: '01', // factura
+          NUM_SERIE_CPE: 'F001',
+          NUM_CORRE_CPE: '00000001',
+          TXT_DESC_MTVO: 'Error en datos del receptor',
+        }),
+      );
+      expect(prisma.documentoElectronico.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            estadoSunat: 'baja_pendiente',
+            mensajeSunat: expect.stringContaining('Error en datos del receptor'),
+          }),
+        }),
+      );
+      expect(resultado.estadoSunat).toBe('baja_pendiente');
+    });
+
+    it('rechaza motivo vacío con ErrorValidacion', async () => {
+      prisma.documentoElectronico.findFirst.mockResolvedValue(crearDocumentoExistente('aceptado'));
+      await expect(service.anularCpeVenta(CTX_TEST, VENTA_ID, '')).rejects.toThrow(/motivo.*obligatorio/i);
+      await expect(service.anularCpeVenta(CTX_TEST, VENTA_ID, '   ')).rejects.toThrow(/motivo.*obligatorio/i);
+      expect(mifactService.anularCpe).not.toHaveBeenCalled();
+    });
+
+    it('rechaza motivo demasiado corto (< 5 chars)', async () => {
+      prisma.documentoElectronico.findFirst.mockResolvedValue(crearDocumentoExistente('aceptado'));
+      await expect(service.anularCpeVenta(CTX_TEST, VENTA_ID, 'err')).rejects.toThrow(/motivo/i);
+      expect(mifactService.anularCpe).not.toHaveBeenCalled();
+    });
+
+    it('rechaza si doc está en estado pendiente (nunca llegó a SUNAT)', async () => {
+      prisma.documentoElectronico.findFirst.mockResolvedValue(crearDocumentoExistente('pendiente'));
+      await expect(
+        service.anularCpeVenta(CTX_TEST, VENTA_ID, 'Motivo válido aquí'),
+      ).rejects.toThrow(ErrorConflicto);
+      await expect(
+        service.anularCpeVenta(CTX_TEST, VENTA_ID, 'Motivo válido aquí'),
+      ).rejects.toThrow(/no está en SUNAT|aceptado/i);
+      expect(mifactService.anularCpe).not.toHaveBeenCalled();
+    });
+
+    it('rechaza si doc está en estado rechazado', async () => {
+      prisma.documentoElectronico.findFirst.mockResolvedValue(crearDocumentoExistente('rechazado'));
+      await expect(
+        service.anularCpeVenta(CTX_TEST, VENTA_ID, 'Motivo válido aquí'),
+      ).rejects.toThrow(ErrorConflicto);
+    });
+
+    it('rechaza si no hay documento electrónico', async () => {
+      prisma.documentoElectronico.findFirst.mockResolvedValue(null);
+      await expect(
+        service.anularCpeVenta(CTX_TEST, VENTA_ID, 'Motivo válido aquí'),
+      ).rejects.toThrow(ErrorNoEncontrado);
+    });
+
+    it('acepta también aceptado_observado', async () => {
+      prisma.documentoElectronico.findFirst.mockResolvedValue(
+        crearDocumentoExistente('aceptado_observado'),
+      );
+      mifactService.anularCpe.mockResolvedValue(
+        crearRespuestaMifact({ estadoSunat: 'baja_pendiente' }),
+      );
+      prisma.documentoElectronico.update.mockResolvedValue(crearDocumentoExistente('baja_pendiente'));
+
+      await expect(
+        service.anularCpeVenta(CTX_TEST, VENTA_ID, 'Motivo válido aquí'),
+      ).resolves.toBeDefined();
+      expect(mifactService.anularCpe).toHaveBeenCalled();
     });
   });
 });

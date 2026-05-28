@@ -36,15 +36,22 @@ import { SerieCpeController } from './series-cpe/series-cpe.controller';
 import { ConfiguracionFacturacionService } from './configuracion/configuracion-facturacion.service';
 import { DocumentoElectronicoService } from './documento-electronico/documento-electronico.service';
 import { EmisionCpeController } from './emision-cpe/emision-cpe.controller';
+import { EmisionCpeNcController } from './emision-cpe/emision-cpe-nc.controller';
 import { ConfiguracionFacturacionController } from './configuracion/configuracion-facturacion.controller';
 import { VentaCreadaListener } from './listeners/venta-creada.listener';
+import { NotaCreditoCreadaListener } from './listeners/nota-credito-creada.listener';
 import { PollEstadosCpeCron } from './cron/poll-estados-cpe.cron';
 import { PrismaPublicService } from '../../core/prisma/prisma-public.service';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 
 @Module({
   imports: [HttpModule, AuthModule],
-  controllers: [EmisionCpeController, ConfiguracionFacturacionController, SerieCpeController],
+  controllers: [
+    EmisionCpeController,
+    EmisionCpeNcController,
+    ConfiguracionFacturacionController,
+    SerieCpeController,
+  ],
   providers: [
     CpeCalculadoraService,
     CpeBuilderService,
@@ -54,6 +61,7 @@ import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
     ConfiguracionFacturacionService,
     DocumentoElectronicoService,
     VentaCreadaListener,
+    NotaCreditoCreadaListener,
     // ─── Cron de polling de estados CPE ─────────────────────────────────────
     {
       provide: 'DOCUMENTO_SERVICE_FACTORY',

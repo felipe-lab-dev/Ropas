@@ -1,6 +1,7 @@
 import {
   ArrayNotEmpty,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNumber,
@@ -43,4 +44,12 @@ export class CrearVentaDto {
 
   /** Código del cupón a aplicar (case-insensitive). El backend valida y calcula el descuento. */
   @IsOptional() @IsString() codigoCupon?: string;
+
+  /**
+   * Si true, la venta se registra como "nota de venta" interna: NO se asigna
+   * serie/correlativo SUNAT, NO se emite CPE, NO se envía a Mifact. Útil para
+   * ventas que el comerciante quiere mantener fuera de facturación electrónica.
+   * Default false → flujo normal (boleta/factura según cliente).
+   */
+  @IsOptional() @IsBoolean() esNotaDeVenta?: boolean;
 }

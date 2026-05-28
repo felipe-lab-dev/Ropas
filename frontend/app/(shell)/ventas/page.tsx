@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { obtenerPaginado } from '@/lib/api/client';
+import { obtenerPaginado, mensajeError } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
 import { Pagination } from '@/components/ui/pagination';
@@ -26,6 +26,7 @@ interface VentaLista {
   vendedor: { nombre: string };
   sucursal: { nombre: string };
   estado: 'borrador' | 'confirmada' | 'pagada' | 'parcial' | 'anulada';
+  esNotaDeVenta: boolean;
   total: string;
   totalPagado: string;
   creadoEn: string;
@@ -60,7 +61,7 @@ export default function VentasPage() {
 
   React.useEffect(() => { setPagina(1); }, [estadosSeleccionados]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['ventas', debounced, pagina, estadosSeleccionados],
     queryFn: () =>
       obtenerPaginado<VentaLista>('/ventas', {
@@ -125,7 +126,13 @@ export default function VentasPage() {
                   ))}
                 </TableRow>
               ))
-            ) : data!.datos.length === 0 ? (
+            ) : isError || !data ? (
+              <TableRow>
+                <TableCell colSpan={8} className="p-8 text-center text-[hsl(var(--text-muted))]">
+                  No se pudieron cargar las ventas: {mensajeError(error)}
+                </TableCell>
+              </TableRow>
+            ) : data.datos.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="p-0">
                   <EmptyState
@@ -137,16 +144,27 @@ export default function VentasPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              data!.datos.map(v => (
+              data.datos.map(v => (
                 <TableRow
                   key={v.id}
                   className="cursor-pointer hover:bg-[hsl(var(--surface-2))]/50"
                   onClick={() => { window.location.href = `/ventas/${v.id}`; }}
                 >
                   <TableCell className="font-mono font-semibold">
-                    <Link href={`/ventas/${v.id}`} onClick={e => e.stopPropagation()} className="hover:underline">
-                      {v.numero}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link href={`/ventas/${v.id}`} onClick={e => e.stopPropagation()} className="hover:underline">
+                        {v.numero}
+                      </Link>
+                      {v.esNotaDeVenta && (
+                        <Badge
+                          variant="outline"
+                          className="border-[hsl(35_90%_55%/0.4)] bg-[hsl(35_90%_55%/0.08)] text-[hsl(35_90%_55%)] text-[10px] font-sans font-medium px-1.5 py-0"
+                          title="Nota de venta interna · no se envía a SUNAT"
+                        >
+                          NV
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-xs text-[hsl(var(--text-muted))]">{formatearFecha(v.creadoEn, 'completa')}</TableCell>
                   <TableCell>{v.cliente?.nombre ?? <span className="text-[hsl(var(--text-muted))]">Consumidor final</span>}</TableCell>

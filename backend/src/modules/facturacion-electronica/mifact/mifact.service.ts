@@ -1,16 +1,21 @@
 /**
  * MifactService — cliente HTTP contra el OSE Mifact para emisión de CPE SUNAT.
  *
- * Endpoints (base demo: https://demo.mifact.net.pe):
- *   POST /api/invoiceService.svc/SendInvoice       — enviar CPE
- *   POST /api/invoiceService.svc/LowInvoice        — anular CPE
- *   POST /api/invoiceService.svc/GetEstatusInvoice — consultar estado
- *   POST /api/invoiceService.svc/GetInvoice        — obtener PDF/XML/CDR
- *   POST /api/invoiceService.svc/SendMailInvoice   — enviar correo
+ * `config.baseUrl` es la raíz del API JSON de Mifact (varía entre ambientes):
+ *   Demo: https://demo.mifact.net.pe/api
+ *   Prod: https://mifact.net.pe/xmifactapi
+ *
+ * El código concatena directamente `/invoiceService.svc/<Método>` — sin strip
+ * ni regex, porque la parte que cambia entre demo y prod ya vive en baseUrl.
+ *
+ *   POST {baseUrl}/invoiceService.svc/SendInvoice       — enviar CPE
+ *   POST {baseUrl}/invoiceService.svc/LowInvoice        — anular CPE
+ *   POST {baseUrl}/invoiceService.svc/GetEstatusInvoice — consultar estado
+ *   POST {baseUrl}/invoiceService.svc/GetInvoice        — obtener PDF/XML/CDR
  *
  * Refs: URLs_PRUEBAS.txt, ANULACION_DOCUMENTO.txt,
  *       "CONSULTAR ESTADO_DOCUMENTO.txt", CONSULTAR_PDF_XML_CDR.txt,
- *       ENVIAR_CORREO_A_DEMANDA.txt, RespuestaInvoice.cs
+ *       RespuestaInvoice.cs
  */
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
@@ -24,7 +29,6 @@ import {
   AnularCpeInput,
   ConsultarEstadoInput,
   ObtenerCpeInput,
-  EnviarCorreoInput,
   MifactRespuesta,
   MifactRespuestaCruda,
   MifactRespuestaCrudaSchema,
@@ -44,7 +48,7 @@ export class MifactService {
     config: MifactConfig,
     payload: EnviarCpeInput,
   ): Promise<MifactRespuesta> {
-    const url = `${config.baseUrl}/api/invoiceService.svc/SendInvoice`;
+    const url = `${config.baseUrl}/invoiceService.svc/SendInvoice`;
     const body = { ...payload, TOKEN: config.token };
     const cruda = await this.ejecutarPost<MifactRespuestaCruda>(url, body);
     return this.parsearRespuesta(cruda);
@@ -57,7 +61,7 @@ export class MifactService {
     config: MifactConfig,
     input: AnularCpeInput,
   ): Promise<MifactRespuesta> {
-    const url = `${config.baseUrl}/api/invoiceService.svc/LowInvoice`;
+    const url = `${config.baseUrl}/invoiceService.svc/LowInvoice`;
     const body = { TOKEN: config.token, ...input };
     const cruda = await this.ejecutarPost<MifactRespuestaCruda>(url, body);
     return this.parsearRespuesta(cruda);
@@ -70,7 +74,7 @@ export class MifactService {
     config: MifactConfig,
     input: ConsultarEstadoInput,
   ): Promise<MifactRespuesta> {
-    const url = `${config.baseUrl}/api/invoiceService.svc/GetEstatusInvoice`;
+    const url = `${config.baseUrl}/invoiceService.svc/GetEstatusInvoice`;
     const body = { TOKEN: config.token, ...input };
     const cruda = await this.ejecutarPost<MifactRespuestaCruda>(url, body);
     return this.parsearRespuesta(cruda);
@@ -83,20 +87,7 @@ export class MifactService {
     config: MifactConfig,
     input: ObtenerCpeInput,
   ): Promise<MifactRespuesta> {
-    const url = `${config.baseUrl}/api/invoiceService.svc/GetInvoice`;
-    const body = { TOKEN: config.token, ...input };
-    const cruda = await this.ejecutarPost<MifactRespuestaCruda>(url, body);
-    return this.parsearRespuesta(cruda);
-  }
-
-  /**
-   * Envía el correo electrónico con el CPE adjunto (SendMailInvoice).
-   */
-  async enviarCorreo(
-    config: MifactConfig,
-    input: EnviarCorreoInput,
-  ): Promise<MifactRespuesta> {
-    const url = `${config.baseUrl}/api/invoiceService.svc/SendMailInvoice`;
+    const url = `${config.baseUrl}/invoiceService.svc/GetInvoice`;
     const body = { TOKEN: config.token, ...input };
     const cruda = await this.ejecutarPost<MifactRespuestaCruda>(url, body);
     return this.parsearRespuesta(cruda);
