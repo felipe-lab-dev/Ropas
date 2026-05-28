@@ -374,6 +374,7 @@ CREATE TABLE IF NOT EXISTS "ventas" (
     "tipo_cpe" "tipo_cpe",
     "serie_cpe_id" UUID,
     "correlativo" VARCHAR(8),
+    "es_nota_de_venta" BOOLEAN NOT NULL DEFAULT false,
     "moneda" VARCHAR(3) NOT NULL DEFAULT 'PEN',
     "tipo_cambio" DECIMAL(10,4) NOT NULL DEFAULT 1,
     "fecha_vencimiento" DATE,
@@ -384,7 +385,8 @@ CREATE TABLE IF NOT EXISTS "ventas" (
     "actualizado_en" TIMESTAMP(3) NOT NULL,
     "eliminado_en" TIMESTAMP(3),
 
-    CONSTRAINT "ventas_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "ventas_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "ventas_modalidad_excluyente_chk" CHECK (NOT ("es_nota_de_venta" = true AND "tipo_cpe" IS NOT NULL))
 );
 
 -- CreateTable

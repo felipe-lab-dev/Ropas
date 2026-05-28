@@ -404,6 +404,8 @@ model Venta {
   serieCpeId               String?     @map("serie_cpe_id") @db.Uuid
   serieCpe                 SerieCpe?   @relation(fields: [serieCpeId], references: [id])
   correlativo              String?     @db.VarChar(8)
+  /// Si true, la venta es interna y NO se envía a SUNAT. Excluyente con tipoCpe (CHECK constraint en DB).
+  esNotaDeVenta            Boolean     @default(false) @map("es_nota_de_venta")
   moneda                   String      @default("PEN") @db.VarChar(3)
   tipoCambio               Decimal     @default(1) @map("tipo_cambio") @db.Decimal(10, 4)
   fechaVencimiento         DateTime?   @map("fecha_vencimiento") @db.Date

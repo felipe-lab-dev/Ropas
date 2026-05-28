@@ -93,6 +93,15 @@ export class DocumentoElectronicoService {
     if (existente && ESTADOS_NO_RE_EMITIR.has(existente.estadoSunat)) return existente;
 
     const venta = await this.cargarVenta(prisma, ventaId);
+    // Nota de venta interna: NO se emite CPE bajo ninguna circunstancia.
+    // El check constraint en DB ya garantiza que esNotaDeVenta=true ⇒ tipoCpe IS NULL,
+    // así que esto es solo defensa en profundidad antes de tocar serie/correlativo.
+    if (venta.esNotaDeVenta) {
+      throw new ErrorConflicto(
+        `La venta ${venta.numero} está marcada como nota de venta interna. ` +
+          `Las notas de venta no generan comprobante electrónico ni se envían a SUNAT.`,
+      );
+    }
     const tipoCpe = this.determinarTipoCpeVenta(venta);
     const config = await this.configuracionService.obtenerConfiguracion(ctx);
     const serieAsignada = await this.serieCpeService.asignarProximoCorrelativo(

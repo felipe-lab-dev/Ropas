@@ -46,6 +46,8 @@ interface NotaDetalle {
   id: string;
   numero: string;
   estado: 'emitida' | 'anulada';
+  /** Si null, es una devolución interna sin SUNAT (la venta original era nota de venta). */
+  tipoCpe: string | null;
   motivo: string;
   subtotal: string;
   total: string;
@@ -53,7 +55,7 @@ interface NotaDetalle {
   anuladaEn: string | null;
   motivoAnulacion: string | null;
   creadoEn: string;
-  venta: { id: string; numero: string; total: string };
+  venta: { id: string; numero: string; total: string; esNotaDeVenta?: boolean };
   sucursal: { id: string; nombre: string };
   cliente: { id: string; nombre: string; documento: string | null; tipoDocumento: string } | null;
   emitidaPor: { id: string; nombre: string; email: string };
@@ -165,6 +167,17 @@ export function NotaCreditoDetalleCliente() {
             </div>
             <h1 className="text-2xl font-bold tracking-tight font-mono">{nc.numero}</h1>
             <Badge variant={nc.estado === 'anulada' ? 'danger' : 'success'}>{nc.estado}</Badge>
+            <Badge
+              variant="outline"
+              className={
+                nc.tipoCpe
+                  ? 'border-[hsl(var(--brand-primary))]/40 bg-[hsl(var(--brand-primary))]/10 text-[hsl(var(--brand-primary))]'
+                  : 'border-[hsl(35_90%_55%/0.4)] bg-[hsl(35_90%_55%/0.08)] text-[hsl(35_90%_55%)]'
+              }
+              title={nc.tipoCpe ? 'NC enviada a SUNAT' : 'Devolución interna · no se envía a SUNAT'}
+            >
+              {nc.tipoCpe ? 'NC SUNAT' : 'Devolución interna'}
+            </Badge>
           </div>
           <p className="text-sm text-[hsl(var(--text-muted))] mt-1 ml-12">
             Emitida {formatearFecha(nc.creadoEn, 'completa')} por {nc.emitidaPor.nombre} ·{' '}
@@ -395,7 +408,24 @@ export function NotaCreditoDetalleCliente() {
             </div>
           </Card>
 
-          <SeccionCpe origen={{ tipo: 'nota-credito', id: nc.id }} puedeEmitir={puedeEmitirCpe} />
+          {nc.tipoCpe ? (
+            <SeccionCpe origen={{ tipo: 'nota-credito', id: nc.id }} puedeEmitir={puedeEmitirCpe} />
+          ) : (
+            <Card className="p-5 border-[hsl(35_90%_55%/0.3)] bg-[hsl(35_90%_55%/0.04)]">
+              <div className="flex items-start gap-3">
+                <div className="size-9 rounded-lg bg-[hsl(35_90%_55%/0.12)] grid place-items-center shrink-0">
+                  <RotateCcw className="size-4 text-[hsl(35_90%_55%)]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold">Devolución interna</h3>
+                  <p className="text-xs text-[hsl(var(--text-muted))] mt-1 leading-relaxed">
+                    La venta original era una nota de venta interna, por lo tanto esta devolución NO se envía a SUNAT.
+                    Stock y caja se ajustaron igual.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 

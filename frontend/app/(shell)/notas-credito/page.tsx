@@ -22,6 +22,8 @@ interface NotaListada {
   id: string;
   numero: string;
   estado: 'emitida' | 'anulada';
+  /** Si null, es devolución interna (la venta original era nota de venta). */
+  tipoCpe: string | null;
   motivo: string;
   total: string;
   creadoEn: string;
@@ -127,13 +129,24 @@ export default function NotasCreditoPage() {
                   onClick={() => { window.location.href = `/notas-credito/${nc.id}`; }}
                 >
                   <TableCell className="font-mono font-semibold">
-                    <Link
-                      href={`/notas-credito/${nc.id}`}
-                      onClick={e => e.stopPropagation()}
-                      className="hover:underline"
-                    >
-                      {nc.numero}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/notas-credito/${nc.id}`}
+                        onClick={e => e.stopPropagation()}
+                        className="hover:underline"
+                      >
+                        {nc.numero}
+                      </Link>
+                      {!nc.tipoCpe && (
+                        <Badge
+                          variant="outline"
+                          className="border-[hsl(35_90%_55%/0.4)] bg-[hsl(35_90%_55%/0.08)] text-[hsl(35_90%_55%)] text-[10px] font-sans font-medium px-1.5 py-0"
+                          title="Devolución interna · no enviada a SUNAT"
+                        >
+                          interna
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-xs text-[hsl(var(--text-muted))]">
                     {formatearFecha(nc.creadoEn, 'completa')}

@@ -385,6 +385,7 @@ export class VentasService {
           totalPagado,
           notas: dto.notas,
           sesionCajaId: dto.sesionCajaId,
+          esNotaDeVenta: dto.esNotaDeVenta ?? false,
           items: {
             create: itemsConPrecio.map(({ productoId, categoriaId, ...rest }) => rest),
           },
@@ -437,13 +438,16 @@ export class VentasService {
 
     // ─── BEST-EFFORT: stamp tipoCpe + serie + correlativo ────────────────────
     // Fire-and-forget: la venta retorna ANTES de que el stamp termine.
+    // Si la venta es nota de venta interna, NO se stampa (no hay CPE).
     // Si no hay serie configurada o falla cualquier cosa, la venta queda sin
     // stamp. emitirCpe se lo asignará posteriormente.
-    this.stampearTipoCpeYSerie(resultado.id, ctx).catch(err => {
-      this.logger.warn(
-        `No se pudo asignar serie+correlativo a venta ${resultado.id}: ${err.message}`,
-      );
-    });
+    if (!resultado.esNotaDeVenta) {
+      this.stampearTipoCpeYSerie(resultado.id, ctx).catch(err => {
+        this.logger.warn(
+          `No se pudo asignar serie+correlativo a venta ${resultado.id}: ${err.message}`,
+        );
+      });
+    }
 
     return resultado;
   }

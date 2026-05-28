@@ -26,6 +26,7 @@ interface VentaLista {
   vendedor: { nombre: string };
   sucursal: { nombre: string };
   estado: 'borrador' | 'confirmada' | 'pagada' | 'parcial' | 'anulada';
+  esNotaDeVenta: boolean;
   total: string;
   totalPagado: string;
   creadoEn: string;
@@ -150,9 +151,20 @@ export default function VentasPage() {
                   onClick={() => { window.location.href = `/ventas/${v.id}`; }}
                 >
                   <TableCell className="font-mono font-semibold">
-                    <Link href={`/ventas/${v.id}`} onClick={e => e.stopPropagation()} className="hover:underline">
-                      {v.numero}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link href={`/ventas/${v.id}`} onClick={e => e.stopPropagation()} className="hover:underline">
+                        {v.numero}
+                      </Link>
+                      {v.esNotaDeVenta && (
+                        <Badge
+                          variant="outline"
+                          className="border-[hsl(35_90%_55%/0.4)] bg-[hsl(35_90%_55%/0.08)] text-[hsl(35_90%_55%)] text-[10px] font-sans font-medium px-1.5 py-0"
+                          title="Nota de venta interna · no se envía a SUNAT"
+                        >
+                          NV
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-xs text-[hsl(var(--text-muted))]">{formatearFecha(v.creadoEn, 'completa')}</TableCell>
                   <TableCell>{v.cliente?.nombre ?? <span className="text-[hsl(var(--text-muted))]">Consumidor final</span>}</TableCell>

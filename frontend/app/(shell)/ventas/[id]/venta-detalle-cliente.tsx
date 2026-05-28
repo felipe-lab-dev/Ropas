@@ -58,6 +58,7 @@ interface VentaDetalle {
   id: string;
   numero: string;
   estado: EstadoVenta;
+  esNotaDeVenta: boolean;
   subtotal: string;
   descuento: string;
   descuentoCupon: string;
@@ -206,7 +207,11 @@ export function VentaDetalleCliente() {
           .map(([ventaItemId, cantidad]) => ({ ventaItemId, cantidad })),
       }),
     onSuccess: data => {
-      toast.success(`Nota de crédito ${data.numero} emitida`);
+      toast.success(
+        venta?.esNotaDeVenta
+          ? `Devolución ${data.numero} registrada`
+          : `Nota de crédito ${data.numero} emitida`,
+      );
       setDialogoNC(false);
       setNcMotivo('');
       setNcCantidades({});
@@ -311,6 +316,15 @@ export function VentaDetalleCliente() {
             </div>
             <h1 className="text-2xl font-bold tracking-tight font-mono">{venta.numero}</h1>
             <Badge variant={ESTADO_BADGE[venta.estado]}>{venta.estado}</Badge>
+            {venta.esNotaDeVenta && (
+              <Badge
+                variant="outline"
+                className="border-[hsl(35_90%_55%/0.4)] bg-[hsl(35_90%_55%/0.08)] text-[hsl(35_90%_55%)]"
+                title="Venta interna, no se envía a SUNAT"
+              >
+                Nota de venta
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-[hsl(var(--text-muted))] mt-1 ml-12">
             Emitida {formatearFecha(venta.creadoEn, 'completa')} por {venta.vendedor.nombre}
@@ -343,7 +357,7 @@ export function VentaDetalleCliente() {
                 setDialogoNC(true);
               }}
             >
-              <RotateCcw className="size-4" /> Nota de crédito
+              <RotateCcw className="size-4" /> Devolución
             </Button>
           )}
           {puedeAnular && (
@@ -677,7 +691,23 @@ export function VentaDetalleCliente() {
             )}
           </Card>
 
-          <SeccionCpe origen={{ tipo: 'venta', id: venta.id }} puedeEmitir={puedeEmitirCpe} />
+          {venta.esNotaDeVenta ? (
+            <Card className="p-5 border-[hsl(35_90%_55%/0.3)] bg-[hsl(35_90%_55%/0.04)]">
+              <div className="flex items-start gap-3">
+                <div className="size-9 rounded-lg bg-[hsl(35_90%_55%/0.12)] grid place-items-center shrink-0">
+                  <Receipt className="size-4 text-[hsl(35_90%_55%)]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold">Nota de venta interna</h3>
+                  <p className="text-xs text-[hsl(var(--text-muted))] mt-1 leading-relaxed">
+                    Esta venta NO se envía a SUNAT. No genera comprobante electrónico (boleta o factura). Si se hace una devolución, será una <strong>devolución interna</strong> sin nota de crédito SUNAT.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          ) : (
+            <SeccionCpe origen={{ tipo: 'venta', id: venta.id }} puedeEmitir={puedeEmitirCpe} />
+          )}
         </div>
       </div>
 
@@ -754,10 +784,15 @@ export function VentaDetalleCliente() {
       <Dialog open={dialogoNC} onOpenChange={setDialogoNC}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Nota de crédito — {venta.numero}</DialogTitle>
+            <DialogTitle>
+              {venta.esNotaDeVenta
+                ? `Devolución interna — ${venta.numero}`
+                : `Nota de crédito — ${venta.numero}`}
+            </DialogTitle>
             <DialogDescription>
-              Marca las cantidades que se devuelven. Cada item tiene un máximo disponible
-              (vendido menos lo ya devuelto en NC previas).
+              {venta.esNotaDeVenta
+                ? 'Esta venta es interna. La devolución no se envía a SUNAT, pero restituye stock y ajusta caja.'
+                : 'Marca las cantidades que se devuelven. Cada item tiene un máximo disponible (vendido menos lo ya devuelto en NC previas).'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -837,7 +872,11 @@ export function VentaDetalleCliente() {
               }
               onClick={() => emitirNC.mutate()}
             >
-              {emitirNC.isPending ? 'Emitiendo…' : 'Emitir nota de crédito'}
+              {emitirNC.isPending
+                ? 'Procesando…'
+                : venta.esNotaDeVenta
+                ? 'Registrar devolución'
+                : 'Emitir nota de crédito'}
             </Button>
           </DialogFooter>
         </DialogContent>

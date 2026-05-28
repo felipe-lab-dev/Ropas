@@ -24,10 +24,19 @@ const LOCK_KEY_NUMERO_NC = 8_372_481_003;
 
 /**
  * Estados del CPE original (factura/boleta) sobre los que SE PUEDE emitir NC.
- * No tiene sentido emitir NC sobre un CPE rechazado por SUNAT o ya anulado.
+ *
+ * Excluidos a propósito (cierra limbo fiscal):
+ * - 'pendiente'  → el doc nunca llegó a SUNAT. Si emitiéramos una NC contra esto,
+ *                  SUNAT la rechaza porque docs_referenciado.NUM_SERIE_CPE_REF no
+ *                  existe en sus registros. Ver doc Mifact (URLs_PRUEBAS.txt).
+ * - 'rechazado'  → SUNAT no acepta el CPE original, tampoco aceptará la NC.
+ * - 'anulado' / 'baja_pendiente' → el comprobante ya fue dado de baja.
+ *
+ * Solución para CPE en 'pendiente': el usuario debe reintentar la emisión del
+ * CPE original (botón "Reintentar emisión" en el detalle de la venta) antes
+ * de crear la NC.
  */
 const ESTADOS_CPE_HABILITAN_NC: ReadonlySet<string> = new Set([
-  'pendiente',
   'en_proceso',
   'aceptado',
   'aceptado_observado',
@@ -125,23 +134,27 @@ export class NotasCreditoService {
         throw new ErrorConflicto('No se puede emitir NC sobre venta anulada');
       }
 
-      // ─── Validación SUNAT: tipo del CPE original ──────────────────────────
+      // ─── Modalidad de la NC según la venta original ───────────────────────
       //
-      // Hay dos modos según si el tenant tiene facturación electrónica activa:
-      //   A) Tenant CON ConfiguracionFacturacion (usa fac elec):
-      //      - La venta DEBE tener CPE emitido para poder emitir NC. Si no lo
-      //        tiene → ErrorConflicto pidiendo emitir CPE primero. Sin esto
-      //        las NC se crearían en "limbo fiscal" (sin serie/correlativo),
-      //        imposibles de enviar a SUNAT después.
-      //      - Si tiene CPE, se valida estado y se asigna serie de NC.
-      //   B) Tenant SIN ConfiguracionFacturacion (no usa fac elec):
-      //      - Flujo legacy: la NC se crea sin campos SUNAT. Útil para tenants
-      //        que aún no configuraron facturación o están migrando.
+      // Tres casos posibles:
+      //   A) Venta es nota de venta interna (esNotaDeVenta=true):
+      //      → La "NC" es una devolución interna, NO va a SUNAT. Se crea sin
+      //        datos SUNAT (tipoCpe, serie, correlativo todo null). Stock y
+      //        caja se ajustan igual que cualquier NC.
+      //   B) Tenant con facturación electrónica + venta con tipoCpe pero
+      //      SIN documentoElectronico emitido (caso de error fiscal):
+      //      → Bloquear. El usuario debe emitir primero el CPE de la venta.
+      //   C) Venta con CPE emitido:
+      //      → Validar estado del CPE (debe estar habilitado para NC) y
+      //        asignar serie de NC apropiada.
+      //   D) Tenant sin ConfiguracionFacturacion (legacy):
+      //      → NC sin datos SUNAT, igual que (A) pero por motivo distinto.
       const configFac = await tx.configuracionFacturacion.findFirst();
       const tenantUsaFacElec = configFac !== null;
       const docOriginal = venta.documentoElectronico;
 
-      if (tenantUsaFacElec && !docOriginal) {
+      // Caso B: tenant con facElec, venta debió tener CPE pero no lo tiene.
+      if (tenantUsaFacElec && !venta.esNotaDeVenta && !docOriginal) {
         throw new ErrorConflicto(
           `No se puede emitir la nota de crédito: la venta ${venta.numero} no tiene comprobante electrónico emitido. ` +
             `Emita primero el comprobante (factura o boleta) desde la pantalla de ventas, ` +
@@ -168,8 +181,25 @@ export class NotasCreditoService {
           );
         }
         if (!ESTADOS_CPE_HABILITAN_NC.has(docOriginal.estadoSunat)) {
+          const refDoc = `${docOriginal.tipoCpe} ${docOriginal.serie}-${docOriginal.correlativo}`;
+          // Mensaje accionable según el estado real.
+          if (docOriginal.estadoSunat === 'pendiente') {
+            throw new ErrorConflicto(
+              `No se puede emitir la nota de crédito: el comprobante original (${refDoc}) ` +
+                `nunca llegó a SUNAT (estado 'pendiente'). ` +
+                `Reintenta primero la emisión del comprobante desde el detalle de la venta, ` +
+                `espera a que SUNAT lo acepte, y luego registra la nota de crédito.`,
+            );
+          }
+          if (docOriginal.estadoSunat === 'rechazado') {
+            throw new ErrorConflicto(
+              `No se puede emitir la nota de crédito: el comprobante original (${refDoc}) ` +
+                `fue rechazado por SUNAT. Una NC referenciando un comprobante rechazado también será rechazada. ` +
+                `Corrige los datos de la venta y emite un nuevo comprobante antes de continuar.`,
+            );
+          }
           throw new ErrorConflicto(
-            `No se puede emitir la nota de crédito: el comprobante original (${docOriginal.tipoCpe} ${docOriginal.serie}-${docOriginal.correlativo}) ` +
+            `No se puede emitir la nota de crédito: el comprobante original (${refDoc}) ` +
               `está en estado '${docOriginal.estadoSunat}'. Solo se permite sobre estados: ` +
               `${Array.from(ESTADOS_CPE_HABILITAN_NC).join(', ')}.`,
           );
