@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { obtenerPaginado } from '@/lib/api/client';
+import { obtenerPaginado, mensajeError } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
 import { Pagination } from '@/components/ui/pagination';
@@ -60,7 +60,7 @@ export default function VentasPage() {
 
   React.useEffect(() => { setPagina(1); }, [estadosSeleccionados]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['ventas', debounced, pagina, estadosSeleccionados],
     queryFn: () =>
       obtenerPaginado<VentaLista>('/ventas', {
@@ -125,7 +125,13 @@ export default function VentasPage() {
                   ))}
                 </TableRow>
               ))
-            ) : data!.datos.length === 0 ? (
+            ) : isError || !data ? (
+              <TableRow>
+                <TableCell colSpan={8} className="p-8 text-center text-[hsl(var(--text-muted))]">
+                  No se pudieron cargar las ventas: {mensajeError(error)}
+                </TableCell>
+              </TableRow>
+            ) : data.datos.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="p-0">
                   <EmptyState
@@ -137,7 +143,7 @@ export default function VentasPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              data!.datos.map(v => (
+              data.datos.map(v => (
                 <TableRow
                   key={v.id}
                   className="cursor-pointer hover:bg-[hsl(var(--surface-2))]/50"

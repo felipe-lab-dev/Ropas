@@ -17,6 +17,8 @@ import {
   Plus,
   RotateCcw,
   Printer,
+  Clock,
+  History,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -36,13 +38,21 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { obtener, postear, mensajeError } from '@/lib/api/client';
+import { obtener, obtenerPaginado, postear, mensajeError } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { tienePermiso } from '@/lib/store/sesion';
 import { useSesion } from '@/lib/store/sesion';
 import { SeccionCpe } from '@/components/facturacion-electronica/seccion-cpe';
 
 type EstadoVenta = 'borrador' | 'confirmada' | 'pagada' | 'parcial' | 'anulada';
+
+interface VentaHistorialItem {
+  id: string;
+  numero: string;
+  estado: EstadoVenta;
+  total: string;
+  creadoEn: string;
+}
 
 interface VentaDetalle {
   id: string;
@@ -143,6 +153,17 @@ export function VentaDetalleCliente() {
     queryFn: () => obtener<VentaDetalle>(`/ventas/${id}`),
   });
 
+  const clienteId = venta?.cliente?.id;
+  const { data: historialCliente } = useQuery({
+    queryKey: ['venta-historial-cliente', clienteId, id],
+    queryFn: () =>
+      obtenerPaginado<VentaHistorialItem>('/ventas', {
+        clienteId,
+        limite: 6,
+      }),
+    enabled: !!clienteId,
+  });
+
   const anular = useMutation({
     mutationFn: () =>
       postear<VentaDetalle>(`/ventas/${id}/anular`, { motivo: motivoAnulacion.trim() }),
@@ -232,8 +253,53 @@ export function VentaDetalleCliente() {
     disponibleDevolverPorItem.set(item.id, item.cantidad - yaDevuelto);
   }
 
+  type EventoTimeline = {
+    fecha: string;
+    icono: React.ElementType;
+    color: string;
+    titulo: string;
+    detalle?: string;
+  };
+  const eventos: EventoTimeline[] = [
+    {
+      fecha: venta.creadoEn,
+      icono: Receipt,
+      color: 'hsl(265 55% 58%)',
+      titulo: 'Venta creada',
+      detalle: `por ${venta.vendedor.nombre}`,
+    },
+    ...venta.pagos.map(p => ({
+      fecha: p.recibidoEn,
+      icono: CreditCard,
+      color: 'hsl(150 55% 50%)',
+      titulo: `Pago ${formatearMoneda(p.monto)}`,
+      detalle: `${MEDIO_LABEL[p.medio] ?? p.medio}${p.referencia ? ` · ${p.referencia}` : ''}`,
+    })),
+    ...(venta.notasCredito ?? []).map(nc => ({
+      fecha: nc.creadoEn,
+      icono: RotateCcw,
+      color:
+        nc.estado === 'anulada' ? 'hsl(355 75% 60%)' : 'hsl(35 90% 60%)',
+      titulo: `Nota de crédito ${nc.numero}`,
+      detalle: nc.motivo,
+    })),
+    ...(venta.anuladaEn
+      ? [
+          {
+            fecha: venta.anuladaEn,
+            icono: Ban,
+            color: 'hsl(355 75% 60%)',
+            titulo: 'Venta anulada',
+            detalle: venta.motivoAnulacion ?? undefined,
+          },
+        ]
+      : []),
+  ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
+  const otrasCompras = (historialCliente?.datos ?? []).filter(v => v.id !== venta.id).slice(0, 5);
+
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div className="flex items-start gap-4">
         <Button variant="ghost" size="icon-sm" asChild>
           <Link href="/ventas" aria-label="Volver"><ArrowLeft className="size-4" /></Link>
@@ -304,8 +370,8 @@ export function VentaDetalleCliente() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] items-start">
+        <div className="space-y-6 min-w-0">
           <Card className="overflow-hidden">
             <div className="p-4 border-b border-[hsl(var(--border))]">
               <h2 className="font-semibold">Detalle de productos</h2>
@@ -314,10 +380,10 @@ export function VentaDetalleCliente() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Producto</TableHead>
-                  <TableHead className="text-right">Cant.</TableHead>
-                  <TableHead className="text-right">Precio</TableHead>
-                  <TableHead className="text-right">Desc.</TableHead>
-                  <TableHead className="text-right">Subtotal</TableHead>
+                  <TableHead className="w-20 text-right">Cant.</TableHead>
+                  <TableHead className="w-28 text-right">Precio</TableHead>
+                  <TableHead className="w-28 text-right">Desc.</TableHead>
+                  <TableHead className="w-32 text-right">Subtotal</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -356,10 +422,10 @@ export function VentaDetalleCliente() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Medio</TableHead>
+                    <TableHead className="w-40">Medio</TableHead>
                     <TableHead>Referencia</TableHead>
-                    <TableHead>Recibido</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
+                    <TableHead className="w-56">Recibido</TableHead>
+                    <TableHead className="w-32 text-right">Monto</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -431,9 +497,100 @@ export function VentaDetalleCliente() {
               </Table>
             </Card>
           )}
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card className="overflow-hidden">
+              <div className="p-4 border-b border-[hsl(var(--border))] flex items-center gap-2">
+                <Clock className="size-4" />
+                <h2 className="font-semibold">Historial de la venta</h2>
+              </div>
+              <ol className="p-5 space-y-4">
+                {eventos.map((ev, i) => {
+                  const Icon = ev.icono;
+                  return (
+                    <li key={`${ev.fecha}-${i}`} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div
+                          className="size-8 rounded-full grid place-items-center shrink-0"
+                          style={{
+                            backgroundColor: `${ev.color.replace(')', ' / 0.15)')}`,
+                            color: ev.color,
+                          }}
+                        >
+                          <Icon className="size-4" />
+                        </div>
+                        {i < eventos.length - 1 && (
+                          <div className="w-px flex-1 mt-1 bg-[hsl(var(--border))]" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 pb-4">
+                        <p className="text-sm font-medium">{ev.titulo}</p>
+                        {ev.detalle && (
+                          <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5 break-words">
+                            {ev.detalle}
+                          </p>
+                        )}
+                        <p className="text-xs text-[hsl(var(--text-muted))] mt-1 font-mono">
+                          {formatearFecha(ev.fecha, 'completa')}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </Card>
+
+            {clienteId && (
+              <Card className="overflow-hidden">
+                <div className="p-4 border-b border-[hsl(var(--border))] flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <History className="size-4" />
+                    <h2 className="font-semibold">Otras compras del cliente</h2>
+                  </div>
+                  <Link
+                    href={`/ventas?clienteId=${clienteId}`}
+                    className="text-xs text-[hsl(var(--brand-primary))] hover:underline"
+                  >
+                    Ver todas
+                  </Link>
+                </div>
+                {otrasCompras.length === 0 ? (
+                  <div className="p-6 text-sm text-[hsl(var(--text-muted))] text-center">
+                    Es la primera compra de este cliente.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-[hsl(var(--border))]">
+                    {otrasCompras.map(v => (
+                      <li key={v.id}>
+                        <Link
+                          href={`/ventas/${v.id}`}
+                          className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-[hsl(var(--surface-2))]/50 transition-colors"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-mono text-sm font-semibold">{v.numero}</p>
+                            <p className="text-xs text-[hsl(var(--text-muted))]">
+                              {formatearFecha(v.creadoEn, 'corta')}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <Badge variant={ESTADO_BADGE[v.estado]} className="text-[10px]">
+                              {v.estado}
+                            </Badge>
+                            <span className="font-bold tabular-nums text-sm">
+                              {formatearMoneda(v.total)}
+                            </span>
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            )}
+          </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 lg:sticky lg:top-6">
           <Card className="p-5 space-y-3">
             <Linea label="Subtotal" valor={venta.subtotal} />
             {parseFloat(venta.descuento) > 0 && (
@@ -520,7 +677,7 @@ export function VentaDetalleCliente() {
             )}
           </Card>
 
-          <SeccionCpe ventaId={venta.id} puedeEmitir={puedeEmitirCpe} />
+          <SeccionCpe origen={{ tipo: 'venta', id: venta.id }} puedeEmitir={puedeEmitirCpe} />
         </div>
       </div>
 
