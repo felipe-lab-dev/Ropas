@@ -1,14 +1,14 @@
 /**
- * Hooks TanStack Query para series CPE.
+ * Hooks TanStack Query para series de comprobantes.
  *
- * useSeriesCpe         — lista series (con filtro opcional por sucursal).
- * useCrearSerie        — crea una nueva serie CPE.
- * useActualizarSerie   — toggle activa (PATCH). El body solo lleva { activa }.
+ * useSeriesCpe   — lista series (con filtro opcional por sucursal).
+ * useCrearSerie  — crea una nueva serie.
+ * useEditarSerie — edita una serie EXISTENTE solo si no tiene emisiones.
  *
  * REGLA DE DOMINIO:
- *   - DELETE no existe. Solo toggle activa.
- *   - correlativoActual es read-only post-creación.
- *   - serie y tipoCpe son inmutables post-creación.
+ *   - DELETE no existe (regla fiscal).
+ *   - Una serie es editable SOLO mientras no tenga comprobantes emitidos.
+ *     Una vez emitido el primer comprobante, la serie es inmutable.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -32,7 +32,6 @@ export interface SerieCpe {
   aplicaA: TipoCpe | null;
   serie: string;
   correlativoActual: number;
-  activa: boolean;
   creadoEn: string;
   actualizadoEn: string;
 }
@@ -43,12 +42,13 @@ export interface CrearSerieCpeInput {
   aplicaA?: TipoCpe | null;
   serie: string;
   correlativoInicial?: number;
-  activa?: boolean;
 }
 
-export interface ActualizarSerieCpeInput {
-  id: string;
-  activa: boolean;
+export interface EditarSerieCpeInput {
+  tipoCpe?: TipoCpe;
+  aplicaA?: TipoCpe | null;
+  serie?: string;
+  correlativoInicial?: number;
 }
 
 // ─── Categorías para el dropdown del modal "Nueva serie" ──────────────────────
@@ -136,11 +136,11 @@ export function useCrearSerie() {
   });
 }
 
-export function useActualizarSerie() {
+export function useEditarSerie() {
   const qc = useQueryClient();
-  return useMutation<SerieCpe, Error, ActualizarSerieCpeInput>({
-    mutationFn: async ({ id, ...dto }) => {
-      const { data } = await api.patch<{ datos: SerieCpe }>(`/series-cpe/${id}`, dto);
+  return useMutation<SerieCpe, Error, { id: string; dto: EditarSerieCpeInput }>({
+    mutationFn: async ({ id, dto }) => {
+      const { data } = await api.put<{ datos: SerieCpe }>(`/series-cpe/${id}`, dto);
       return data.datos;
     },
     onSuccess: () => {
@@ -148,3 +148,4 @@ export function useActualizarSerie() {
     },
   });
 }
+

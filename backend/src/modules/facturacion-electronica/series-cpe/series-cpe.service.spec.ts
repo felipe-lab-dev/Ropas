@@ -23,6 +23,10 @@ interface MockSerieCpe {
   update: jest.Mock;
 }
 
+interface MockDocumentoElectronico {
+  count: jest.Mock;
+}
+
 interface MockSucursal {
   findFirst: jest.Mock;
 }
@@ -30,6 +34,7 @@ interface MockSucursal {
 interface MockPrisma {
   $transaction: jest.Mock;
   serieCpe: MockSerieCpe;
+  documentoElectronico: MockDocumentoElectronico;
   sucursal: MockSucursal;
 }
 
@@ -45,6 +50,9 @@ function crearMockPrisma(): MockPrisma {
   // tx expone el mismo serieCpe para verificar las llamadas.
   const prisma: MockPrisma = {
     serieCpe,
+    documentoElectronico: {
+      count: jest.fn().mockResolvedValue(0),
+    },
     sucursal: {
       findFirst: jest.fn(),
     },
@@ -83,7 +91,6 @@ const serieBase = {
   tipoCpe: TIPO_CPE,
   serie: 'F001',
   correlativoActual: 31,
-  activa: true,
 };
 
 // ─── Datos de prueba para CRUD ───────────────────────────────────────────────
@@ -103,7 +110,6 @@ function crearSerie(overrides: Partial<Record<string, unknown>> = {}) {
     tipoCpe: 'factura',
     serie: 'F001',
     correlativoActual: 0,
-    activa: true,
     creadoEn: new Date(),
     actualizadoEn: new Date(),
     sucursal: sucursalExistente,
@@ -263,7 +269,6 @@ describe('SerieCpeService', () => {
             tipoCpe: 'factura',
             serie: 'F001',
             correlativoActual: 0,
-            activa: true,
           }),
         }),
       );
@@ -406,41 +411,117 @@ describe('SerieCpeService', () => {
       ).rejects.toThrow(/sucursal principal/i);
     });
 
-    // ─── 10. Actualizar activa=false ───────────────────────────────────────
+    // ─── 10. Unicidad TOTAL: crear duplicado lanza ErrorConflicto ──────────
 
-    it('actualizar activa=false deja la serie inactiva', async () => {
-      const serieInactiva = crearSerie({ activa: false });
-      prisma.serieCpe.findFirst.mockResolvedValue(crearSerie());
-      prisma.serieCpe.update.mockResolvedValue(serieInactiva);
+    it('crear duplicado lanza ErrorConflicto cuando ya existe una serie del mismo tipo', async () => {
+      prisma.sucursal.findFirst.mockResolvedValue(sucursalExistente);
+      // Hay otra fila del mismo (sucursal, tipo, aplicaA)
+      prisma.serieCpe.findFirst.mockResolvedValueOnce(crearSerie({ serie: 'F001' }));
 
-      const resultado = await service.actualizar(CTX_TEST, 'serie-uuid-001', { activa: false });
+      await expect(
+        service.crear(CTX_TEST, {
+          sucursalId: SUCURSAL_ID_CRUD,
+          tipoCpe: 'factura',
+          serie: 'F002',
+        }),
+      ).rejects.toThrow(ErrorConflicto);
 
-      expect(resultado.activa).toBe(false);
+      prisma.serieCpe.findFirst.mockResolvedValueOnce(crearSerie({ serie: 'F001' }));
+      await expect(
+        service.crear(CTX_TEST, {
+          sucursalId: SUCURSAL_ID_CRUD,
+          tipoCpe: 'factura',
+          serie: 'F002',
+        }),
+      ).rejects.toThrow(/ya existe.*F001|una serie por tipo/i);
+      expect(prisma.serieCpe.create).not.toHaveBeenCalled();
+    });
+
+    // ─── 11. Editar serie sin emisiones (happy path) ───────────────────────
+
+    it('editar sin emisiones actualiza la serie con los campos pasados', async () => {
+      const existente = crearSerie({ tipoCpe: 'factura', aplicaA: null, serie: 'F001', correlativoActual: 0 });
+      const actualizada = crearSerie({ serie: 'F010', correlativoActual: 500 });
+      prisma.serieCpe.findFirst.mockResolvedValueOnce(existente);
+      prisma.documentoElectronico.count.mockResolvedValueOnce(0);
+      prisma.serieCpe.update.mockResolvedValue(actualizada);
+
+      const resultado = await service.editar(CTX_TEST, 'serie-uuid-001', {
+        serie: 'F010',
+        correlativoInicial: 500,
+      });
+
+      expect(resultado).toEqual(actualizada);
       expect(prisma.serieCpe.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'serie-uuid-001' },
-          data: { activa: false },
+          data: expect.objectContaining({
+            serie: 'F010',
+            correlativoActual: 500,
+          }),
         }),
       );
     });
 
-    // ─── 11. Actualizar con campos extra (serie="F999") — solo aplica activa
+    // ─── 12. Editar serie CON emisiones → bloqueo ──────────────────────────
 
-    it('actualizar con campos extra solo aplica activa e ignora el resto', async () => {
-      const serieActualizada = crearSerie({ activa: false });
-      prisma.serieCpe.findFirst.mockResolvedValue(crearSerie());
-      prisma.serieCpe.update.mockResolvedValue(serieActualizada);
+    it('editar serie con comprobantes emitidos lanza ErrorConflicto', async () => {
+      const existente = crearSerie({ serie: 'F001', correlativoActual: 12 });
+      prisma.serieCpe.findFirst.mockResolvedValueOnce(existente);
+      prisma.documentoElectronico.count.mockResolvedValueOnce(12);
 
-      // El DTO solo acepta activa; pasamos un objeto cast con campo extra
-      const dto = { activa: false } as Parameters<typeof service.actualizar>[2];
-      await service.actualizar(CTX_TEST, 'serie-uuid-001', dto);
+      await expect(
+        service.editar(CTX_TEST, 'serie-uuid-001', { serie: 'F002' }),
+      ).rejects.toThrow(ErrorConflicto);
 
-      // Verificar que update solo recibe { activa: false } — no incluye serie, tipoCpe, etc.
-      const dataArg = prisma.serieCpe.update.mock.calls[0][0].data;
-      expect(dataArg).toEqual({ activa: false });
-      expect(dataArg).not.toHaveProperty('serie');
-      expect(dataArg).not.toHaveProperty('tipoCpe');
-      expect(dataArg).not.toHaveProperty('correlativoActual');
+      prisma.serieCpe.findFirst.mockResolvedValueOnce(existente);
+      prisma.documentoElectronico.count.mockResolvedValueOnce(12);
+      await expect(
+        service.editar(CTX_TEST, 'serie-uuid-001', { serie: 'F002' }),
+      ).rejects.toThrow(/12 comprobante|inmutables.*SUNAT/i);
+
+      expect(prisma.serieCpe.update).not.toHaveBeenCalled();
+    });
+
+    // ─── 13. Editar cambiando categoría a una ya ocupada → conflicto ───────
+
+    it('editar cambiando categoría a una ya ocupada por OTRA serie lanza ErrorConflicto', async () => {
+      const existente = crearSerie({ tipoCpe: 'factura', aplicaA: null, serie: 'F001' });
+      const otraSerie = crearSerie({ id: 'serie-uuid-002', tipoCpe: 'boleta', aplicaA: null, serie: 'B001' });
+      prisma.serieCpe.findFirst
+        .mockResolvedValueOnce(existente)   // lookup por id
+        .mockResolvedValueOnce(otraSerie);  // lookup unicidad
+      prisma.documentoElectronico.count.mockResolvedValueOnce(0);
+
+      await expect(
+        service.editar(CTX_TEST, 'serie-uuid-001', {
+          tipoCpe: 'boleta',
+          serie: 'B005',
+        }),
+      ).rejects.toThrow(ErrorConflicto);
+      expect(prisma.serieCpe.update).not.toHaveBeenCalled();
+    });
+
+    // ─── 14. Editar con id inexistente → ErrorNoEncontrado ─────────────────
+
+    it('editar con id inexistente lanza ErrorNoEncontrado', async () => {
+      prisma.serieCpe.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        service.editar(CTX_TEST, 'serie-inexistente', { serie: 'F010' }),
+      ).rejects.toThrow(ErrorNoEncontrado);
+    });
+
+    // ─── 15. Editar valida prefijo letra↔tipo ──────────────────────────────
+
+    it('editar boleta con serie F010 lanza ErrorValidacion por prefijo incoherente', async () => {
+      const existente = crearSerie({ tipoCpe: 'boleta', aplicaA: null, serie: 'B001' });
+      prisma.serieCpe.findFirst.mockResolvedValueOnce(existente);
+      prisma.documentoElectronico.count.mockResolvedValueOnce(0);
+
+      await expect(
+        service.editar(CTX_TEST, 'serie-uuid-001', { serie: 'F010' }),
+      ).rejects.toThrow(ErrorValidacion);
     });
   });
 });

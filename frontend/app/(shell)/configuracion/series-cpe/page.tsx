@@ -11,7 +11,7 @@
  *  - 1 tenant = 1 sucursal siempre. La UI no expone sucursal.
  */
 import * as React from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import {
   Hash,
   Plus,
+  Pencil,
   ChevronRight,
   ChevronDown,
   Loader2,
@@ -49,7 +50,7 @@ import { cn } from '@/lib/utils';
 import {
   useSeriesCpe,
   useCrearSerie,
-  useActualizarSerie,
+  useEditarSerie,
   CATEGORIAS_SERIE,
   categoriaDeSerie,
   labelDeSerie,
@@ -81,14 +82,6 @@ const schemaNuevaSerie = z.object({
     'guia_remitente',
     'guia_transportista',
   ] as const),
-  tipoCpe: z.enum([
-    'factura',
-    'boleta',
-    'nota_credito',
-    'nota_debito',
-    'guia_remitente',
-    'guia_transportista',
-  ] as const),
   serie: z
     .string()
     .regex(/^[A-Z]\d{3}$/, 'Formato inválido. Debe ser 1 letra mayúscula + 3 dígitos (ej: F001)'),
@@ -97,54 +90,9 @@ const schemaNuevaSerie = z.object({
     .int('Debe ser un número entero')
     .min(0, 'No puede ser negativo')
     .optional(),
-  activa: z.boolean(),
 });
 
 type FormNuevaSerie = z.infer<typeof schemaNuevaSerie>;
-
-// ─── Componente: Toggle ───────────────────────────────────────────────────────
-
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-  label?: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label ?? (checked ? 'Activa' : 'Inactiva')}
-      onClick={() => !disabled && onChange(!checked)}
-      disabled={disabled}
-      className={cn(
-        'group inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md bg-transparent p-2',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--brand-primary))]/40 focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg))]',
-        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-      )}
-    >
-      <span
-        className={cn(
-          'pointer-events-none relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ease-in-out',
-          checked ? 'bg-[hsl(var(--brand-primary))]' : 'bg-[hsl(var(--border))]',
-        )}
-      >
-        <span
-          className={cn(
-            'inline-block size-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out',
-            checked ? 'translate-x-[18px]' : 'translate-x-0.5',
-          )}
-        />
-      </span>
-    </button>
-  );
-}
 
 // ─── Componente: Badge de tipo CPE ───────────────────────────────────────────
 
@@ -175,15 +123,15 @@ function BadgeTipo({ serie }: { serie: { tipoCpe: TipoCpe; aplicaA: TipoCpe | nu
 
 // ─── Componente: fila de la tabla (desktop) ───────────────────────────────────
 
-function FilaSerie({ serie, onToggle }: { serie: SerieCpe; onToggle: (s: SerieCpe) => void }) {
+function FilaSerie({
+  serie,
+  onEditar,
+}: {
+  serie: SerieCpe;
+  onEditar: (s: SerieCpe) => void;
+}) {
   return (
-    <TableRow
-      data-testid={`fila-serie-${serie.id}`}
-      className={cn(
-        'transition-opacity',
-        !serie.activa && 'opacity-50',
-      )}
-    >
+    <TableRow data-testid={`fila-serie-${serie.id}`}>
       <TableCell>
         <BadgeTipo serie={serie} />
       </TableCell>
@@ -195,12 +143,17 @@ function FilaSerie({ serie, onToggle }: { serie: SerieCpe; onToggle: (s: SerieCp
       <TableCell className="tabular-nums text-[hsl(var(--text-muted))]">
         {serie.correlativoActual.toLocaleString('es-PE')}
       </TableCell>
-      <TableCell>
-        <Toggle
-          checked={serie.activa}
-          onChange={() => onToggle(serie)}
-          label={`Toggle activa para ${serie.serie}`}
-        />
+      <TableCell className="text-right">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onEditar(serie)}
+          aria-label={`Editar serie ${serie.serie}`}
+          data-testid={`btn-editar-${serie.id}`}
+        >
+          <Pencil className="size-4" />
+        </Button>
       </TableCell>
     </TableRow>
   );
@@ -208,29 +161,35 @@ function FilaSerie({ serie, onToggle }: { serie: SerieCpe; onToggle: (s: SerieCp
 
 // ─── Componente: card mobile ──────────────────────────────────────────────────
 
-function CardSerie({ serie, onToggle }: { serie: SerieCpe; onToggle: (s: SerieCpe) => void }) {
+function CardSerie({
+  serie,
+  onEditar,
+}: {
+  serie: SerieCpe;
+  onEditar: (s: SerieCpe) => void;
+}) {
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
-      className={cn(
-        'rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface))] p-4 space-y-3 transition-opacity',
-        !serie.activa && 'opacity-50',
-      )}
+      className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface))] p-4 space-y-3"
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="mt-1">
-            <BadgeTipo serie={serie} />
-          </div>
+        <div className="min-w-0">
+          <BadgeTipo serie={serie} />
         </div>
-        <Toggle
-          checked={serie.activa}
-          onChange={() => onToggle(serie)}
-          label={`Toggle activa para ${serie.serie}`}
-        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onEditar(serie)}
+          aria-label={`Editar serie ${serie.serie}`}
+          data-testid={`btn-editar-${serie.id}`}
+        >
+          <Pencil className="size-4" />
+        </Button>
       </div>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>
@@ -248,20 +207,24 @@ function CardSerie({ serie, onToggle }: { serie: SerieCpe; onToggle: (s: SerieCp
   );
 }
 
-// ─── Modal: Nueva serie ───────────────────────────────────────────────────────
+// ─── Modal: Nueva serie / Editar serie ─────────────────────────────────────
 
-function ModalNuevaSerie({
+function ModalSerie({
   open,
   onClose,
+  serieAEditar,
 }: {
   open: boolean;
   onClose: () => void;
+  /** Si viene, el modal está en modo "editar"; si es null, en modo "crear". */
+  serieAEditar?: SerieCpe | null;
 }) {
   const crear = useCrearSerie();
+  const editar = useEditarSerie();
+  const esEdicion = !!serieAEditar;
 
   const {
     register,
-    control,
     handleSubmit,
     watch,
     reset,
@@ -269,38 +232,73 @@ function ModalNuevaSerie({
   } = useForm<FormNuevaSerie>({
     resolver: zodResolver(schemaNuevaSerie),
     defaultValues: {
-      tipoCpe: 'factura',
+      categoria: 'factura',
       serie: '',
       correlativoInicial: 0,
-      activa: true,
     },
   });
 
-  const tipoCpe = watch('tipoCpe');
-
-  // Resetear serie al cambiar tipo para evitar inconsistencias
-  const prevTipoRef = React.useRef(tipoCpe);
+  // Cuando se abre en modo edición, precargar valores de la serie.
   React.useEffect(() => {
-    if (prevTipoRef.current !== tipoCpe) {
-      prevTipoRef.current = tipoCpe;
+    if (open && serieAEditar) {
+      reset({
+        categoria: categoriaDeSerie(serieAEditar),
+        serie: serieAEditar.serie,
+        correlativoInicial: serieAEditar.correlativoActual,
+      });
+    } else if (open && !serieAEditar) {
+      reset({
+        categoria: 'factura',
+        serie: '',
+        correlativoInicial: 0,
+      });
     }
-  }, [tipoCpe]);
+  }, [open, serieAEditar, reset]);
+
+  const categoria = watch('categoria');
+  const serieIngresada = watch('serie');
+
+  /** Definición de la categoría seleccionada (tipoCpe, aplicaA, prefijo). */
+  const catDef = React.useMemo(
+    () => CATEGORIAS_SERIE.find(c => c.value === categoria) ?? CATEGORIAS_SERIE[0]!,
+    [categoria],
+  );
 
   const onSubmit = async (valores: FormNuevaSerie) => {
+    const def = CATEGORIAS_SERIE.find(c => c.value === valores.categoria);
+    if (!def) {
+      toast.error('Categoría inválida');
+      return;
+    }
     try {
-      await crear.mutateAsync({
-        tipoCpe: valores.tipoCpe,
-        serie: valores.serie,
-        correlativoInicial: valores.correlativoInicial,
-        activa: valores.activa,
-      });
-      toast.success(`Serie ${valores.serie} creada`);
+      if (esEdicion && serieAEditar) {
+        await editar.mutateAsync({
+          id: serieAEditar.id,
+          dto: {
+            tipoCpe: def.tipoCpe,
+            aplicaA: def.aplicaA,
+            serie: valores.serie,
+            correlativoInicial: valores.correlativoInicial,
+          },
+        });
+        toast.success(`Serie ${valores.serie} actualizada`);
+      } else {
+        await crear.mutateAsync({
+          tipoCpe: def.tipoCpe,
+          aplicaA: def.aplicaA,
+          serie: valores.serie,
+          correlativoInicial: valores.correlativoInicial,
+        });
+        toast.success(`Serie ${valores.serie} creada`);
+      }
       reset();
       onClose();
     } catch (err) {
       toast.error(mensajeError(err));
     }
   };
+
+  const enviando = esEdicion ? editar.isPending : crear.isPending;
 
   return (
     <Dialog
@@ -312,18 +310,22 @@ function ModalNuevaSerie({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Hash className="size-4 text-[hsl(var(--brand-primary))]" />
-            Nueva serie
+            {esEdicion ? (
+              <Pencil className="size-4 text-[hsl(var(--brand-primary))]" />
+            ) : (
+              <Hash className="size-4 text-[hsl(var(--brand-primary))]" />
+            )}
+            {esEdicion ? 'Editar serie' : 'Nueva serie'}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
-          {/* Tipo CPE */}
+          {/* Tipo de comprobante (Categoría) */}
           <div className="space-y-1.5">
             <Label>Tipo de comprobante</Label>
             <div className="relative">
               <select
-                {...register('tipoCpe')}
+                {...register('categoria')}
                 className={cn(
                   'flex h-10 w-full appearance-none rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] pl-3.5 pr-9 py-2 text-sm cursor-pointer',
                   'focus-visible:outline-none focus-visible:border-[hsl(var(--brand-primary))]/60',
@@ -331,17 +333,19 @@ function ModalNuevaSerie({
                 )}
                 data-testid="select-tipo-cpe"
               >
-                {TIPOS_CPE.filter((t) => TIPOS_CREACION_HABILITADOS.includes(t.value)).map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
+                {CATEGORIAS_SERIE
+                  .filter((c) => CATEGORIAS_CREACION_HABILITADAS.includes(c.value))
+                  .map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
               </select>
               <ChevronDown
                 className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-[hsl(var(--text-muted))]"
                 aria-hidden="true"
               />
             </div>
-            {errors.tipoCpe && (
-              <p className="text-xs text-[hsl(var(--brand-danger))]">{errors.tipoCpe.message}</p>
+            {errors.categoria && (
+              <p className="text-xs text-[hsl(var(--brand-danger))]">{errors.categoria.message}</p>
             )}
           </div>
 
@@ -350,12 +354,11 @@ function ModalNuevaSerie({
             <Label>Serie</Label>
             <Input
               {...register('serie')}
-              placeholder={tipoCpe === 'factura' ? 'F001' : tipoCpe === 'boleta' ? 'B001' : 'X001'}
+              placeholder={catDef.prefijoSerie ? `${catDef.prefijoSerie}001` : 'X001'}
               maxLength={4}
               className="font-mono uppercase"
               data-testid="input-serie"
               onChange={(e) => {
-                // Forzar uppercase on-change
                 e.target.value = e.target.value.toUpperCase();
                 register('serie').onChange(e);
               }}
@@ -366,7 +369,7 @@ function ModalNuevaSerie({
               </p>
             )}
             <p className="text-[11px] text-[hsl(var(--text-muted))]">
-              Convención: Factura → F001, Boleta → B001. Formato: 1 letra + 3 dígitos.
+              Convención: Factura y NC-Factura → F001; Boleta y NC-Boleta → B001. Formato: 1 letra + 3 dígitos.
             </p>
           </div>
 
@@ -389,60 +392,14 @@ function ModalNuevaSerie({
               <p className="text-xs text-[hsl(var(--brand-danger))]">{errors.correlativoInicial.message}</p>
             )}
             <p className="text-[11px] text-[hsl(var(--text-muted))]">
-              Si estás migrando desde otro sistema y quieres continuar la numeración, ingresa el último
-              correlativo emitido. Si arrancas de cero, deja en 0.
+              Si está migrando desde otro sistema y desea continuar la numeración, ingrese el último
+              correlativo emitido. Si comienza desde cero, deje en 0.
             </p>
           </div>
 
-          {/* Activa */}
-          <Controller
-            name="activa"
-            control={control}
-            render={({ field }) => (
-              <button
-                type="button"
-                role="switch"
-                aria-checked={field.value}
-                onClick={() => field.onChange(!field.value)}
-                className={cn(
-                  'flex w-full items-center gap-3 rounded-lg border px-3.5 py-3 text-left transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--brand-primary))]/40',
-                  field.value
-                    ? 'border-[hsl(var(--brand-primary))]/30 bg-[hsl(var(--brand-primary))]/5 hover:bg-[hsl(var(--brand-primary))]/10'
-                    : 'border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/40 hover:bg-[hsl(var(--surface-2))]/70',
-                )}
-              >
-                <span
-                  className={cn(
-                    'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
-                    field.value
-                      ? 'bg-[hsl(var(--brand-primary))]'
-                      : 'bg-[hsl(var(--border))]',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'pointer-events-none inline-block size-4 rounded-full bg-white shadow-sm transform transition-transform duration-200',
-                      field.value ? 'translate-x-[18px]' : 'translate-x-0.5',
-                    )}
-                  />
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-[hsl(var(--text))]">
-                    Activar al crearla
-                  </span>
-                  <span className="mt-0.5 block text-[11px] text-[hsl(var(--text-muted))]">
-                    Si está apagada, la serie queda creada pero no podrá emitir comprobantes hasta que la actives desde la tabla.
-                  </span>
-                </span>
-              </button>
-            )}
-          />
-
-          {/* Advertencia coherencia letra↔tipo */}
+          {/* Advertencia coherencia letra↔categoría */}
           <AnimatePresence>
-            {((tipoCpe === 'factura' && watch('serie') && !watch('serie').startsWith('F')) ||
-              (tipoCpe === 'boleta' && watch('serie') && !watch('serie').startsWith('B'))) && (
+            {catDef.prefijoSerie && serieIngresada && !serieIngresada.startsWith(catDef.prefijoSerie) && (
               <motion.div
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -451,9 +408,8 @@ function ModalNuevaSerie({
               >
                 <AlertTriangle className="size-4 shrink-0 mt-0.5" />
                 <span>
-                  Por convención, las {tipoCpe === 'factura' ? 'facturas' : 'boletas'} empiezan con{' '}
-                  <strong>{tipoCpe === 'factura' ? 'F' : 'B'}</strong> (ej:{' '}
-                  {tipoCpe === 'factura' ? 'F001' : 'B001'}). El sistema rechazará esta combinación.
+                  Por convención, <strong>{catDef.label}</strong> debe empezar con{' '}
+                  <strong>{catDef.prefijoSerie}</strong> (ej: {catDef.prefijoSerie}001). El sistema rechazará esta combinación.
                 </span>
               </motion.div>
             )}
@@ -467,13 +423,18 @@ function ModalNuevaSerie({
             </DialogClose>
             <Button
               type="submit"
-              disabled={crear.isPending}
+              disabled={enviando}
               data-testid="btn-guardar-serie"
             >
-              {crear.isPending ? (
+              {enviando ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
                   Guardando...
+                </>
+              ) : esEdicion ? (
+                <>
+                  <Pencil className="size-4" />
+                  Guardar cambios
                 </>
               ) : (
                 <>
@@ -505,20 +466,40 @@ function TablaSkleton() {
 
 export default function SeriesCpePage() {
   const [modalOpen, setModalOpen] = React.useState(false);
+  const [serieEditando, setSerieEditando] = React.useState<SerieCpe | null>(null);
 
   const { data: series = [], isLoading: loadingSeries } = useSeriesCpe();
-  const actualizarSerie = useActualizarSerie();
 
-  const handleToggle = async (serie: SerieCpe) => {
-    try {
-      await actualizarSerie.mutateAsync({ id: serie.id, activa: !serie.activa });
-      toast.success(
-        `Serie ${serie.serie} ${!serie.activa ? 'activada' : 'desactivada'}`,
-      );
-    } catch (err) {
-      toast.error(mensajeError(err));
-    }
+  const abrirEditar = (serie: SerieCpe) => {
+    setSerieEditando(serie);
+    setModalOpen(true);
   };
+
+  const cerrarModal = () => {
+    setModalOpen(false);
+    setSerieEditando(null);
+  };
+  // ─── Detección de gaps: si hay factura/boleta pero falta NC del mismo subtipo ──
+  //
+  // Heurística defensiva: si el tenant tiene serie de factura, también debería
+  // tener NC-Factura. Si la falta, al intentar emitir una NC sobre una venta
+  // con factura el backend rechazará. Avisamos acá antes.
+  const gapsNc = React.useMemo(() => {
+    const existe = (
+      tipoCpe: TipoCpe,
+      aplicaA: TipoCpe | null,
+    ): boolean => series.some(
+      s => s.tipoCpe === tipoCpe && s.aplicaA === aplicaA,
+    );
+    const gaps: string[] = [];
+    if (existe('factura', null) && !existe('nota_credito', 'factura')) {
+      gaps.push('NC-Factura');
+    }
+    if (existe('boleta', null) && !existe('nota_credito', 'boleta')) {
+      gaps.push('NC-Boleta');
+    }
+    return gaps;
+  }, [series]);
 
   return (
     <div className="space-y-6">
@@ -535,7 +516,7 @@ export default function SeriesCpePage() {
         acciones={
           <Button
             size="lg"
-            onClick={() => setModalOpen(true)}
+            onClick={() => { setSerieEditando(null); setModalOpen(true); }}
             data-testid="btn-nueva-serie"
           >
             <Plus className="size-4" />
@@ -543,6 +524,38 @@ export default function SeriesCpePage() {
           </Button>
         }
       />
+
+      {/* ── Banner: faltan series de NC para los tipos activos ────────────── */}
+      <AnimatePresence>
+        {gapsNc.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="flex items-start gap-3 rounded-xl border border-[hsl(var(--brand-warning))]/30 bg-[hsl(var(--brand-warning))]/10 px-4 py-3"
+            data-testid="banner-gaps-nc"
+          >
+            <AlertTriangle className="size-5 shrink-0 text-[hsl(var(--brand-warning))] mt-0.5" />
+            <div className="flex-1 text-sm">
+              <p className="font-semibold text-[hsl(var(--brand-warning))]">
+                Configuración incompleta de Notas de Crédito
+              </p>
+              <p className="mt-0.5 text-[13px] text-[hsl(var(--text))]">
+                Tiene serie de{' '}
+                {gapsNc.includes('NC-Factura') && gapsNc.includes('NC-Boleta')
+                  ? 'Factura y Boleta'
+                  : gapsNc.includes('NC-Factura')
+                    ? 'Factura'
+                    : 'Boleta'}{' '}
+                pero falta crear{' '}
+                <strong>{gapsNc.join(' y ')}</strong>. Si intenta emitir una nota
+                de crédito sobre una venta con comprobante electrónico, la operación
+                fallará. Cree las series faltantes desde el botón <em>Nueva serie</em>.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Tabla desktop ─────────────────────────────────────────────────── */}
       <div className="hidden md:block">
@@ -559,9 +572,9 @@ export default function SeriesCpePage() {
             </div>
             <p className="text-base font-semibold mb-1">No hay series configuradas</p>
             <p className="text-sm text-[hsl(var(--text-muted))] mb-4 max-w-xs">
-              Crea al menos una serie por tipo de comprobante para poder emitir facturas electrónicas.
+              Cree al menos una serie por tipo de comprobante para poder emitir facturas electrónicas.
             </p>
-            <Button onClick={() => setModalOpen(true)}>
+            <Button onClick={() => { setSerieEditando(null); setModalOpen(true); }}>
               <Plus className="size-4" />
               Crear primera serie
             </Button>
@@ -574,16 +587,12 @@ export default function SeriesCpePage() {
                   <TableHead>Tipo</TableHead>
                   <TableHead>Serie</TableHead>
                   <TableHead>Correlativo actual</TableHead>
-                  <TableHead>Activa</TableHead>
+                  <TableHead className="w-16 text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {series.map((serie) => (
-                  <FilaSerie
-                    key={serie.id}
-                    serie={serie}
-                    onToggle={handleToggle}
-                  />
+                  <FilaSerie key={serie.id} serie={serie} onEditar={abrirEditar} />
                 ))}
               </TableBody>
             </Table>
@@ -600,9 +609,9 @@ export default function SeriesCpePage() {
             <Hash className="size-10 text-[hsl(var(--text-muted))] mb-3" />
             <p className="text-sm font-medium mb-1">Sin series configuradas</p>
             <p className="text-xs text-[hsl(var(--text-muted))] mb-4">
-              Toca + Nueva serie para empezar.
+              Toque + Nueva serie para comenzar.
             </p>
-            <Button size="sm" onClick={() => setModalOpen(true)}>
+            <Button size="sm" onClick={() => { setSerieEditando(null); setModalOpen(true); }}>
               <Plus className="size-4" />
               Nueva serie
             </Button>
@@ -610,20 +619,17 @@ export default function SeriesCpePage() {
         ) : (
           <AnimatePresence mode="popLayout">
             {series.map((serie) => (
-              <CardSerie
-                key={serie.id}
-                serie={serie}
-                onToggle={handleToggle}
-              />
+              <CardSerie key={serie.id} serie={serie} onEditar={abrirEditar} />
             ))}
           </AnimatePresence>
         )}
       </div>
 
-      {/* ── Modal Nueva serie ─────────────────────────────────────────────── */}
-      <ModalNuevaSerie
+      {/* ── Modal Nueva / Editar serie ────────────────────────────────────── */}
+      <ModalSerie
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={cerrarModal}
+        serieAEditar={serieEditando}
       />
     </div>
   );

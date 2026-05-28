@@ -30,15 +30,17 @@ function crearTxMock() {
   };
   const cliente: Mocked<{ update: unknown }> = { update: jest.fn() };
   // serieCpe se usa al asignar correlativo para NC cuando la venta tiene CPE.
-  // Los tests legacy mockean venta sin documentoElectronico, así que estas
-  // funciones quedan sin invocar — pero deben existir para que el código
-  // compile y pueda inyectarse si el test lo requiere.
   const serieCpe: Mocked<{ findFirst: unknown; update: unknown }> = {
     findFirst: jest.fn(),
     update: jest.fn(),
   };
+  // configuracionFacturacion se consulta para detectar si el tenant usa
+  // facturación electrónica. Default: null (tenant legacy, sin fac elec).
+  const configuracionFacturacion: Mocked<{ findFirst: unknown }> = {
+    findFirst: jest.fn().mockResolvedValue(null),
+  };
   const $executeRaw = jest.fn();
-  return { venta, notaCredito, cliente, serieCpe, $executeRaw };
+  return { venta, notaCredito, cliente, serieCpe, configuracionFacturacion, $executeRaw };
 }
 
 const ctx = {
@@ -318,6 +320,64 @@ describe('NotasCreditoService', () => {
         'u1',
       );
       expect(tx.cliente.update).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── Bloqueo fiscal: NC sobre venta sin CPE cuando hay fac elec activa ─────
+  describe('crear (con facturación electrónica activa)', () => {
+    beforeEach(() => {
+      // Tenant con ConfiguracionFacturacion → usa fac elec
+      tx.configuracionFacturacion.findFirst.mockResolvedValue({
+        id: 'cfg-1',
+        ruc: '20100100100',
+      });
+      tx.venta.findFirst.mockResolvedValue({
+        id: 'v',
+        numero: 'V-000077',
+        estado: 'pagada',
+        clienteId: 'c1',
+        sucursalId: 's',
+        items: [
+          { id: 'i1', cantidad: 2, subtotal: 20, descripcion: 'Polo · M', varianteId: 'va1' },
+        ],
+        notasCredito: [],
+        documentoElectronico: null, // ← venta SIN CPE emitido
+      });
+    });
+
+    it('bloquea NC con ErrorConflicto si el tenant tiene fac elec y la venta no tiene CPE emitido', async () => {
+      await expect(
+        service.crear(
+          { ventaId: 'v', motivo: 'm', items: [{ ventaItemId: 'i1', cantidad: 1 }] } as never,
+          ctx,
+          'u1',
+        ),
+      ).rejects.toBeInstanceOf(ErrorConflicto);
+      await expect(
+        service.crear(
+          { ventaId: 'v', motivo: 'm', items: [{ ventaItemId: 'i1', cantidad: 1 }] } as never,
+          ctx,
+          'u1',
+        ),
+      ).rejects.toThrow(/V-000077.*no tiene comprobante electrónico emitido|no tiene comprobante electrónico emitido.*V-000077/);
+      expect(tx.notaCredito.create).not.toHaveBeenCalled();
+    });
+
+    it('NO bloquea cuando el tenant NO tiene fac elec configurada (flujo legacy)', async () => {
+      tx.configuracionFacturacion.findFirst.mockResolvedValue(null);
+      tx.notaCredito.findFirst.mockResolvedValue(null);
+      tx.notaCredito.create.mockResolvedValue({ id: 'nc-legacy', numero: 'NC-1', items: [] });
+      await service.crear(
+        { ventaId: 'v', motivo: 'm', items: [{ ventaItemId: 'i1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      // La NC se crea sin campos SUNAT (flujo legacy: spread vacío en data)
+      expect(tx.notaCredito.create).toHaveBeenCalled();
+      const dataCreada = tx.notaCredito.create.mock.calls[0][0].data;
+      expect(dataCreada.tipoCpe).toBeUndefined();
+      expect(dataCreada.serieCpeId).toBeUndefined();
+      expect(dataCreada.tipoCpeOriginal).toBeUndefined();
     });
   });
 

@@ -1064,11 +1064,10 @@ enum EstadoSunat {
 ///   - tipoCpe in {nota_credito, nota_debito} → aplicaA in {factura, boleta} (obligatorio)
 ///   - tipoCpe in {factura, boleta, guia_*}    → aplicaA es null
 ///
-/// Unicidad de serie activa: existe a lo sumo UNA serie activa por
-/// (sucursalId, tipoCpe, aplicaA). Cuando una serie llena su correlativo
-/// (99999999), se desactiva y se abre la siguiente. El unique parcial se
-/// implementa via CREATE UNIQUE INDEX ... WHERE activa = true (no expresable
-/// nativamente en Prisma — vive en la migration SQL).
+/// Unicidad: existe a lo sumo UNA fila por (sucursalId, tipoCpe, aplicaA).
+/// Una vez creada, la serie es inmutable (no se desactiva, no se borra — regla
+/// fiscal). Implementado en DB con dos UNIQUE PARTIAL INDEX (uno para
+/// aplica_a NULL, otro para NOT NULL).
 model SerieCpe {
   id                String   @id @default(uuid()) @db.Uuid
   sucursalId        String   @map("sucursal_id") @db.Uuid
@@ -1077,14 +1076,12 @@ model SerieCpe {
   aplicaA           TipoCpe? @map("aplica_a")
   serie             String   @db.VarChar(4)
   correlativoActual Int      @default(0) @map("correlativo_actual")
-  activa            Boolean  @default(true)
   creadoEn          DateTime @default(now()) @map("creado_en")
   actualizadoEn     DateTime @updatedAt @map("actualizado_en")
 
   ventas       Venta[]
   notasCredito NotaCredito[]
 
-  @@unique([sucursalId, tipoCpe, aplicaA, serie])
   @@index([sucursalId, tipoCpe, aplicaA])
   @@map("series_cpe")
 }

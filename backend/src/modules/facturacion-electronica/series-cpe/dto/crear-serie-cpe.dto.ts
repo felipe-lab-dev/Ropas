@@ -1,5 +1,4 @@
 import {
-  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -68,8 +67,4 @@ export class CrearSerieCpeDto {
   @IsInt({ message: 'correlativoInicial debe ser un número entero' })
   @Min(0, { message: 'correlativoInicial no puede ser negativo' })
   correlativoInicial?: number;
-
-  @IsOptional()
-  @IsBoolean()
-  activa?: boolean;
 }

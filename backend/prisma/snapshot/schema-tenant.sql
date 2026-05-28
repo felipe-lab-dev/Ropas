@@ -722,7 +722,6 @@ CREATE TABLE IF NOT EXISTS "series_cpe" (
     "aplica_a" "tipo_cpe",
     "serie" VARCHAR(4) NOT NULL,
     "correlativo_actual" INTEGER NOT NULL DEFAULT 0,
-    "activa" BOOLEAN NOT NULL DEFAULT true,
     "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "actualizado_en" TIMESTAMP(3) NOT NULL,
 
@@ -977,19 +976,19 @@ CREATE INDEX IF NOT EXISTS "cupones_usos_cliente_id_idx" ON "cupones_usos"("clie
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "series_cpe_sucursal_id_tipo_cpe_aplica_a_idx" ON "series_cpe"("sucursal_id", "tipo_cpe", "aplica_a");
 
--- CreateIndex
-CREATE UNIQUE INDEX IF NOT EXISTS "series_cpe_sucursal_id_tipo_cpe_aplica_a_serie_key" ON "series_cpe"("sucursal_id", "tipo_cpe", "aplica_a", "serie");
-
--- Unicidad parcial: a lo sumo UNA serie activa por (sucursal, tipoCpe, aplicaA).
--- Dos índices separados porque COALESCE(aplica_a::text, '') no es IMMUTABLE en
--- Postgres (cast de enum a text). Cada uno cubre un subconjunto disjunto.
-CREATE UNIQUE INDEX IF NOT EXISTS "series_cpe_unicidad_activa_sin_aplica_a"
+-- Unicidad TOTAL: a lo sumo UNA fila por (sucursal, tipoCpe, aplicaA), sin
+-- importar `activa`. El toggle activa/inactiva es para "pausar" la serie, no
+-- para coexistir con otra del mismo tipo.
+-- Dos índices parciales separados porque Postgres trata cada NULL como distinto
+-- en UNIQUE normal, así que aplica_a=NULL (factura/boleta/guias) necesita su
+-- propio índice condicionado.
+CREATE UNIQUE INDEX IF NOT EXISTS "series_cpe_unicidad_sin_aplica_a"
   ON "series_cpe" ("sucursal_id", "tipo_cpe")
-  WHERE "activa" = true AND "aplica_a" IS NULL;
+  WHERE "aplica_a" IS NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS "series_cpe_unicidad_activa_con_aplica_a"
+CREATE UNIQUE INDEX IF NOT EXISTS "series_cpe_unicidad_con_aplica_a"
   ON "series_cpe" ("sucursal_id", "tipo_cpe", "aplica_a")
-  WHERE "activa" = true AND "aplica_a" IS NOT NULL;
+  WHERE "aplica_a" IS NOT NULL;
 
 -- CreateIndex
 CREATE UNIQUE INDEX IF NOT EXISTS "documentos_electronicos_venta_id_key" ON "documentos_electronicos"("venta_id");

@@ -1,5 +1,5 @@
 /**
- * E2E — Pantalla Series CPE (4.C)
+ * E2E — Pantalla Series de comprobantes (4.C)
  *
  * Todos los endpoints se mockean — hermético, no requiere DB ni SUNAT.
  *
@@ -7,7 +7,6 @@
  *  1. Listar series (mock devuelve 3) — tabla/cards con 3 rows.
  *  2. Crear nueva serie — modal → form → submit → POST → modal cierra + toast.
  *  3. Validación formato serie — input "ABCDE" → error inline "Formato inválido".
- *  4. Toggle activa — click switch → PATCH → toast (viewport iPhone 17 Pro Max).
  */
 import { test, expect, type Page } from '@playwright/test';
 import { login, gotoY } from './helpers';
@@ -26,9 +25,9 @@ function crearSerie(overrides: Partial<Record<string, unknown>> = {}) {
     sucursalId: SUCURSAL_ID,
     sucursal: { id: SUCURSAL_ID, nombre: 'Principal' },
     tipoCpe: 'factura',
+    aplicaA: null,
     serie: 'F001',
     correlativoActual: 32,
-    activa: true,
     creadoEn: new Date().toISOString(),
     actualizadoEn: new Date().toISOString(),
     ...overrides,
@@ -51,7 +50,6 @@ const SERIES_MOCK = [
     sucursalId: SUCURSAL_ID_2,
     sucursal: { id: SUCURSAL_ID_2, nombre: 'Principal' },
     correlativoActual: 0,
-    activa: false,
   }),
 ];
 
@@ -179,51 +177,4 @@ test.describe('Series CPE', () => {
     await expect(page.getByTestId('error-serie')).toContainText(/formato inválido/i);
   });
 
-  // ─── 4. Toggle activa (iPhone 17 Pro Max) ────────────────────────────────
-
-  test('toggle activa: click en switch → PATCH → toast', async ({ page }) => {
-    // iPhone 17 Pro Max viewport (PWA rule)
-    await page.setViewportSize({ width: 440, height: 956 });
-
-    const serieActiva = crearSerie({ id: 'id-toggle', serie: 'F001', activa: true });
-    const serieInactiva = { ...serieActiva, activa: false };
-
-    let patchCalled = false;
-    await page.route(API_SERIES_PATTERN, async (route) => {
-      const method = route.request().method();
-      const url = route.request().url();
-      if (method === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ exito: true, datos: [serieActiva] }),
-        });
-      } else if (method === 'PATCH' && url.includes('id-toggle')) {
-        patchCalled = true;
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ exito: true, datos: serieInactiva }),
-        });
-      } else {
-        await route.fallback();
-      }
-    });
-
-    await gotoY(page, URL_SERIES_CPE);
-    await expect(page.getByText('Series de comprobantes electrónicos')).toBeVisible({ timeout: 10_000 });
-
-    // En mobile, las series se muestran como cards — esperar que la serie esté visible
-    await expect(page.getByText('F001')).toBeVisible({ timeout: 5_000 });
-
-    // Hacer click en el toggle
-    const toggle = page.getByRole('switch', { name: /toggle activa para F001/i });
-    await toggle.click();
-
-    // Verificar que se llamó el PATCH
-    await expect.poll(() => patchCalled, { timeout: 5_000 }).toBe(true);
-
-    // Toast de desactivación
-    await expect(page.getByText(/serie F001 desactivada/i)).toBeVisible({ timeout: 5_000 });
-  });
 });

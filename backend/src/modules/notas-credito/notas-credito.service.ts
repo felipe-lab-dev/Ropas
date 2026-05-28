@@ -125,11 +125,28 @@ export class NotasCreditoService {
 
       // ─── Validación SUNAT: tipo del CPE original ──────────────────────────
       //
-      // Si la venta tiene un CPE emitido (factura o boleta), la NC hereda ese
-      // tipo y debe usar la serie de NC apropiada (aplicaA = tipoCpe original).
-      // Si la venta NO tiene CPE (tenant sin facturación electrónica activa, o
-      // venta histórica), la NC se crea sin serie SUNAT — flujo legacy.
+      // Hay dos modos según si el tenant tiene facturación electrónica activa:
+      //   A) Tenant CON ConfiguracionFacturacion (usa fac elec):
+      //      - La venta DEBE tener CPE emitido para poder emitir NC. Si no lo
+      //        tiene → ErrorConflicto pidiendo emitir CPE primero. Sin esto
+      //        las NC se crearían en "limbo fiscal" (sin serie/correlativo),
+      //        imposibles de enviar a SUNAT después.
+      //      - Si tiene CPE, se valida estado y se asigna serie de NC.
+      //   B) Tenant SIN ConfiguracionFacturacion (no usa fac elec):
+      //      - Flujo legacy: la NC se crea sin campos SUNAT. Útil para tenants
+      //        que aún no configuraron facturación o están migrando.
+      const configFac = await tx.configuracionFacturacion.findFirst();
+      const tenantUsaFacElec = configFac !== null;
       const docOriginal = venta.documentoElectronico;
+
+      if (tenantUsaFacElec && !docOriginal) {
+        throw new ErrorConflicto(
+          `No se puede emitir la nota de crédito: la venta ${venta.numero} no tiene comprobante electrónico emitido. ` +
+            `Emita primero el comprobante (factura o boleta) desde la pantalla de ventas, ` +
+            `y luego registre la nota de crédito.`,
+        );
+      }
+
       let datosSunat: {
         tipoCpe: TipoCpe;
         serieCpeId: string;
@@ -142,15 +159,15 @@ export class NotasCreditoService {
 
       if (docOriginal) {
         if (docOriginal.tipoCpe !== 'factura' && docOriginal.tipoCpe !== 'boleta') {
-          // El CPE original debería ser factura o boleta — nunca NC, ND, guía.
+          // El comprobante original debería ser factura o boleta — nunca NC, ND, guía.
           // Defensa por si en el futuro el modelo permite otros tipos en ventas.
           throw new ErrorValidacion(
-            `El CPE original de la venta es '${docOriginal.tipoCpe}', se esperaba factura o boleta`,
+            `El comprobante electrónico original de la venta es '${docOriginal.tipoCpe}', se esperaba factura o boleta`,
           );
         }
         if (!ESTADOS_CPE_HABILITAN_NC.has(docOriginal.estadoSunat)) {
           throw new ErrorConflicto(
-            `No se puede emitir NC: el CPE original (${docOriginal.tipoCpe} ${docOriginal.serie}-${docOriginal.correlativo}) ` +
+            `No se puede emitir la nota de crédito: el comprobante original (${docOriginal.tipoCpe} ${docOriginal.serie}-${docOriginal.correlativo}) ` +
               `está en estado '${docOriginal.estadoSunat}'. Solo se permite sobre estados: ` +
               `${Array.from(ESTADOS_CPE_HABILITAN_NC).join(', ')}.`,
           );
@@ -164,13 +181,12 @@ export class NotasCreditoService {
             sucursalId: venta.sucursalId,
             tipoCpe: 'nota_credito',
             aplicaA,
-            activa: true,
           },
         });
         if (!serieNc) {
           throw new ErrorValidacion(
-            `No hay serie activa de Nota de Crédito para ${aplicaA} en esta sucursal. ` +
-              `Configurá una en /configuracion/series-cpe antes de emitir NC.`,
+            `No hay una serie de Nota de Crédito para ${aplicaA} en esta sucursal. ` +
+              `Configure una en Configuración → Series de comprobantes antes de emitir la nota de crédito.`,
           );
         }
         const actualizada = await tx.serieCpe.update({

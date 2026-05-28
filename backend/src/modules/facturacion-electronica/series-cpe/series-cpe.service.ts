@@ -3,8 +3,8 @@
  *
  * REGLAS DE DOMINIO CRÍTICAS:
  *
- *  1. NUNCA hard-delete una serie: usar toggle `activa` únicamente.
- *     Una vez emitido un CPE con correlativo N, ese número es "burned" en SUNAT.
+ *  1. NUNCA hard-delete una serie. Una vez emitido un comprobante con
+ *     correlativo N, ese número es "burned" en SUNAT.
  *
  *  2. `correlativoActual` es read-only post-creación (solo vía asignarProximoCorrelativo).
  *     Modificarlo directamente sería contabilidad creativa.
@@ -15,13 +15,18 @@
  *  4. El incremento de correlativo se hace con Prisma `increment: 1`, delegando
  *     el lock a Postgres para evitar race conditions.
  *
- *  5. UNICIDAD: a lo sumo UNA serie ACTIVA por (sucursalId, tipoCpe, aplicaA).
+ *  5. UNICIDAD: existe a lo sumo UNA fila por (sucursalId, tipoCpe, aplicaA).
  *     Forzado en DB por dos unique partial indexes (uno con aplicaA NULL, otro
  *     con aplicaA NOT NULL). Se valida también a nivel service para devolver
  *     ErrorConflicto con mensaje legible antes del round-trip a Postgres.
  *
  *  6. `aplicaA` solo puede tener valor cuando `tipoCpe` es transversal:
  *     nota_credito o nota_debito. Para factura/boleta/guia_* debe ser null.
+ *
+ *  7. EDICIÓN CONDICIONADA. Una serie es editable SOLO mientras no haya
+ *     emitido ningún comprobante (no existe DocumentoElectronico vinculado).
+ *     Una vez emitido el primer comprobante queda inmutable (regla fiscal
+ *     SUNAT: serie+correlativo queda registrado en SUNAT y no puede cambiar).
  */
 import { Injectable } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
@@ -32,7 +37,7 @@ import {
   ErrorValidacion,
 } from '../../../core/errors/errores';
 import { CrearSerieCpeDto } from './dto/crear-serie-cpe.dto';
-import { ActualizarSerieCpeDto } from './dto/actualizar-serie-cpe.dto';
+import { EditarSerieCpeDto } from './dto/editar-serie-cpe.dto';
 import { PrismaTenantService } from '../../../core/prisma/prisma-tenant.service';
 import { TenantContext } from '../../../core/tenancy/tenant-context';
 
@@ -99,9 +104,8 @@ export class SerieCpeService {
    *     - resto                       → aplicaA debe ser null
    *  4. Coherencia letra inicial ↔ (tipoCpe, aplicaA).
    *  5. correlativoInicial >= 0 (controlado por DTO).
-   *  6. Si se crea ACTIVA, no debe existir otra serie activa para esa
-   *     (sucursalId, tipoCpe, aplicaA). ErrorConflicto en caso contrario.
-   *  7. (sucursalId, tipoCpe, aplicaA, serie) no duplicada → ErrorConflicto.
+   *  6. UNICIDAD TOTAL: no puede existir OTRA fila para esa (sucursalId,
+   *     tipoCpe, aplicaA). Una sola serie por tipo, inmutable.
    */
   async crear(ctx: TenantContext, dto: CrearSerieCpeDto): Promise<SerieCpe> {
     const prisma = this.prismaTenancy.forTenant(ctx);
@@ -140,7 +144,7 @@ export class SerieCpeService {
     if (TIPOS_TRANSVERSALES.has(dto.tipoCpe)) {
       if (aplicaA !== 'factura' && aplicaA !== 'boleta') {
         throw new ErrorValidacion(
-          `Para '${dto.tipoCpe}' debes indicar aplicaA = 'factura' o 'boleta' (qué tipo de comprobante referencia esta NC/ND)`,
+          `Para '${dto.tipoCpe}' debe indicar aplicaA = 'factura' o 'boleta' (qué tipo de comprobante referencia esta nota de crédito o débito)`,
         );
       }
     } else if (aplicaA !== null) {
@@ -158,30 +162,25 @@ export class SerieCpeService {
       );
     }
 
-    const activa = dto.activa ?? true;
-
-    // 6. Unicidad de activa por (sucursal, tipoCpe, aplicaA)
-    if (activa) {
-      const existeActiva = await prisma.serieCpe.findFirst({
-        where: {
-          sucursalId,
-          tipoCpe: dto.tipoCpe,
-          aplicaA,
-          activa: true,
-        },
-      });
-      if (existeActiva) {
-        const detalle = aplicaA
-          ? `tipo '${dto.tipoCpe}' (aplica a ${aplicaA})`
-          : `tipo '${dto.tipoCpe}'`;
-        throw new ErrorConflicto(
-          `Ya hay una serie ACTIVA para ${detalle} en esa sucursal ('${existeActiva.serie}'). ` +
-            `Desactivá esa serie antes de crear una nueva.`,
-        );
-      }
+    // 6. Unicidad TOTAL — no puede existir OTRA fila para esta (sucursal, tipoCpe, aplicaA)
+    const existente = await prisma.serieCpe.findFirst({
+      where: {
+        sucursalId,
+        tipoCpe: dto.tipoCpe,
+        aplicaA,
+      },
+    });
+    if (existente) {
+      const detalle = aplicaA
+        ? `tipo '${dto.tipoCpe}' (aplica a ${aplicaA})`
+        : `tipo '${dto.tipoCpe}'`;
+      throw new ErrorConflicto(
+        `Ya existe una serie '${existente.serie}' para ${detalle} en esta sucursal. ` +
+          `Solo puede haber una serie por tipo.`,
+      );
     }
 
-    // 7. Crear — atrapar P2002 (unique violation a nivel DB)
+    // 7. Crear — atrapar P2002 (unique violation a nivel DB, por si una race condition)
     try {
       return await prisma.serieCpe.create({
         data: {
@@ -190,7 +189,6 @@ export class SerieCpeService {
           aplicaA,
           serie: dto.serie,
           correlativoActual: dto.correlativoInicial ?? 0,
-          activa,
         },
         include: { sucursal: true },
       }) as SerieCpe;
@@ -203,7 +201,7 @@ export class SerieCpeService {
           ? `tipo '${dto.tipoCpe}' (aplica a ${aplicaA})`
           : `tipo '${dto.tipoCpe}'`;
         throw new ErrorConflicto(
-          `Ya existe una serie '${dto.serie}' para ${detalle} en esa sucursal`,
+          `Ya existe una serie para ${detalle} en esta sucursal. Solo puede haber una serie por tipo.`,
         );
       }
       throw err;
@@ -211,50 +209,121 @@ export class SerieCpeService {
   }
 
   /**
-   * Actualiza una serie CPE. Solo permite cambiar `activa`.
-   * Campos inmutables (serie, tipoCpe, aplicaA, correlativoActual, sucursalId)
-   * se ignoran silenciosamente aunque vengan en el DTO.
+   * Edita una serie existente. Solo procede si la serie NO tiene comprobantes
+   * emitidos. Los campos no incluidos en el DTO se mantienen del registro
+   * actual. Las mismas validaciones que `crear` aplican sobre los valores
+   * resultantes (formato serie, coherencia tipo↔aplicaA, prefijo letra,
+   * unicidad por sucursal+tipo+aplicaA).
    *
-   * Si se intenta activar una serie y ya existe otra activa para la misma
-   * (sucursal, tipoCpe, aplicaA), se lanza ErrorConflicto.
+   * Si la serie ya emitió al menos un comprobante: ErrorConflicto.
    */
-  async actualizar(ctx: TenantContext, id: string, dto: ActualizarSerieCpeDto): Promise<SerieCpe> {
+  async editar(ctx: TenantContext, id: string, dto: EditarSerieCpeDto): Promise<SerieCpe> {
     const prisma = this.prismaTenancy.forTenant(ctx);
 
     const existente = await prisma.serieCpe.findFirst({ where: { id } });
     if (!existente) {
-      throw new ErrorNoEncontrado(`Serie CPE con id '${id}' no encontrada`);
+      throw new ErrorNoEncontrado(`Serie de comprobante con id '${id}' no encontrada`);
     }
 
-    // Si se quiere activar y hoy está inactiva, validar que no haya otra activa.
-    if (dto.activa === true && !existente.activa) {
-      const otraActiva = await prisma.serieCpe.findFirst({
+    // Bloqueo fiscal: si ya emitió comprobantes, es inmutable.
+    // DocumentoElectronico no tiene FK a SerieCpe — guarda string `serie` + `tipoCpe`,
+    // así que contamos por esa combinación.
+    const emitidos = await prisma.documentoElectronico.count({
+      where: { tipoCpe: existente.tipoCpe, serie: existente.serie },
+    });
+    if (emitidos > 0) {
+      throw new ErrorConflicto(
+        `No se puede editar la serie '${existente.serie}': ya tiene ${emitidos} comprobante(s) ` +
+          `electrónico(s) emitido(s). Una vez emitido un comprobante, la serie y su correlativo ` +
+          `son inmutables por regla fiscal SUNAT.`,
+      );
+    }
+
+    // Resolver valores finales — los que no vengan en el DTO mantienen el actual.
+    const nuevoTipoCpe: TipoCpe = dto.tipoCpe ?? (existente.tipoCpe as TipoCpe);
+    const nuevoAplicaA: TipoCpe | null =
+      dto.aplicaA !== undefined ? dto.aplicaA : (existente.aplicaA as TipoCpe | null);
+    const nuevaSerie: string = dto.serie ?? existente.serie;
+    const nuevoCorrelativo: number =
+      dto.correlativoInicial !== undefined ? dto.correlativoInicial : existente.correlativoActual;
+
+    // Validar formato serie
+    if (!/^[A-Z]\d{3}$/.test(nuevaSerie)) {
+      throw new ErrorValidacion(
+        'La serie debe tener el formato: 1 letra mayúscula seguida de 3 dígitos (ej: F001, B002)',
+      );
+    }
+
+    // Coherencia tipoCpe ↔ aplicaA
+    if (TIPOS_TRANSVERSALES.has(nuevoTipoCpe)) {
+      if (nuevoAplicaA !== 'factura' && nuevoAplicaA !== 'boleta') {
+        throw new ErrorValidacion(
+          `Para '${nuevoTipoCpe}' debe indicar aplicaA = 'factura' o 'boleta' (qué tipo de comprobante referencia esta nota de crédito o débito)`,
+        );
+      }
+    } else if (nuevoAplicaA !== null) {
+      throw new ErrorValidacion(
+        `aplicaA solo se permite cuando tipoCpe es nota_credito o nota_debito. Recibido tipoCpe='${nuevoTipoCpe}' aplicaA='${nuevoAplicaA}'.`,
+      );
+    }
+
+    // Coherencia letra inicial ↔ subtipo
+    const prefijo = prefijoEsperado(nuevoTipoCpe, nuevoAplicaA);
+    if (prefijo && !nuevaSerie.startsWith(prefijo)) {
+      const detalleSubtipo = nuevoAplicaA ? ` (que aplica a ${nuevoAplicaA})` : '';
+      throw new ErrorValidacion(
+        `Para '${nuevoTipoCpe}'${detalleSubtipo} la serie debe comenzar con '${prefijo}' (ej: ${prefijo}001). Recibido: '${nuevaSerie}'.`,
+      );
+    }
+
+    // Unicidad: si cambia (tipoCpe, aplicaA), no debe existir OTRA fila con esa combinación.
+    const cambiaCategoria =
+      nuevoTipoCpe !== existente.tipoCpe || nuevoAplicaA !== existente.aplicaA;
+    if (cambiaCategoria) {
+      const otra = await prisma.serieCpe.findFirst({
         where: {
           sucursalId: existente.sucursalId,
-          tipoCpe: existente.tipoCpe,
-          aplicaA: existente.aplicaA,
-          activa: true,
+          tipoCpe: nuevoTipoCpe,
+          aplicaA: nuevoAplicaA,
           id: { not: id },
         },
       });
-      if (otraActiva) {
-        const detalle = existente.aplicaA
-          ? `tipo '${existente.tipoCpe}' (aplica a ${existente.aplicaA})`
-          : `tipo '${existente.tipoCpe}'`;
+      if (otra) {
+        const detalle = nuevoAplicaA
+          ? `tipo '${nuevoTipoCpe}' (aplica a ${nuevoAplicaA})`
+          : `tipo '${nuevoTipoCpe}'`;
         throw new ErrorConflicto(
-          `No se puede activar: ya hay otra serie activa para ${detalle} ('${otraActiva.serie}'). ` +
-            `Desactivala primero.`,
+          `Ya existe otra serie '${otra.serie}' para ${detalle} en esta sucursal. ` +
+            `Solo puede haber una serie por tipo.`,
         );
       }
     }
 
-    return prisma.serieCpe.update({
-      where: { id },
-      data: {
-        ...(dto.activa !== undefined ? { activa: dto.activa } : {}),
-      },
-      include: { sucursal: true },
-    }) as Promise<SerieCpe>;
+    try {
+      return await prisma.serieCpe.update({
+        where: { id },
+        data: {
+          tipoCpe: nuevoTipoCpe,
+          aplicaA: nuevoAplicaA,
+          serie: nuevaSerie,
+          correlativoActual: nuevoCorrelativo,
+        },
+        include: { sucursal: true },
+      }) as SerieCpe;
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        const detalle = nuevoAplicaA
+          ? `tipo '${nuevoTipoCpe}' (aplica a ${nuevoAplicaA})`
+          : `tipo '${nuevoTipoCpe}'`;
+        throw new ErrorConflicto(
+          `Ya existe una serie para ${detalle} en esta sucursal. Solo puede haber una serie por tipo.`,
+        );
+      }
+      throw err;
+    }
   }
 
   // ─── Asignación atómica de correlativos (uso interno — emisión CPE) ────────
@@ -276,7 +345,7 @@ export class SerieCpeService {
   /**
    * Variante que usa el prisma del caller (ya resuelto al tenant correcto).
    * `aplicaA` debe pasarse explícitamente cuando `tipoCpe` es transversal
-   * (nota_credito/nota_debito); si no, se busca la serie activa con aplicaA=null.
+   * (nota_credito/nota_debito); si no, se busca la serie con aplicaA=null.
    */
   async asignarProximoCorrelativoEnTenant(
     prismaTenant: PrismaClient,
@@ -286,7 +355,7 @@ export class SerieCpeService {
   ): Promise<SerieAsignada> {
     return prismaTenant.$transaction(async (tx) => {
       const serie = await tx.serieCpe.findFirst({
-        where: { sucursalId, tipoCpe, aplicaA, activa: true },
+        where: { sucursalId, tipoCpe, aplicaA },
       });
 
       if (!serie) {
@@ -294,7 +363,7 @@ export class SerieCpeService {
           ? `${tipoCpe} (aplica a ${aplicaA})`
           : tipoCpe;
         throw new ErrorNoEncontrado(
-          `No hay serie activa configurada para sucursal ${sucursalId} tipo ${detalle}`,
+          `No hay serie configurada para la sucursal ${sucursalId} tipo ${detalle}`,
         );
       }
 
