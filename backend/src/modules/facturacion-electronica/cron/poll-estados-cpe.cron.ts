@@ -1,14 +1,20 @@
 /**
- * PollEstadosCpeCron — barrido periódico de documentos electrónicos en estado
- * `en_proceso` para todos los tenants activos.
+ * PollEstadosCpeCron — barrido periódico de documentos electrónicos para todos
+ * los tenants activos.
  *
- * Flujo por ejecución:
- *   1. Lista tenants con estado 'activo' o 'trial' (no suspendidos/cancelados).
- *   2. Por cada tenant, obtiene hasta 50 documentos con estadoSunat = 'en_proceso'
- *      que no hayan sido actualizados en los últimos 5 minutos (anti-hammering).
- *   3. Para cada documento llama a DocumentoElectronicoService.consultarEstadoCpe(ctx, ventaId).
- *   4. Los errores por tenant y por documento se capturan localmente — nunca
- *      interrumpen el resto del barrido.
+ * Procesa DOS familias de documentos por ciclo:
+ *
+ *   A) `en_proceso` (SUNAT 101): refresca estado con `consultarEstadoCpe`.
+ *      Se barren docs no actualizados en los últimos 5 min (anti-hammering).
+ *
+ *   B) `pendiente` (envío inicial nunca llegó a SUNAT): reintenta envío con
+ *      `reintentarCpe` aplicando backoff exponencial por número de intentos
+ *      ya realizados (BACKOFF_REINTENTO_MS). Después de MAX_INTENTOS_PENDIENTE
+ *      se deja el doc para revisión humana — no se reintenta más
+ *      automáticamente.
+ *
+ * Errores por tenant y por documento se capturan localmente — nunca
+ * interrumpen el resto del barrido.
  *
  * Anti-overlap: si el barrido anterior aún no terminó cuando llega el siguiente
  * tick del cron, el nuevo tick se descarta (flag `corriendo`).
@@ -25,11 +31,34 @@ import type { DocumentoElectronicoService } from '../documento-electronico/docum
 /** Cantidad máxima de documentos por tenant por ciclo. */
 const MAX_DOCS_POR_TENANT = 50;
 
-/** Tiempo mínimo (ms) entre consultas al mismo documento. */
+/** Tiempo mínimo (ms) entre consultas al mismo documento `en_proceso`. */
 const MIN_INTERVALO_DOC_MS = 5 * 60_000;
 
 /** Estados de tenant que se incluyen en el barrido. */
 const ESTADOS_TENANT_ACTIVOS = ['activo', 'trial'];
+
+/**
+ * Backoff entre reintentos automáticos de docs `pendiente`, indexado por
+ * `numIntentos` previo. Ejemplo: tras el 1er intento (numIntentos=1),
+ * el cron reintenta cuando hayan pasado al menos 1 min desde el último envío.
+ *
+ *   1m → 5m → 15m → 1h → 6h
+ */
+const BACKOFF_REINTENTO_MS = [
+  60_000,            // luego del 1er intento
+  5 * 60_000,        // luego del 2do
+  15 * 60_000,       // luego del 3ro
+  60 * 60_000,       // luego del 4to
+  6 * 60 * 60_000,   // luego del 5to
+];
+
+/**
+ * Cap de intentos totales (inicial + reintentos del cron). Después de este
+ * número, el cron deja el doc en paz y debe revisarse manualmente — evita
+ * spam contra Mifact cuando algo está estructuralmente roto (token, datos,
+ * config del emisor mal en SUNAT).
+ */
+const MAX_INTENTOS_PENDIENTE = BACKOFF_REINTENTO_MS.length + 1; // 6 total
 
 export type DocumentoElectronicoServiceFactory = () => DocumentoElectronicoService;
 
@@ -109,6 +138,20 @@ export class PollEstadosCpeCron {
       accesoPermitido: true,
     };
 
+    const docSvc = this.crearDocSvc();
+
+    await this.procesarEnProceso(ctx, tenant.codigo, docSvc);
+    await this.procesarPendientes(ctx, tenant.codigo, docSvc);
+  }
+
+  /**
+   * Family A: docs `en_proceso` → consultar estado y avanzar a aceptado/rechazado.
+   */
+  private async procesarEnProceso(
+    ctx: TenantContext,
+    tenantCodigo: string,
+    docSvc: DocumentoElectronicoService,
+  ): Promise<void> {
     const prismaTenant = this.prismaTenancy.forTenant(ctx);
 
     const docs = await prismaTenant.documentoElectronico.findMany({
@@ -123,10 +166,8 @@ export class PollEstadosCpeCron {
     if (docs.length === 0) return;
 
     this.logger.log(
-      `tenant ${tenant.codigo}: ${docs.length} doc(s) en_proceso a revisar`,
+      `tenant ${tenantCodigo}: ${docs.length} doc(s) en_proceso a revisar`,
     );
-
-    const docSvc = this.crearDocSvc();
 
     for (const doc of docs) {
       try {
@@ -137,7 +178,79 @@ export class PollEstadosCpeCron {
         }
       } catch (err) {
         this.logger.warn(
-          `tenant ${tenant.codigo} doc ${doc.id}: consultarEstado falló: ${(err as Error).message}`,
+          `tenant ${tenantCodigo} doc ${doc.id}: consultarEstado falló: ${(err as Error).message}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Family B: docs `pendiente` → reintentar envío con backoff exponencial.
+   *
+   * Selecciona docs donde:
+   *   - estado_sunat = 'pendiente'
+   *   - 0 < num_intentos < MAX_INTENTOS_PENDIENTE (cap automático)
+   *
+   * En memoria filtra los que aún no cumplen el backoff (ahora - enviadoEn ≥
+   * BACKOFF[numIntentos-1]) y reintenta el envío. El reintento es idempotente
+   * a nivel serie+correlativo (DocumentoElectronicoService reusa los del doc).
+   */
+  private async procesarPendientes(
+    ctx: TenantContext,
+    tenantCodigo: string,
+    docSvc: DocumentoElectronicoService,
+  ): Promise<void> {
+    const prismaTenant = this.prismaTenancy.forTenant(ctx);
+
+    const candidatos = await prismaTenant.documentoElectronico.findMany({
+      where: {
+        estadoSunat: 'pendiente',
+        numIntentos: { gt: 0, lt: MAX_INTENTOS_PENDIENTE },
+      },
+      take: MAX_DOCS_POR_TENANT,
+      select: {
+        id: true,
+        ventaId: true,
+        notaCreditoId: true,
+        numIntentos: true,
+        enviadoEn: true,
+        creadoEn: true,
+      },
+    });
+
+    if (candidatos.length === 0) return;
+
+    const ahora = Date.now();
+    // El último intervalo del array es el de mayor delay; lo usamos como fallback
+    // si numIntentos por alguna razón excediera el array (defensa, no debería pasar
+    // por el filtro `lt: MAX_INTENTOS_PENDIENTE`).
+    const backoffMaximo = BACKOFF_REINTENTO_MS[BACKOFF_REINTENTO_MS.length - 1]!;
+    const listos = candidatos.filter(doc => {
+      const ultimoIntento = (doc.enviadoEn ?? doc.creadoEn).getTime();
+      const backoffMs = BACKOFF_REINTENTO_MS[doc.numIntentos - 1] ?? backoffMaximo;
+      return ahora - ultimoIntento >= backoffMs;
+    });
+
+    if (listos.length === 0) return;
+
+    this.logger.log(
+      `tenant ${tenantCodigo}: ${listos.length} doc(s) pendiente a reintentar ` +
+        `(${candidatos.length - listos.length} aún esperan backoff)`,
+    );
+
+    for (const doc of listos) {
+      try {
+        if (doc.ventaId) {
+          await docSvc.reintentarCpe(ctx, doc.ventaId);
+        } else if (doc.notaCreditoId) {
+          await docSvc.reintentarCpeNotaCredito(ctx, doc.notaCreditoId);
+        }
+        this.logger.log(
+          `tenant ${tenantCodigo} doc ${doc.id}: reintento OK (intento ${doc.numIntentos + 1})`,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `tenant ${tenantCodigo} doc ${doc.id}: reintento ${doc.numIntentos + 1} falló: ${(err as Error).message}`,
         );
       }
     }

@@ -4,6 +4,7 @@ import { NotasCreditoService } from './notas-credito.service';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { InventarioService } from '../inventario/inventario.service';
 import { SerieCpeService } from '../facturacion-electronica/series-cpe/series-cpe.service';
+import { AppEventEmitter } from '../../core/events/app-event-emitter';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import {
   ErrorConflicto,
@@ -66,12 +67,16 @@ describe('NotasCreditoService', () => {
       asignarProximoCorrelativo: jest.fn(),
       asignarProximoCorrelativoEnTenant: jest.fn(),
     };
+    // Stub minimal: capturamos emit() para que el service no rompa al disparar
+    // 'nota-credito.creada' post-commit. No nos importa la suscripción aquí.
+    const eventEmitter = { emit: jest.fn(), on: jest.fn() };
     const mod = await Test.createTestingModule({
       providers: [
         NotasCreditoService,
         { provide: PrismaTenantService, useValue: prisma },
         { provide: InventarioService, useValue: inventario },
         { provide: SerieCpeService, useValue: serieCpeService },
+        { provide: AppEventEmitter, useValue: eventEmitter },
       ],
     }).compile();
     service = mod.get(NotasCreditoService);
@@ -456,6 +461,156 @@ describe('NotasCreditoService', () => {
         where: { id: 'c1' },
         data: { totalCompras: { increment: expect.any(Prisma.Decimal) } },
       });
+    });
+  });
+
+  // ---------- 3 ramas según modalidad de la venta original ----------
+
+  describe('crear (3 ramas: nota de venta interna, bloqueo sin CPE, mensajes CPE)', () => {
+    function ventaConCpeOriginal(
+      docOriginal: { tipoCpe: 'factura' | 'boleta'; estadoSunat: string; serie: string; correlativo: string } | null,
+      override: Record<string, unknown> = {},
+    ) {
+      return {
+        id: 'v',
+        numero: 'V-000099',
+        estado: 'pagada',
+        clienteId: 'c1',
+        sucursalId: 's',
+        esNotaDeVenta: false,
+        items: [
+          { id: 'i1', cantidad: 2, subtotal: 20, descripcion: 'Polo · M/Azul', varianteId: 'va1' },
+        ],
+        notasCredito: [],
+        documentoElectronico: docOriginal,
+        ...override,
+      };
+    }
+
+    it('A) venta esNotaDeVenta=true + tenant CON facElec → NC se crea SIN datos SUNAT (devolución interna)', async () => {
+      // Tenant SÍ tiene facElec configurada.
+      tx.configuracionFacturacion.findFirst.mockResolvedValue({ id: 'cfg-1' });
+      tx.venta.findFirst.mockResolvedValue(
+        ventaConCpeOriginal(null, { esNotaDeVenta: true }),
+      );
+      // El listener serviría para emitir; lo mockeamos vacío.
+      tx.notaCredito.findFirst.mockResolvedValue({ numero: 'NC-000000' });
+      tx.notaCredito.create.mockResolvedValue({
+        id: 'nc-interna',
+        numero: 'NC-000001',
+        items: [],
+      });
+
+      await service.crear(
+        {
+          ventaId: 'v',
+          motivo: 'cliente arrepentido',
+          items: [{ ventaItemId: 'i1', cantidad: 1 }],
+        } as never,
+        ctx,
+        'u1',
+      );
+
+      // Se creó la NC; los datos SUNAT no deben aparecer en el data del create.
+      const callData = tx.notaCredito.create.mock.calls[0][0].data;
+      expect(callData).not.toHaveProperty('tipoCpe');
+      expect(callData).not.toHaveProperty('serieCpeId');
+      expect(callData).not.toHaveProperty('correlativo');
+      expect(callData).not.toHaveProperty('tipoCpeOriginal');
+      // Pero stock se ajusta y motivo persistido normal.
+      expect(inventario.ajustarEnTx).toHaveBeenCalled();
+      expect(callData.motivo).toBe('cliente arrepentido');
+    });
+
+    it('B) tenant CON facElec + venta NO nota de venta + sin documentoElectronico → bloquea pidiendo emitir CPE', async () => {
+      tx.configuracionFacturacion.findFirst.mockResolvedValue({ id: 'cfg-1' });
+      tx.venta.findFirst.mockResolvedValue(
+        ventaConCpeOriginal(null, { esNotaDeVenta: false }),
+      );
+
+      await expect(
+        service.crear(
+          {
+            ventaId: 'v',
+            motivo: 'devolución',
+            items: [{ ventaItemId: 'i1', cantidad: 1 }],
+          } as never,
+          ctx,
+          'u1',
+        ),
+      ).rejects.toMatchObject({
+        codigo: 409,
+      });
+      await expect(
+        service.crear(
+          {
+            ventaId: 'v',
+            motivo: 'devolución',
+            items: [{ ventaItemId: 'i1', cantidad: 1 }],
+          } as never,
+          ctx,
+          'u1',
+        ),
+      ).rejects.toThrow(/no tiene comprobante electrónico emitido/i);
+    });
+
+    it('C1) CPE original en estado pendiente → ErrorConflicto con mensaje "Reintenta primero"', async () => {
+      tx.configuracionFacturacion.findFirst.mockResolvedValue({ id: 'cfg-1' });
+      tx.venta.findFirst.mockResolvedValue(
+        ventaConCpeOriginal({
+          tipoCpe: 'factura',
+          estadoSunat: 'pendiente',
+          serie: 'F001',
+          correlativo: '00000045',
+        }),
+      );
+
+      await expect(
+        service.crear(
+          {
+            ventaId: 'v',
+            motivo: 'devolución',
+            items: [{ ventaItemId: 'i1', cantidad: 1 }],
+          } as never,
+          ctx,
+          'u1',
+        ),
+      ).rejects.toThrow(/nunca llegó a SUNAT/i);
+      await expect(
+        service.crear(
+          {
+            ventaId: 'v',
+            motivo: 'devolución',
+            items: [{ ventaItemId: 'i1', cantidad: 1 }],
+          } as never,
+          ctx,
+          'u1',
+        ),
+      ).rejects.toThrow(/Reintenta.*emisión del comprobante/i);
+    });
+
+    it('C2) CPE original en estado rechazado → ErrorConflicto con mensaje sobre comprobante rechazado', async () => {
+      tx.configuracionFacturacion.findFirst.mockResolvedValue({ id: 'cfg-1' });
+      tx.venta.findFirst.mockResolvedValue(
+        ventaConCpeOriginal({
+          tipoCpe: 'boleta',
+          estadoSunat: 'rechazado',
+          serie: 'B001',
+          correlativo: '00000010',
+        }),
+      );
+
+      await expect(
+        service.crear(
+          {
+            ventaId: 'v',
+            motivo: 'devolución',
+            items: [{ ventaItemId: 'i1', cantidad: 1 }],
+          } as never,
+          ctx,
+          'u1',
+        ),
+      ).rejects.toThrow(/rechazado por SUNAT/i);
     });
   });
 });

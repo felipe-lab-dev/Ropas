@@ -13,6 +13,7 @@
  *     aceptado por SUNAT; sino null. NUNCA expone estado/error/hash/XML/CDR.
  */
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -77,6 +78,26 @@ export class EmisionCpeController {
     @Req() req: Request,
   ) {
     const documento = await this.documentoService.consultarEstadoCpe(ctx, ventaId);
+    return { datos: filtrarDocumentoSegunPermisos(documento, req.usuario!.permisos) };
+  }
+
+  /**
+   * Solicita la BAJA del CPE a SUNAT (LowInvoice).
+   *
+   * Distinto de emitir una NC: la anulación deshace el comprobante en SUNAT
+   * como si nunca hubiera existido. Solo aplica sobre CPEs aceptados.
+   *
+   * Body: `{ motivo: string }` — mínimo 5 caracteres.
+   */
+  @Post(':id/anular-cpe')
+  @RequierePermiso('ventas:emitir-cpe')
+  async anular(
+    @Param('id', ParseUUIDPipe) ventaId: string,
+    @Body() body: { motivo?: string },
+    @Tenant() ctx: TenantContext,
+    @Req() req: Request,
+  ) {
+    const documento = await this.documentoService.anularCpeVenta(ctx, ventaId, body?.motivo ?? '');
     return { datos: filtrarDocumentoSegunPermisos(documento, req.usuario!.permisos) };
   }
 }

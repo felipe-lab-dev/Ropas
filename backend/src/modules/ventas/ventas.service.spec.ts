@@ -923,6 +923,94 @@ describe('VentasService', () => {
       expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
   });
+
+  // ---------- crear: nota de venta interna ----------
+
+  describe('crear (esNotaDeVenta)', () => {
+    it('esNotaDeVenta=true → persiste el flag en venta.create', async () => {
+      mockHappyPath(tx);
+      // venta.create devuelve esNotaDeVenta=true para reflejar lo persistido.
+      tx.venta.create.mockResolvedValue({
+        id: 'venta-nv',
+        numero: 'V-000099',
+        esNotaDeVenta: true,
+        items: [],
+        pagos: [],
+      });
+
+      await service.crear(
+        {
+          sucursalId: 's',
+          items: [{ varianteId: 'v1', cantidad: 1 }],
+          esNotaDeVenta: true,
+        } as never,
+        ctx,
+        'u1',
+      );
+
+      expect(tx.venta.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ esNotaDeVenta: true }),
+        }),
+      );
+    });
+
+    it('esNotaDeVenta=true → NO llama stampearTipoCpeYSerie ni emite venta.creada', async () => {
+      mockHappyPath(tx);
+      tx.venta.create.mockResolvedValue({
+        id: 'venta-nv',
+        numero: 'V-000099',
+        esNotaDeVenta: true,
+        items: [],
+        pagos: [],
+      });
+
+      await service.crear(
+        {
+          sucursalId: 's',
+          items: [{ varianteId: 'v1', cantidad: 1 }],
+          esNotaDeVenta: true,
+        } as never,
+        ctx,
+        'u1',
+      );
+      // Esperar microtasks por si el fire-and-forget se hubiera disparado.
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(serieCpe.asignarProximoCorrelativoEnTenant).not.toHaveBeenCalled();
+      expect(tx.venta.update).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('esNotaDeVenta omitido → default false, flujo normal con stamp', async () => {
+      mockHappyPath(tx);
+      tx.venta.create.mockResolvedValue({
+        id: 'venta-1',
+        numero: 'V-000001',
+        esNotaDeVenta: false,
+        items: [],
+        pagos: [],
+      });
+      tx.venta.findUnique.mockResolvedValue({
+        sucursalId: 's',
+        cliente: null,
+      });
+
+      await service.crear(
+        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(tx.venta.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ esNotaDeVenta: false }),
+        }),
+      );
+      expect(serieCpe.asignarProximoCorrelativoEnTenant).toHaveBeenCalled();
+    });
+  });
 });
 
 // ---------- helpers ----------

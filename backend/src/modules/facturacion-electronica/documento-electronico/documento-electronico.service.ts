@@ -285,6 +285,109 @@ export class DocumentoElectronicoService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // ANULACIÓN (LowInvoice) — solicita la baja del CPE a SUNAT
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // La anulación es DISTINTA a emitir una nota de crédito:
+  //   - NC = devolución/ajuste comercial (referencia al CPE original, suma a su
+  //     contabilidad).
+  //   - Anulación (LowInvoice) = deshacer el comprobante en SUNAT como si no
+  //     existiera. Se usa para errores serios (RUC equivocado, datos
+  //     irreparables del receptor, etc.) que NC no resuelve.
+  //
+  // Solo se permite sobre CPEs aceptados o aceptado_observado. SUNAT no acepta
+  // baja de docs pendientes (que nunca recibió), rechazados (que no existen
+  // en sus registros) o ya anulados (estado terminal).
+
+  async anularCpeVenta(
+    ctx: TenantContext,
+    ventaId: string,
+    motivo: string,
+  ): Promise<DocumentoElectronico> {
+    const prisma = this.prismaTenancy.forTenant(ctx);
+    const doc = await prisma.documentoElectronico.findFirst({ where: { ventaId } });
+    if (!doc) {
+      throw new ErrorNoEncontrado(
+        'No hay comprobante electrónico para esta venta. No hay nada que anular.',
+      );
+    }
+    return this.anularCpeCore(ctx, prisma, doc, motivo);
+  }
+
+  async anularCpeNotaCredito(
+    ctx: TenantContext,
+    notaCreditoId: string,
+    motivo: string,
+  ): Promise<DocumentoElectronico> {
+    const prisma = this.prismaTenancy.forTenant(ctx);
+    const doc = await prisma.documentoElectronico.findFirst({ where: { notaCreditoId } });
+    if (!doc) {
+      throw new ErrorNoEncontrado(
+        'No hay comprobante electrónico para esta nota de crédito. No hay nada que anular.',
+      );
+    }
+    return this.anularCpeCore(ctx, prisma, doc, motivo);
+  }
+
+  /**
+   * Núcleo de anulación: valida estado, llama a Mifact LowInvoice, persiste
+   * el resultado y conserva el motivo concatenado en `mensajeSunat` para
+   * trazabilidad mínima sin agregar columnas nuevas.
+   */
+  private async anularCpeCore(
+    ctx: TenantContext,
+    prisma: PrismaClient,
+    doc: DocumentoElectronico,
+    motivo: string,
+  ): Promise<DocumentoElectronico> {
+    const motivoLimpio = (motivo ?? '').trim();
+    if (motivoLimpio.length < 5) {
+      throw new ErrorValidacion(
+        'El motivo de anulación es obligatorio (mínimo 5 caracteres). SUNAT lo exige.',
+      );
+    }
+    if (doc.estadoSunat !== 'aceptado' && doc.estadoSunat !== 'aceptado_observado') {
+      throw new ErrorConflicto(
+        `Solo se puede anular un comprobante aceptado por SUNAT. Estado actual: ` +
+          `'${doc.estadoSunat}'. Si está en 'pendiente' o 'rechazado', simplemente NO ` +
+          `está en SUNAT y no hay nada que anular.`,
+      );
+    }
+
+    const config = await this.configuracionService.obtenerConfiguracion(ctx);
+    const codigoTipoCpe = CODIGO_TIPO_CPE[doc.tipoCpe as TipoCpe];
+    const fechaEmision = (doc.enviadoEn ?? doc.creadoEn).toISOString().slice(0, 10);
+
+    const respuesta = await this.mifactService.anularCpe(
+      { baseUrl: config.mifactBaseUrl, token: config.mifactToken },
+      {
+        NUM_NIF_EMIS: config.ruc,
+        FEC_EMIS: fechaEmision,
+        COD_TIP_CPE: codigoTipoCpe,
+        NUM_SERIE_CPE: doc.serie,
+        NUM_CORRE_CPE: doc.correlativo,
+        TXT_DESC_MTVO: motivoLimpio,
+        COD_PTO_VENTA: 'erp',
+      },
+    );
+
+    // SUNAT 108 = baja_pendiente (Mifact aceptó la solicitud, esperando respuesta SUNAT).
+    // SUNAT 105 = anulado (baja confirmada).
+    const nuevoEstado = respuesta.estadoSunat ?? 'baja_pendiente';
+    const mensaje = respuesta.sunatDescription
+      ? `[Anulación: ${motivoLimpio}] ${respuesta.sunatDescription}`
+      : `[Anulación: ${motivoLimpio}]`;
+
+    return prisma.documentoElectronico.update({
+      where: { id: doc.id },
+      data: {
+        estadoSunat: nuevoEstado,
+        mensajeSunat: mensaje,
+      },
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Helpers — Carga + Validación
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -526,7 +629,10 @@ export class DocumentoElectronicoService {
         payload,
       );
     } catch (err) {
-      // Error de red / Mifact: persistir con estado pendiente y re-lanzar
+      // Error de red / Mifact: persistir con estado pendiente y re-lanzar.
+      // enviadoEn se actualiza siempre — representa "última vez que se intentó
+      // contactar a Mifact", no "última vez exitosa". El cron de pendientes
+      // calcula su backoff desde este timestamp.
       if (usarUpdate) {
         await prisma.documentoElectronico.update({
           where: where as Prisma.DocumentoElectronicoWhereUniqueInput,
@@ -534,6 +640,7 @@ export class DocumentoElectronicoService {
             estadoSunat: 'pendiente',
             ultimoErrorTexto: (err as Error).message,
             numIntentos: { increment: 1 },
+            enviadoEn: new Date(),
           },
         });
       } else {

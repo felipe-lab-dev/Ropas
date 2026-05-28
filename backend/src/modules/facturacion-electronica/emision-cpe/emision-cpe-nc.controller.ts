@@ -13,6 +13,7 @@
  *     aceptado por SUNAT; sino null. NUNCA expone estado/error/hash/XML/CDR.
  */
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -77,6 +78,26 @@ export class EmisionCpeNcController {
     @Req() req: Request,
   ) {
     const documento = await this.documentoService.consultarEstadoCpeNotaCredito(ctx, notaCreditoId);
+    return { datos: filtrarDocumentoSegunPermisos(documento, req.usuario!.permisos) };
+  }
+
+  /**
+   * Solicita la BAJA del CPE de NC a SUNAT (LowInvoice).
+   * Body: `{ motivo: string }` — mínimo 5 caracteres.
+   */
+  @Post(':id/anular-cpe')
+  @RequierePermiso('notas-credito:emitir-cpe')
+  async anular(
+    @Param('id', ParseUUIDPipe) notaCreditoId: string,
+    @Body() body: { motivo?: string },
+    @Tenant() ctx: TenantContext,
+    @Req() req: Request,
+  ) {
+    const documento = await this.documentoService.anularCpeNotaCredito(
+      ctx,
+      notaCreditoId,
+      body?.motivo ?? '',
+    );
     return { datos: filtrarDocumentoSegunPermisos(documento, req.usuario!.permisos) };
   }
 }
