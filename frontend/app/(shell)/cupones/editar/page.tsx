@@ -74,7 +74,7 @@ export default function EditarCuponPage() {
       toast.success('Cupón actualizado');
       qc.invalidateQueries({ queryKey: ['cupones'] });
       qc.invalidateQueries({ queryKey: ['cupon', id] });
-      router.push(`/cupones/detalle?id=${id}`);
+      router.push(`/cupones?ver=${id}`);
     },
     onError: e => setError(mensajeError(e)),
   });
@@ -124,7 +124,7 @@ export default function EditarCuponPage() {
         descripcion="El código no se puede cambiar para no romper referencias en ventas históricas."
         acciones={
           <Button variant="ghost" asChild>
-            <Link href={`/cupones/detalle?id=${id}`}><ArrowLeft className="size-4" /> Volver al detalle</Link>
+            <Link href={`/cupones?ver=${id}`}><ArrowLeft className="size-4" /> Volver al detalle</Link>
           </Button>
         }
       />
@@ -142,7 +142,7 @@ export default function EditarCuponPage() {
           modoEdicion
           tiendaNombre={tiendaNombre}
           onGuardar={v => { setError(null); mutar.mutate(v); }}
-          onCancelar={() => router.push(`/cupones/detalle?id=${id}`)}
+          onCancelar={() => router.push(`/cupones?ver=${id}`)}
         />
       )}
     </div>
