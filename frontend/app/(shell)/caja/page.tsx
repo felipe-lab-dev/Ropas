@@ -30,6 +30,7 @@ import {
   type TableState,
 } from '@/components/ui/data-table';
 import { Pagination } from '@/components/ui/pagination';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { obtener, obtenerPaginado, eliminar, mensajeError } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda, cn } from '@/lib/utils';
 import { useSesion } from '@/lib/store/sesion';
@@ -497,30 +498,26 @@ export default function CajaPage() {
             <div className="flex flex-col gap-3 p-4 border-b border-[hsl(var(--border))]">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 {/* Toggle Ingresos/Egresos */}
-                <div className="inline-flex rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/40 p-1">
-                  <button
-                    onClick={() => setModo('ingreso')}
-                    className={cn(
-                      'flex items-center gap-2 px-4 h-8 rounded-md text-xs font-bold uppercase tracking-widest transition-all',
-                      modo === 'ingreso'
-                        ? 'bg-gradient-to-br from-[hsl(150_55%_42%)] to-[hsl(150_55%_32%)] text-white shadow-md'
-                        : 'text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
-                    )}
-                  >
-                    <ArrowDownToLine className="size-3.5" /> Ingresos
-                  </button>
-                  <button
-                    onClick={() => setModo('egreso')}
-                    className={cn(
-                      'flex items-center gap-2 px-4 h-8 rounded-md text-xs font-bold uppercase tracking-widest transition-all',
-                      modo === 'egreso'
-                        ? 'bg-gradient-to-br from-[hsl(355_75%_55%)] to-[hsl(355_70%_42%)] text-white shadow-md'
-                        : 'text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
-                    )}
-                  >
-                    <ArrowUpFromLine className="size-3.5" /> Egresos
-                  </button>
-                </div>
+                <SegmentedControl
+                  size="lg"
+                  ariaLabel="Tipo de movimiento"
+                  value={modo}
+                  onChange={setModo}
+                  options={[
+                    {
+                      value: 'ingreso',
+                      label: 'Ingresos',
+                      icono: <ArrowDownToLine className="size-3.5" />,
+                      activeClassName: 'bg-gradient-to-br from-[hsl(150_55%_42%)] to-[hsl(150_55%_32%)] text-white shadow-md',
+                    },
+                    {
+                      value: 'egreso',
+                      label: 'Egresos',
+                      icono: <ArrowUpFromLine className="size-3.5" />,
+                      activeClassName: 'bg-gradient-to-br from-[hsl(355_75%_55%)] to-[hsl(355_70%_42%)] text-white shadow-md',
+                    },
+                  ]}
+                />
 
                 <Button
                   variant={modo === 'ingreso' ? 'default' : 'danger'}
@@ -544,22 +541,17 @@ export default function CajaPage() {
 
               <div className="flex flex-wrap items-center gap-2">
                 {/* Filtros físico/virtual */}
-                <div className="inline-flex rounded-lg border border-[hsl(var(--border))] p-0.5">
-                  {(['todos', 'fisico', 'virtual'] as const).map(f => (
-                    <button
-                      key={f}
-                      onClick={() => setFlujo(f)}
-                      className={cn(
-                        'h-7 px-3 rounded-md text-[11px] font-bold uppercase tracking-wide transition-all',
-                        flujo === f
-                          ? 'bg-[hsl(var(--brand-accent))]/15 text-[hsl(var(--brand-accent))]'
-                          : 'text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
-                      )}
-                    >
-                      {f === 'todos' ? 'Todos' : f === 'fisico' ? '💵 Físico' : '💳 Virtual'}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  size="md"
+                  ariaLabel="Filtrar por flujo"
+                  value={flujo}
+                  onChange={setFlujo}
+                  options={[
+                    { value: 'todos', label: 'Todos' },
+                    { value: 'fisico', label: '💵 Físico' },
+                    { value: 'virtual', label: '💳 Virtual' },
+                  ]}
+                />
 
                 {/* Filtro categoría */}
                 <Select

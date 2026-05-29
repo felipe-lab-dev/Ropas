@@ -10,6 +10,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { obtenerPaginado, subirArchivos, mensajeError } from '@/lib/api/client';
 import { api } from '@/lib/api/client';
@@ -123,42 +124,29 @@ export function ImportarExportarModal({ abierto, onAbiertoChange }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex border-b border-[hsl(var(--border))] px-6">
-          <button
-            type="button"
-            data-testid="tab-importar"
-            onClick={() => setTab('importar')}
-            className={cn(
-              'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2',
-              tab === 'importar'
-                ? 'border-[hsl(var(--brand-primary))] text-[hsl(var(--brand-primary))]'
-                : 'border-transparent text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
-            )}
-          >
-            <ArrowDownToLine className="size-4" /> Importar
-          </button>
-          <button
-            type="button"
-            data-testid="tab-historial"
-            onClick={() => setTab('historial')}
-            className={cn(
-              'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2',
-              tab === 'historial'
-                ? 'border-[hsl(var(--brand-primary))] text-[hsl(var(--brand-primary))]'
-                : 'border-transparent text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
-            )}
-          >
-            <Clock className="size-4" /> Historial
-          </button>
-          <div className="ml-auto py-1.5">
-            <Button variant="outline" size="sm" onClick={exportar} data-testid="btn-exportar-catalogo">
-              <ArrowUpToLine className="size-4" /> Exportar catálogo
-            </Button>
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as Tab)}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] px-6 py-2">
+            <TabsList>
+              <TabsTrigger value="importar" data-testid="tab-importar">
+                <ArrowDownToLine className="size-4" /> Importar
+              </TabsTrigger>
+              <TabsTrigger value="historial" data-testid="tab-historial">
+                <Clock className="size-4" /> Historial
+              </TabsTrigger>
+            </TabsList>
+            <div className="ml-auto">
+              <Button variant="outline" size="sm" onClick={exportar} data-testid="btn-exportar-catalogo">
+                <ArrowUpToLine className="size-4" /> Exportar catálogo
+              </Button>
+            </div>
           </div>
-        </div>
 
-        <div className="overflow-y-auto p-6 flex-1">
-          {tab === 'importar' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <TabsContent value="importar" className="mt-0">
             <div className="space-y-4">
               <ManualImportacion />
 
@@ -233,10 +221,13 @@ export function ImportarExportarModal({ abierto, onAbiertoChange }: Props) {
                 </div>
               )}
             </div>
-          )}
+            </TabsContent>
 
-          {tab === 'historial' && <HistorialTab />}
-        </div>
+            <TabsContent value="historial" className="mt-0">
+              <HistorialTab />
+            </TabsContent>
+          </div>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
@@ -257,9 +248,9 @@ function ManualImportacion() {
         <li><strong>nombre</strong>, <strong>categoria</strong> y <strong>precioVenta</strong> son obligatorios. El resto es opcional.</li>
         <li>La <strong>categoría</strong> debe existir en el sistema (mismo nombre exacto). Si dejás <strong>marca</strong> en blanco se asume sin marca.</li>
         <li>Si el <strong>SKU</strong> ya existe en el sistema, el producto se <strong>actualiza</strong>. Si no existe o está vacío, se <strong>crea</strong>.</li>
-        <li>Al crear, se agrega una variante "Única" automáticamente. Editá variantes después desde la ficha del producto.</li>
+        <li>Al crear, se agrega una variante &quot;Única&quot; automáticamente. Editá variantes después desde la ficha del producto.</li>
         <li>Filas vacías se ignoran. Errores por fila se muestran al final del proceso, sin abortar el resto.</li>
-        <li>Formato del archivo: <strong>.csv</strong> en <strong>UTF-8</strong>. Si tu Excel guarda en otro encoding, exportá como "CSV UTF-8".</li>
+        <li>Formato del archivo: <strong>.csv</strong> en <strong>UTF-8</strong>. Si tu Excel guarda en otro encoding, exportá como &quot;CSV UTF-8&quot;.</li>
       </ol>
     </div>
   );
