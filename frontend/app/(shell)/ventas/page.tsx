@@ -268,9 +268,9 @@ function VentasContenido() {
                     <TableCell className="text-right hidden md:table-cell">
                       <div className="flex justify-end">
                         <BadgeRentabilidad
-                          nivel={v.rentabilidad.nivel}
-                          margenPct={v.rentabilidad.margenPct}
-                          title={tooltipRentabilidad(v.rentabilidad)}
+                          nivel={v.rentabilidad?.nivel ?? 'sin_datos'}
+                          margenPct={v.rentabilidad?.margenPct ?? null}
+                          title={v.rentabilidad ? tooltipRentabilidad(v.rentabilidad) : 'Sin datos de rentabilidad'}
                         />
                       </div>
                     </TableCell>

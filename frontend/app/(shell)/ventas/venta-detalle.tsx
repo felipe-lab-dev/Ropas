@@ -530,10 +530,10 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
                 <TableCell className="text-right">
                   <div className="flex justify-end">
                     <BadgeRentabilidad
-                      nivel={item.rentabilidad.nivel}
-                      margenPct={item.rentabilidad.margenPct}
+                      nivel={item.rentabilidad?.nivel ?? 'sin_datos'}
+                      margenPct={item.rentabilidad?.margenPct ?? null}
                       title={
-                        item.rentabilidad.nivel === 'sin_datos'
+                        !item.rentabilidad || item.rentabilidad.nivel === 'sin_datos'
                           ? 'Sin costo registrado para esta línea'
                           : `Margen ${formatearMargen(item.rentabilidad.margenPct)} · Costo ${formatearMoneda(item.rentabilidad.costoTotal)} · Ganancia ${formatearMoneda(item.rentabilidad.ganancia ?? 0)}`
                       }
@@ -594,7 +594,7 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
             {venta.notasCredito!.map(nc => (
               <li key={nc.id}>
                 <Link
-                  href={`/notas-credito/${nc.id}`}
+                  href={`/notas-credito?ver=${nc.id}`}
                   className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-[hsl(var(--surface-2))]/50 transition-colors"
                 >
                   <div className="min-w-0">
