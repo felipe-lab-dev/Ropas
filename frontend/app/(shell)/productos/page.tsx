@@ -4,13 +4,19 @@ import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Search, Edit2, Trash2, History, Zap, FileSpreadsheet } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, History, Zap, FileSpreadsheet, Eye, MoreVertical, Boxes } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import {
+  Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { DetalleSheet } from '@/components/ui/sheet';
 import { obtener, obtenerPaginado, eliminar as eliminarApi, mensajeError } from '@/lib/api/client';
 import { formatearMoneda, formatearNumero } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
@@ -25,9 +31,9 @@ import { usePreferencias } from '@/lib/use-preferencias';
 import { MotorLogisticoModal } from './motor-logistico-modal';
 import { EditarProductoCliente } from './editar/editar-cliente';
 import { KardexCliente } from './kardex/kardex-cliente';
-import { PanelInsightsProducto } from './panel-insights-producto';
 import { ImportarExportarModal } from './importar-exportar-modal';
 import { NuevoProductoCliente } from './nuevo/nuevo-producto-cliente';
+import { ProductoDetalle } from './producto-detalle';
 
 interface Categoria { id: string; nombre: string }
 
@@ -93,16 +99,15 @@ function ProductosPageContenido() {
   const [pagina, setPagina] = React.useState(1);
   const [debouncedBuscar, setDebouncedBuscar] = React.useState('');
   const [categoriaIdFiltro, setCategoriaIdFiltro] = React.useState('');
-  const [confirmandoId, setConfirmandoId] = React.useState<string | null>(null);
+  const [aEliminar, setAEliminar] = React.useState<ProductoLista | null>(null);
   const [motorAbierto, setMotorAbierto] = React.useState(false);
   const [importarAbierto, setImportarAbierto] = React.useState(false);
-  const [filaExpandidaId, setFilaExpandidaId] = React.useState<string | null>(null);
   const qc = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const verId = searchParams.get('ver');
 
-  // Estado del modal de alta/edición/kardex — soporta deep-link vía
-  // ?nuevo=1, ?editar=<id> o ?kardex=<id> (patrón canónico, ver proveedores).
+  // Modal de alta/edición/kardex — deep-link vía ?nuevo=1, ?editar=<id> o ?kardex=<id>.
   const modal: ModalProductos = React.useMemo(() => {
     if (searchParams.get('nuevo') === '1') return { tipo: 'nuevo' };
     const editarId = searchParams.get('editar');
@@ -112,21 +117,60 @@ function ProductosPageContenido() {
     return null;
   }, [searchParams]);
 
+  // Drawer de ficha de lectura (?ver=<id>) — reemplaza el panel expandible.
+  const [productoAbierto, setProductoAbierto] = React.useState<{ id: string; nombre?: string } | null>(
+    verId ? { id: verId } : null,
+  );
+  const pusheamos = React.useRef(false);
+
+  React.useEffect(() => {
+    if (verId) {
+      setProductoAbierto(prev => (prev?.id === verId ? prev : { id: verId }));
+    } else {
+      setProductoAbierto(null);
+      pusheamos.current = false;
+    }
+  }, [verId]);
+
+  const abrir = React.useCallback(
+    (id: string, nombre?: string) => {
+      setProductoAbierto({ id, nombre });
+      pusheamos.current = true;
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.delete('nuevo'); sp.delete('editar'); sp.delete('kardex'); sp.set('ver', id);
+      router.push(`/productos?${sp.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  const cerrar = React.useCallback(() => {
+    setProductoAbierto(null);
+    if (pusheamos.current) {
+      pusheamos.current = false;
+      router.back();
+    } else {
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.delete('ver');
+      const qs = sp.toString();
+      router.replace(`/productos${qs ? `?${qs}` : ''}`, { scroll: false });
+    }
+  }, [router, searchParams]);
+
   const abrirNuevo = React.useCallback(() => {
     const sp = new URLSearchParams(searchParams.toString());
-    sp.delete('editar'); sp.delete('kardex'); sp.set('nuevo', '1');
+    sp.delete('editar'); sp.delete('kardex'); sp.delete('ver'); sp.set('nuevo', '1');
     router.replace(`/productos?${sp.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
   const abrirEditar = React.useCallback((id: string) => {
     const sp = new URLSearchParams(searchParams.toString());
-    sp.delete('nuevo'); sp.delete('kardex'); sp.set('editar', id);
+    sp.delete('nuevo'); sp.delete('kardex'); sp.delete('ver'); sp.set('editar', id);
     router.replace(`/productos?${sp.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
   const abrirKardex = React.useCallback((id: string) => {
     const sp = new URLSearchParams(searchParams.toString());
-    sp.delete('nuevo'); sp.delete('editar'); sp.set('kardex', id);
+    sp.delete('nuevo'); sp.delete('editar'); sp.delete('ver'); sp.set('kardex', id);
     router.replace(`/productos?${sp.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
@@ -167,7 +211,7 @@ function ProductosPageContenido() {
     mutationFn: (id: string) => eliminarApi(`/productos/${id}`),
     onSuccess: () => {
       toast.success('Producto eliminado');
-      setConfirmandoId(null);
+      setAEliminar(null);
       void qc.invalidateQueries({ queryKey: ['productos'] });
     },
     onError: e => toast.error(mensajeError(e)),
@@ -415,49 +459,45 @@ function ProductosPageContenido() {
     {
       id: 'acciones',
       titulo: 'Acciones',
-      width: 110,
+      width: 88,
       align: 'right',
       movible: false,
       cellClassName: 'pr-3',
-      render: (p) => confirmandoId === p.id ? (
-        <div className="flex items-center justify-end gap-1.5">
-          <span className="text-[10px] text-[hsl(var(--text-muted))] mr-1">¿Eliminar?</span>
-          <Button variant="outline" size="sm" onClick={() => setConfirmandoId(null)} className="h-7 px-2 text-[10px]">No</Button>
-          <Button
-            size="sm"
-            onClick={() => borrar.mutate(p.id)}
-            disabled={borrar.isPending}
-            className="h-7 px-2 text-[10px] bg-[hsl(var(--brand-danger))] hover:bg-[hsl(var(--brand-danger))]/90"
-          >
-            Sí
-          </Button>
-        </div>
-      ) : (
+      render: p => (
         <div className="flex items-center justify-end gap-1">
           <Button
-            variant="ghost" size="icon-sm" title="Ver Kardex"
-            className="bg-gradient-to-br from-[#fbbf24] to-[#d97706] text-white shadow-[0_2px_8px_rgba(217,119,6,0.35)] hover:from-[#fcd34d] hover:to-[#f59e0b] border border-amber-600/20"
-            onClick={() => abrirKardex(p.id)}
+            variant="ghost"
+            size="icon-sm"
+            title="Ver detalle"
+            aria-label={`Ver ${p.nombre}`}
+            onClick={() => abrir(p.id, p.nombre)}
+            data-testid="btn-ver-producto"
           >
-            <History className="size-3.5" />
+            <Eye className="size-3.5" />
           </Button>
-          <Button
-            variant="ghost" size="icon-sm" title="Editar"
-            onClick={() => abrirEditar(p.id)}
-          >
-            <Edit2 className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost" size="icon-sm" title="Eliminar"
-            className="text-[hsl(var(--brand-danger))] hover:bg-[hsl(var(--brand-danger))]/10"
-            onClick={() => setConfirmandoId(p.id)}
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label="Más acciones">
+                <MoreVertical className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onSelect={() => abrirKardex(p.id)}>
+                <History /> Kardex
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => abrirEditar(p.id)}>
+                <Edit2 /> Editar
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variante="danger" onSelect={() => setAEliminar(p)}>
+                <Trash2 /> Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       ),
     },
-  ], [confirmandoId, borrar, opcionesCategoria, abrirEditar, abrirKardex]);
+  ], [opcionesCategoria, abrir, abrirEditar, abrirKardex]);
 
   const filas = data?.datos ?? [];
   const filtrosActivos = Object.keys(estadoTabla.filtros ?? {}).length;
@@ -593,17 +633,7 @@ function ProductosPageContenido() {
             estado={estadoTabla}
             onEstadoChange={setEstadoTabla}
             cargando={isLoading}
-            filaExpandidaKey={filaExpandidaId}
-            onToggleFilaExpandida={(key) =>
-              setFilaExpandidaId(prev => (prev === key ? null : key))
-            }
-            renderFilaExpandida={(p) => (
-              <PanelInsightsProducto
-                productoId={p.id}
-                imagenes={p.imagenes}
-                nombre={p.nombre}
-              />
-            )}
+            onFilaClick={p => abrir(p.id, p.nombre)}
             renderRowAccent={p => {
               const cat = colorCategoria(p.categoria.slug ?? p.categoria.nombre);
               return (
@@ -636,6 +666,41 @@ function ProductosPageContenido() {
           />
         )}
       </Card>
+
+      <DetalleSheet
+        open={!!productoAbierto}
+        onOpenChange={o => { if (!o) cerrar(); }}
+        titulo={productoAbierto?.nombre ?? 'Producto'}
+        subtitulo="Ficha del producto"
+        icono={<Boxes className="size-4" />}
+        ancho="3xl"
+      >
+        {productoAbierto && (
+          <ProductoDetalle productoId={productoAbierto.id} onEditar={abrirEditar} onKardex={abrirKardex} />
+        )}
+      </DetalleSheet>
+
+      <Dialog open={!!aEliminar} onOpenChange={o => !o && setAEliminar(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar producto</DialogTitle>
+            <DialogDescription>
+              Vas a eliminar <strong>{aEliminar?.nombre}</strong>. Es un borrado lógico: el producto
+              y sus variantes dejan de aparecer, pero el historial de ventas y kardex se conserva.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAEliminar(null)}>Cancelar</Button>
+            <Button
+              variant="danger"
+              disabled={borrar.isPending}
+              onClick={() => aEliminar && borrar.mutate(aEliminar.id)}
+            >
+              {borrar.isPending ? 'Eliminando…' : 'Sí, eliminar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
