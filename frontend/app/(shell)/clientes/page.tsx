@@ -2,15 +2,20 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Search, Edit2, Trash2, Zap, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Zap, Loader2, AlertCircle, Eye, MoreVertical, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { DetalleSheet } from '@/components/ui/sheet';
 import { obtenerPaginado, postear, eliminar, mensajeError } from '@/lib/api/client';
 import { formatearMoneda, formatearNumero, formatearFecha, iniciales } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
@@ -19,6 +24,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { IlustracionClientes } from '@/components/ui/empty-illustrations';
 import { DataTable, type ColumnaTabla, type TableState } from '@/components/ui/data-table';
 import { usePreferencias } from '@/lib/use-preferencias';
+import { ClienteDetalle } from './cliente-detalle';
 
 type Clase = 'AA' | 'A' | 'B' | 'C' | 'D';
 
@@ -60,11 +66,56 @@ const ESTADO_DEFAULT: TableState = {
 const LIMITE = 30;
 
 export default function ClientesPage() {
+  return (
+    <React.Suspense fallback={<div className="p-8" />}>
+      <ClientesContenido />
+    </React.Suspense>
+  );
+}
+
+function ClientesContenido() {
   const [buscar, setBuscar] = React.useState('');
   const [pagina, setPagina] = React.useState(1);
   const [debounced, setDebounced] = React.useState('');
   const [aEliminar, setAEliminar] = React.useState<Cliente | null>(null);
   const qc = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const verId = searchParams.get('ver');
+
+  // Drawer de ficha de lectura (?ver=<id>).
+  const [clienteAbierto, setClienteAbierto] = React.useState<{ id: string; nombre?: string } | null>(
+    verId ? { id: verId } : null,
+  );
+  const pusheamos = React.useRef(false);
+
+  React.useEffect(() => {
+    if (verId) {
+      setClienteAbierto(prev => (prev?.id === verId ? prev : { id: verId }));
+    } else {
+      setClienteAbierto(null);
+      pusheamos.current = false;
+    }
+  }, [verId]);
+
+  const abrir = React.useCallback(
+    (id: string, nombre?: string) => {
+      setClienteAbierto({ id, nombre });
+      pusheamos.current = true;
+      router.push(`/clientes?ver=${id}`, { scroll: false });
+    },
+    [router],
+  );
+
+  const cerrar = React.useCallback(() => {
+    setClienteAbierto(null);
+    if (pusheamos.current) {
+      pusheamos.current = false;
+      router.back();
+    } else {
+      router.replace('/clientes', { scroll: false });
+    }
+  }, [router]);
 
   const [estadoTabla, setEstadoTabla] = usePreferencias<TableState>('clientes', ESTADO_DEFAULT);
 
@@ -267,22 +318,36 @@ export default function ClientesPage() {
       cellClassName: 'pr-4',
       render: c => (
         <div className="flex items-center justify-end gap-1">
-          <Button asChild variant="ghost" size="icon-sm" aria-label={`Editar ${c.nombre}`}>
-            <Link href={`/clientes/editar/?id=${c.id}`}><Edit2 className="size-3.5" /></Link>
-          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label={`Eliminar ${c.nombre}`}
-            onClick={() => setAEliminar(c)}
-            className="text-[hsl(355_75%_65%)] hover:text-[hsl(355_75%_75%)] hover:bg-[hsl(355_75%_55%/0.1)]"
+            aria-label={`Ver ${c.nombre}`}
+            title="Ver ficha"
+            onClick={() => abrir(c.id, c.nombre)}
+            data-testid="btn-ver-cliente"
           >
-            <Trash2 className="size-3.5" />
+            <Eye className="size-3.5" />
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label="Más acciones">
+                <MoreVertical className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onSelect={() => router.push(`/clientes/editar/?id=${c.id}`)}>
+                <Edit2 /> Editar
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variante="danger" onSelect={() => setAEliminar(c)}>
+                <Trash2 /> Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       ),
     },
-  ], [pagina, opcionesCiudad]);
+  ], [pagina, opcionesCiudad, abrir, router]);
 
   const filtrosActivos = Object.keys(estadoTabla.filtros ?? {}).length;
 
@@ -367,6 +432,7 @@ export default function ClientesPage() {
             estado={estadoTabla}
             onEstadoChange={setEstadoTabla}
             cargando={isLoading}
+            onFilaClick={c => abrir(c.id, c.nombre)}
             vacioRender={
               <EmptyState
                 ilustracion={<IlustracionClientes className="w-full h-full" />}
@@ -393,6 +459,17 @@ export default function ClientesPage() {
           />
         )}
       </Card>
+
+      <DetalleSheet
+        open={!!clienteAbierto}
+        onOpenChange={o => { if (!o) cerrar(); }}
+        titulo={clienteAbierto?.nombre ?? 'Cliente'}
+        subtitulo="Ficha del cliente"
+        icono={<User className="size-4" />}
+        ancho="2xl"
+      >
+        {clienteAbierto && <ClienteDetalle clienteId={clienteAbierto.id} />}
+      </DetalleSheet>
 
       <Dialog open={!!aEliminar} onOpenChange={o => !o && setAEliminar(null)}>
         <DialogContent>
