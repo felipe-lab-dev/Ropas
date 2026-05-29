@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Search, Sun, Moon, LogOut, ChevronRight, Menu } from 'lucide-react';
+import { Search, Sun, Moon, LogOut, ChevronRight, Menu, Clock3 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApariencia } from '@/lib/store/apariencia';
@@ -11,6 +11,11 @@ import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { CommandPalette } from './command-palette';
 import { cn } from '@/lib/utils';
+import {
+  useInactividad,
+  formatearRestante,
+  MOSTRAR_DESDE_MS,
+} from '@/lib/use-inactividad';
 
 const TITULOS: Record<string, string> = {
   '/bienvenida': 'Inicio',
@@ -39,6 +44,8 @@ export function Header({ onOpenMenu }: HeaderProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const [paletteOpen, setPaletteOpen] = React.useState(false);
+  const { restanteMs } = useInactividad();
+  const mostrarCountdown = !!usuario && restanteMs > 0 && restanteMs <= MOSTRAR_DESDE_MS;
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -122,6 +129,21 @@ export function Header({ onOpenMenu }: HeaderProps = {}) {
         </button>
 
         <div className="md:ml-auto flex items-center gap-1.5 sm:gap-3">
+          <AnimatePresence>
+            {mostrarCountdown && (
+              <motion.div
+                key="countdown-inactividad"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                title="Tu sesion se cerrara por inactividad"
+                className="flex items-center gap-1.5 rounded-full bg-[hsl(var(--brand-danger))]/15 text-[hsl(var(--brand-danger))] border border-[hsl(var(--brand-danger))]/30 px-2.5 py-1 text-xs font-semibold tabular-nums"
+              >
+                <Clock3 className="size-3.5" />
+                <span className="font-mono">{formatearRestante(restanteMs)}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
           {config && (
             <motion.div
               initial={{ opacity: 0, y: -4 }}

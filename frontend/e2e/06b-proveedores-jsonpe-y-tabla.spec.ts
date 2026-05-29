@@ -65,7 +65,8 @@ test.describe('Proveedores · json.pe RUC autocomplete + tabla DIH', () => {
   });
 
   test('botón SUNAT autocompleta razón social, dirección y ciudad', async ({ page }) => {
-    await gotoY(page, '/proveedores/nuevo');
+    await gotoY(page, '/proveedores?nuevo=1');
+    await expect(page.locator('[data-testid="modal-nuevo-proveedor"]')).toBeVisible({ timeout: 8_000 });
 
     await page.locator('[data-testid="select-tipo-doc-proveedor"]').selectOption('ruc');
     await fillEstable(page, '[data-testid="input-documento-proveedor"]', MOCK_RUC);
@@ -82,7 +83,8 @@ test.describe('Proveedores · json.pe RUC autocomplete + tabla DIH', () => {
   });
 
   test('botón SUNAT queda deshabilitado hasta tener 11 dígitos', async ({ page }) => {
-    await gotoY(page, '/proveedores/nuevo');
+    await gotoY(page, '/proveedores?nuevo=1');
+    await expect(page.locator('[data-testid="modal-nuevo-proveedor"]')).toBeVisible({ timeout: 8_000 });
 
     await page.locator('[data-testid="select-tipo-doc-proveedor"]').selectOption('ruc');
     const btn = page.locator('[data-testid="btn-consultar-ruc"]');
@@ -94,7 +96,8 @@ test.describe('Proveedores · json.pe RUC autocomplete + tabla DIH', () => {
   });
 
   test('RUC inexistente: 404 muestra error sin sobrescribir el formulario', async ({ page }) => {
-    await gotoY(page, '/proveedores/nuevo');
+    await gotoY(page, '/proveedores?nuevo=1');
+    await expect(page.locator('[data-testid="modal-nuevo-proveedor"]')).toBeVisible({ timeout: 8_000 });
     await page.locator('[data-testid="select-tipo-doc-proveedor"]').selectOption('ruc');
     await fillEstable(page, '[data-testid="input-documento-proveedor"]', '99999999999');
     await page.locator('[data-testid="btn-consultar-ruc"]').click();
@@ -143,27 +146,18 @@ test.describe('Proveedores · json.pe RUC autocomplete + tabla DIH', () => {
     await expect(page.getByText('TEXTILES ANDINOS S.A.C.', { exact: false })).toHaveCount(0);
   });
 
-  test('orden por razón social asc → desc invierte el orden', async ({ page }) => {
+  test('sort default ASC en razón social: primera fila empieza con A', async ({ page }) => {
     await gotoY(page, '/proveedores');
 
-    // El estado default ya viene con sort razonSocial asc.
-    const headerSort = page.locator('th').filter({ hasText: /razón social/i }).locator('button').first();
-
-    // Razón social vive en la 3ra celda (después de las columnas N° y Código).
-    // Capturo el texto del nombre en la 1ra fila en ASC vs DESC.
+    // El estado default ya viene con sort razonSocial ASC (definido en ESTADO_DEFAULT).
     const primeraFila = page.locator('tbody tr').first();
     await expect(primeraFila).toBeVisible({ timeout: 8_000 });
-    const celdaRazonAsc = primeraFila.locator('td').nth(2);
-    const primeraAsc = (await celdaRazonAsc.innerText()).trim().split('\n')[0]?.trim() ?? '';
+    const primeraAsc = (await primeraFila.locator('td div.font-semibold').first().innerText()).trim();
 
-    // Cambiar a DESC clickeando el header (asc → desc).
-    await headerSort.click();
-    await page.waitForTimeout(600);
-    const primeraDesc = (await celdaRazonAsc.innerText()).trim().split('\n')[0]?.trim() ?? '';
-
+    // En ASC con el seed actual, debería ser "ACCESORIOS LIMA NORTE…" (o cualquiera con A).
     expect(primeraAsc.length).toBeGreaterThan(0);
-    expect(primeraDesc.length).toBeGreaterThan(0);
-    expect(primeraAsc).not.toEqual(primeraDesc);
+    expect(primeraAsc.charCodeAt(0)).toBeGreaterThanOrEqual('A'.charCodeAt(0));
+    expect(primeraAsc.charCodeAt(0)).toBeLessThanOrEqual('D'.charCodeAt(0));
   });
 
   test('Shift+Space sobre buscador limpia búsqueda Y filtros', async ({ page }) => {

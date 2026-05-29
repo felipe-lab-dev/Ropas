@@ -12,7 +12,19 @@ import { postear, mensajeError } from '@/lib/api/client';
 import { ProveedorFormulario } from '../proveedor-formulario';
 import { aPayloadApi, type ProveedorFormValues } from '../proveedor-schema';
 
-export default function NuevoProveedorPage() {
+interface NuevoProveedorContenidoProps {
+  modoModal?: boolean;
+  onCerrar?: () => void;
+}
+
+/**
+ * Contenido reusable de "Nuevo proveedor".
+ *  - En `modoModal`: omite el PageHeader, usa `enModal` en el formulario y
+ *    notifica al padre con `onCerrar` después de crear.
+ *  - En página standalone: renderiza el header + Card y redirige a /proveedores
+ *    tras crear (compat con bookmarks viejos).
+ */
+export function NuevoProveedorContenido({ modoModal = false, onCerrar }: NuevoProveedorContenidoProps) {
   const router = useRouter();
   const qc = useQueryClient();
   const [error, setError] = React.useState<string | null>(null);
@@ -23,10 +35,29 @@ export default function NuevoProveedorPage() {
     onSuccess: data => {
       toast.success(`Proveedor "${data?.razonSocial ?? ''}" registrado`);
       qc.invalidateQueries({ queryKey: ['proveedores'] });
-      router.push('/proveedores');
+      if (modoModal && onCerrar) onCerrar();
+      else router.push('/proveedores');
     },
     onError: e => setError(mensajeError(e)),
   });
+
+  const onCancelar = React.useCallback(() => {
+    if (modoModal && onCerrar) onCerrar();
+    else router.push('/proveedores');
+  }, [modoModal, onCerrar, router]);
+
+  if (modoModal) {
+    return (
+      <ProveedorFormulario
+        guardando={mutar.isPending}
+        ctaLabel="Guardar proveedor"
+        errorServidor={error}
+        enModal
+        onGuardar={v => { setError(null); mutar.mutate(v); }}
+        onCancelar={onCancelar}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -45,8 +76,22 @@ export default function NuevoProveedorPage() {
         ctaLabel="Guardar proveedor"
         errorServidor={error}
         onGuardar={v => { setError(null); mutar.mutate(v); }}
-        onCancelar={() => router.push('/proveedores')}
+        onCancelar={onCancelar}
       />
     </div>
+  );
+}
+
+/**
+ * Ruta legacy `/proveedores/nuevo`: redirige al listado con `?nuevo=1` para
+ * abrir el modal de alta. Conserva compatibilidad con bookmarks viejos.
+ */
+export default function NuevoProveedorRedirectPage() {
+  const router = useRouter();
+  React.useEffect(() => {
+    router.replace('/proveedores?nuevo=1');
+  }, [router]);
+  return (
+    <div className="p-6 text-sm text-[hsl(var(--text-muted))]">Abriendo formulario…</div>
   );
 }

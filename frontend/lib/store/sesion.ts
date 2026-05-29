@@ -16,6 +16,8 @@ interface EstadoSesion {
   refreshToken: string | null;
   usuario: UsuarioSesion | null;
   setSesion: (s: { accessToken: string; refreshToken: string; usuario: UsuarioSesion }) => void;
+  // Sobreescribe solo el access token tras un refresh exitoso.
+  setAccessToken: (token: string) => void;
   limpiar: () => void;
 }
 
@@ -27,6 +29,7 @@ export const useSesion = create<EstadoSesion>()(
       usuario: null,
       setSesion: s =>
         set({ accessToken: s.accessToken, refreshToken: s.refreshToken, usuario: s.usuario }),
+      setAccessToken: token => set({ accessToken: token }),
       limpiar: () => set({ accessToken: null, refreshToken: null, usuario: null }),
     }),
     { name: 'ropas.sesion' },

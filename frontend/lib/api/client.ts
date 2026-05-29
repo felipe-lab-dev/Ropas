@@ -1,4 +1,8 @@
-import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
+import axios, {
+  AxiosError,
+  type AxiosRequestConfig,
+  type InternalAxiosRequestConfig,
+} from 'axios';
 import { useSesion } from '@/lib/store/sesion';
 import { obtenerApiUrl, obtenerTenantCode } from '@/lib/tenant';
 
@@ -15,16 +19,88 @@ api.interceptors.request.use(config => {
   return config;
 });
 
+// ─── Refresh-then-retry sobre 401 ────────────────────────────────────────
+//
+// El access token vive 15 min (JWT_ACCESS_EXPIRES_IN), el refresh 7 días.
+// Cuando una request devuelve 401, intentamos UNA vez renovar el access con
+// el refresh; si funciona, reintentamos el request original transparentemente.
+// Solo si el refresh también falla limpiamos la sesion y redirigimos a /login.
+//
+// Cuando el access expira y el usuario hace varias requests en simultáneo,
+// solo la primera dispara /auth/refresh y las demás se quedan esperando
+// (`refreshPromise`) para no provocar una avalancha de refresh ni invalidar
+// el refresh token a media renovación.
+//
+// Endpoints sin token (login, refresh) no entran a este flujo: la marca
+// `_retry` evita loops infinitos si /refresh devuelve 401.
+type ConfigConReintento = InternalAxiosRequestConfig & { _retry?: boolean };
+
+let refreshPromise: Promise<string> | null = null;
+
+async function refrescarAccess(): Promise<string> {
+  if (refreshPromise) return refreshPromise;
+  const { refreshToken } = useSesion.getState();
+  if (!refreshToken) throw new Error('Sin refresh token');
+
+  refreshPromise = (async () => {
+    try {
+      const { data } = await axios.post<{ datos: { accessToken: string } }>(
+        `${obtenerApiUrl()}/api/v1/auth/refresh`,
+        { refreshToken },
+        { headers: { 'X-Tenant-Code': obtenerTenantCode() }, timeout: 10_000 },
+      );
+      const nuevoAccess = data?.datos?.accessToken;
+      if (!nuevoAccess) throw new Error('Respuesta de refresh sin token');
+      useSesion.getState().setAccessToken(nuevoAccess);
+      return nuevoAccess;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+function forzarLogout() {
+  useSesion.getState().limpiar();
+  if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login';
+  }
+}
+
 api.interceptors.response.use(
   res => res,
-  (err: AxiosError<{ exito: boolean; mensaje?: string }>) => {
-    if (err.response?.status === 401) {
-      useSesion.getState().limpiar();
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
-      }
+  async (err: AxiosError<{ exito: boolean; mensaje?: string }>) => {
+    const original = err.config as ConfigConReintento | undefined;
+    const status = err.response?.status;
+
+    // Sin config (network error, etc.) → propagar.
+    if (!original || status !== 401) return Promise.reject(err);
+
+    // El propio /auth/refresh devolvió 401 → refresh token caducó/inválido.
+    // No intentar de nuevo, salir.
+    const url = (original.url ?? '').toString();
+    if (url.includes('/auth/refresh') || url.includes('/auth/login')) {
+      forzarLogout();
+      return Promise.reject(err);
     }
-    return Promise.reject(err);
+
+    if (original._retry) {
+      // Ya reintentamos esta request una vez y volvió a fallar — abandonamos.
+      forzarLogout();
+      return Promise.reject(err);
+    }
+    original._retry = true;
+
+    try {
+      const nuevoAccess = await refrescarAccess();
+      original.headers = original.headers ?? {};
+      original.headers.Authorization = `Bearer ${nuevoAccess}`;
+      return api.request(original);
+    } catch {
+      forzarLogout();
+      return Promise.reject(err);
+    }
   },
 );
 

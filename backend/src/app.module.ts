@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { CoreModule } from './core/core.module';
+import { HealthModule } from './core/health/health.module';
 import { SaasModule } from './saas/saas.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ProductosModule } from './modules/productos/productos.module';
@@ -26,6 +27,7 @@ import { FacturacionElectronicaModule } from './modules/facturacion-electronica/
 import { UtilidadesModule } from './modules/utilidades/utilidades.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { LogsSistemaModule } from './modules/logs-sistema/logs-sistema.module';
 
 @Module({
   imports: [
@@ -55,6 +57,7 @@ import { RolesModule } from './modules/roles/roles.module';
     }),
     ScheduleModule.forRoot(),
     CoreModule,
+    HealthModule,
     SaasModule,
     AuthModule,
     SucursalesModule,
@@ -77,6 +80,7 @@ import { RolesModule } from './modules/roles/roles.module';
     UtilidadesModule,
     UsuariosModule,
     RolesModule,
+    LogsSistemaModule,
   ],
 })
 export class AppModule {}

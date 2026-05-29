@@ -94,13 +94,28 @@ const ESTADO_PAGO_LABEL: Record<CompraHistorial['estadoPago'], string> = {
   pendiente: 'Pendiente',
 };
 
-export function EditarProveedorCliente() {
+interface EditarProveedorClienteProps {
+  /** Cuando se pasa, ignora el `?id=` del URL — se usa al montar como modal. */
+  idForzado?: string;
+  /** En modal: oculta PageHeader + StatCards full y compacta el layout. */
+  modoModal?: boolean;
+  /** En modal: callback que cierra el dialog tras guardar/eliminar/cancelar. */
+  onCerrar?: () => void;
+}
+
+export function EditarProveedorCliente(props: EditarProveedorClienteProps = {}) {
+  const { idForzado, modoModal = false, onCerrar } = props;
   const router = useRouter();
   const search = useSearchParams();
-  const id = search.get('id') ?? '';
+  const id = idForzado ?? search.get('id') ?? '';
   const qc = useQueryClient();
   const [errorServidor, setErrorServidor] = React.useState<string | null>(null);
   const [confirmarEliminar, setConfirmarEliminar] = React.useState(false);
+
+  const cerrarOVolver = React.useCallback(() => {
+    if (modoModal && onCerrar) onCerrar();
+    else router.push('/proveedores');
+  }, [modoModal, onCerrar, router]);
 
   const { data: proveedor, isLoading, isError, error } = useQuery({
     queryKey: ['proveedor', id],
@@ -122,6 +137,7 @@ export function EditarProveedorCliente() {
       toast.success('Proveedor actualizado');
       qc.invalidateQueries({ queryKey: ['proveedor', id] });
       qc.invalidateQueries({ queryKey: ['proveedores'] });
+      if (modoModal && onCerrar) onCerrar();
     },
     onError: e => setErrorServidor(mensajeError(e)),
   });
@@ -141,7 +157,7 @@ export function EditarProveedorCliente() {
     onSuccess: () => {
       toast.success('Proveedor eliminado');
       qc.invalidateQueries({ queryKey: ['proveedores'] });
-      router.push('/proveedores');
+      cerrarOVolver();
     },
     onError: e => {
       setConfirmarEliminar(false);
@@ -193,53 +209,87 @@ export function EditarProveedorCliente() {
     : undefined;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        titulo={proveedor ? proveedor.razonSocial : 'Editar proveedor'}
-        descripcion={
-          proveedor
-            ? `${proveedor.codigo ? `${proveedor.codigo} · ` : ''}${proveedor.tipoDocumento.toUpperCase()} ${proveedor.documento} · ${CONDICION_LABEL[proveedor.condicionPago]}`
-            : 'Cargando datos…'
-        }
-        acciones={
-          <div className="flex gap-2">
-            <Button variant="ghost" asChild>
-              <Link href="/proveedores"><ArrowLeft className="size-4" /> Volver</Link>
-            </Button>
-            {proveedor && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => mutarEstado.mutate(!proveedor.activo)}
-                  disabled={mutarEstado.isPending}
-                >
-                  {proveedor.activo ? 'Desactivar' : 'Activar'}
-                </Button>
-                <Button
-                  variant="danger"
-                  onClick={() => setConfirmarEliminar(true)}
-                  disabled={mutarEliminar.isPending}
-                >
-                  <Trash2 className="size-4" /> Eliminar
-                </Button>
-              </>
-            )}
+    <div className={modoModal ? 'space-y-5' : 'space-y-6'}>
+      {!modoModal && (
+        <PageHeader
+          titulo={proveedor ? proveedor.razonSocial : 'Editar proveedor'}
+          descripcion={
+            proveedor
+              ? `${proveedor.codigo ? `${proveedor.codigo} · ` : ''}${proveedor.tipoDocumento.toUpperCase()} ${proveedor.documento} · ${CONDICION_LABEL[proveedor.condicionPago]}`
+              : 'Cargando datos…'
+          }
+          acciones={
+            <div className="flex gap-2">
+              <Button variant="ghost" asChild>
+                <Link href="/proveedores"><ArrowLeft className="size-4" /> Volver</Link>
+              </Button>
+              {proveedor && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => mutarEstado.mutate(!proveedor.activo)}
+                    disabled={mutarEstado.isPending}
+                  >
+                    {proveedor.activo ? 'Desactivar' : 'Activar'}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => setConfirmarEliminar(true)}
+                    disabled={mutarEliminar.isPending}
+                  >
+                    <Trash2 className="size-4" /> Eliminar
+                  </Button>
+                </>
+              )}
+            </div>
+          }
+        />
+      )}
+
+      {modoModal && proveedor && (
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
+          <div className="min-w-0">
+            <h2 className="font-bold text-lg truncate">{proveedor.razonSocial}</h2>
+            <p className="text-xs text-[hsl(var(--text-muted))] truncate">
+              {proveedor.codigo ? `${proveedor.codigo} · ` : ''}
+              {proveedor.tipoDocumento.toUpperCase()} {proveedor.documento} · {CONDICION_LABEL[proveedor.condicionPago]}
+            </p>
           </div>
-        }
-      />
+          <div className="flex gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => mutarEstado.mutate(!proveedor.activo)}
+              disabled={mutarEstado.isPending}
+            >
+              {proveedor.activo ? 'Desactivar' : 'Activar'}
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setConfirmarEliminar(true)}
+              disabled={mutarEliminar.isPending}
+            >
+              <Trash2 className="size-3.5" /> Eliminar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {proveedor && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className={modoModal ? 'grid grid-cols-2 lg:grid-cols-4 gap-2.5' : 'grid grid-cols-1 md:grid-cols-4 gap-4'}>
           <StatCard
             icon={<PackageCheck className="size-4" />}
             label="Total compras"
             valor={proveedor.stats.totalCompras.toString()}
             hint={proveedor.stats.totalCompras === 0 ? 'Sin compras registradas' : 'Compras no anuladas'}
+            compacto={modoModal}
           />
           <StatCard
             icon={<Wallet className="size-4" />}
             label="Total comprado"
             valor={formatearMoneda(proveedor.totalComprado)}
+            compacto={modoModal}
           />
           <StatCard
             icon={<AlertCircle className="size-4" />}
@@ -247,6 +297,7 @@ export function EditarProveedorCliente() {
             valor={formatearMoneda(proveedor.stats.deudaCalculada)}
             destacar={Number(proveedor.stats.deudaCalculada) > 0}
             hint="Suma de compras pendientes, parciales y vencidas"
+            compacto={modoModal}
           />
           <StatCard
             icon={<CalendarDays className="size-4" />}
@@ -261,16 +312,25 @@ export function EditarProveedorCliente() {
                 ? `${proveedor.stats.ultimaCompra.numero} · ${formatearMoneda(proveedor.stats.ultimaCompra.total)}`
                 : undefined
             }
+            compacto={modoModal}
           />
         </div>
       )}
 
       {isLoading || !proveedor ? (
-        <Card className="p-6 space-y-3 max-w-3xl">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-9" />
-          ))}
-        </Card>
+        modoModal ? (
+          <div className="space-y-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-9" />
+            ))}
+          </div>
+        ) : (
+          <Card className="p-6 space-y-3 max-w-3xl">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-9" />
+            ))}
+          </Card>
+        )
       ) : (
         <ProveedorFormulario
           inicial={valoresIniciales}
@@ -278,74 +338,47 @@ export function EditarProveedorCliente() {
           ctaLabel="Guardar cambios"
           errorServidor={errorServidor}
           modoEdicion
+          enModal={modoModal}
           onGuardar={v => { setErrorServidor(null); guardar.mutate(v); }}
-          onCancelar={() => router.push('/proveedores')}
+          onCancelar={cerrarOVolver}
         />
       )}
 
-      <Card className="p-6 max-w-5xl">
-        <div className="flex items-center gap-2 mb-4">
-          <History className="size-4 text-[hsl(var(--brand-primary))]" />
-          <h2 className="font-semibold">Historial de compras</h2>
-          <span className="text-xs text-[hsl(var(--text-muted))]">
-            (últimas 50)
-          </span>
-        </div>
-        {cargandoHistorial ? (
-          <Skeleton className="h-32" />
-        ) : !historial || historial.length === 0 ? (
-          <p className="text-sm text-[hsl(var(--text-muted))] py-4">
-            Aún no hay compras registradas con este proveedor.
-          </p>
+      <div className={modoModal
+        ? 'rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/30'
+        : 'p-6 max-w-5xl rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))]'
+      }>
+        {modoModal ? (
+          <details className="group" open={!modoModal}>
+            <summary className="cursor-pointer flex items-center gap-2 p-3 select-none list-none">
+              <History className="size-4 text-[hsl(var(--brand-primary))]" />
+              <h2 className="font-semibold text-sm">Historial de compras</h2>
+              <span className="text-[10px] text-[hsl(var(--text-muted))]">(últimas 50)</span>
+              <span className="ml-auto text-xs text-[hsl(var(--text-muted))] group-open:rotate-180 transition-transform">▾</span>
+            </summary>
+            <div className="px-3 pb-3">
+              <HistorialCompras
+                cargando={cargandoHistorial}
+                historial={historial}
+              />
+            </div>
+          </details>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Comprobante</TableHead>
-                <TableHead>Emisión</TableHead>
-                <TableHead>Vence</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Saldo</TableHead>
-                <TableHead>Pago</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {historial.map(c => {
-                const saldo = Number(c.total) - Number(c.totalPagado);
-                return (
-                  <TableRow key={c.id} className={c.anuladaEn ? 'opacity-50 line-through' : ''}>
-                    <TableCell className="font-mono text-xs">
-                      <div className="uppercase text-[hsl(var(--text-muted))]">{c.tipoComprobante}</div>
-                      <div>{c.serie}-{c.numeroComprobante}</div>
-                    </TableCell>
-                    <TableCell>{formatearFecha(c.fechaEmision)}</TableCell>
-                    <TableCell>
-                      {c.fechaVencimiento ? formatearFecha(c.fechaVencimiento) : '—'}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatearMoneda(c.total, c.moneda)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {saldo > 0 ? (
-                        <span className="text-[hsl(355_75%_65%)] font-semibold">
-                          {formatearMoneda(saldo, c.moneda)}
-                        </span>
-                      ) : (
-                        <span className="text-[hsl(var(--text-muted))]">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={ESTADO_PAGO_VARIANT[c.estadoPago]}>
-                        {ESTADO_PAGO_LABEL[c.estadoPago]}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <>
+            <div className="flex items-center gap-2 mb-4">
+              <History className="size-4 text-[hsl(var(--brand-primary))]" />
+              <h2 className="font-semibold">Historial de compras</h2>
+              <span className="text-xs text-[hsl(var(--text-muted))]">
+                (últimas 50)
+              </span>
+            </div>
+            <HistorialCompras
+              cargando={cargandoHistorial}
+              historial={historial}
+            />
+          </>
         )}
-      </Card>
+      </div>
 
       <Dialog open={confirmarEliminar} onOpenChange={setConfirmarEliminar}>
         <DialogContent>
@@ -379,22 +412,96 @@ function StatCard({
   valor,
   hint,
   destacar,
+  compacto,
 }: {
   icon: React.ReactNode;
   label: string;
   valor: string;
   hint?: string;
   destacar?: boolean;
+  compacto?: boolean;
 }) {
   return (
-    <Card className="p-4 space-y-1.5">
-      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider font-semibold text-[hsl(var(--text-muted))]">
-        {icon} {label}
+    <Card className={compacto ? 'p-2.5 space-y-1' : 'p-4 space-y-1.5'}>
+      <div className={
+        compacto
+          ? 'flex items-center gap-1.5 text-[9px] uppercase tracking-wider font-semibold text-[hsl(var(--text-muted))]'
+          : 'flex items-center gap-2 text-[11px] uppercase tracking-wider font-semibold text-[hsl(var(--text-muted))]'
+      }>
+        {icon} <span className="truncate">{label}</span>
       </div>
-      <div className={`text-xl font-bold tabular-nums ${destacar ? 'text-[hsl(355_75%_65%)]' : ''}`}>
+      <div className={
+        (compacto ? 'text-sm font-bold tabular-nums truncate' : 'text-xl font-bold tabular-nums') +
+        (destacar ? ' text-[hsl(355_75%_65%)]' : '')
+      }>
         {valor}
       </div>
-      {hint && <div className="text-[11px] text-[hsl(var(--text-muted))]">{hint}</div>}
+      {hint && !compacto && <div className="text-[11px] text-[hsl(var(--text-muted))]">{hint}</div>}
     </Card>
+  );
+}
+
+function HistorialCompras({
+  cargando,
+  historial,
+}: {
+  cargando: boolean;
+  historial: CompraHistorial[] | undefined;
+}) {
+  if (cargando) return <Skeleton className="h-32" />;
+  if (!historial || historial.length === 0) {
+    return (
+      <p className="text-sm text-[hsl(var(--text-muted))] py-4">
+        Aún no hay compras registradas con este proveedor.
+      </p>
+    );
+  }
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Comprobante</TableHead>
+          <TableHead>Emisión</TableHead>
+          <TableHead>Vence</TableHead>
+          <TableHead className="text-right">Total</TableHead>
+          <TableHead className="text-right">Saldo</TableHead>
+          <TableHead>Pago</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {historial.map(c => {
+          const saldo = Number(c.total) - Number(c.totalPagado);
+          return (
+            <TableRow key={c.id} className={c.anuladaEn ? 'opacity-50 line-through' : ''}>
+              <TableCell className="font-mono text-xs">
+                <div className="uppercase text-[hsl(var(--text-muted))]">{c.tipoComprobante}</div>
+                <div>{c.serie}-{c.numeroComprobante}</div>
+              </TableCell>
+              <TableCell>{formatearFecha(c.fechaEmision)}</TableCell>
+              <TableCell>
+                {c.fechaVencimiento ? formatearFecha(c.fechaVencimiento) : '—'}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatearMoneda(c.total, c.moneda)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {saldo > 0 ? (
+                  <span className="text-[hsl(355_75%_65%)] font-semibold">
+                    {formatearMoneda(saldo, c.moneda)}
+                  </span>
+                ) : (
+                  <span className="text-[hsl(var(--text-muted))]">—</span>
+                )}
+              </TableCell>
+              <TableCell>
+                <Badge variant={ESTADO_PAGO_VARIANT[c.estadoPago]}>
+                  {ESTADO_PAGO_LABEL[c.estadoPago]}
+                </Badge>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 }
