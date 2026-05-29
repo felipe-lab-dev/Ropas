@@ -60,6 +60,13 @@ interface ClienteResumen {
   tipoDocumento: string;
 }
 
+/**
+ * Umbral SUNAT (S/): por encima de este monto, una boleta debe identificar al
+ * cliente con su DNI (Reglamento de Comprobantes de Pago). Espejo de
+ * UMBRAL_IDENTIFICACION_BOLETA en el backend (core/sunat/codigos.ts).
+ */
+const UMBRAL_DNI_BOLETA = 700;
+
 function precioParaVariante(v: VarianteBuscable, p: ProductoBuscable): number {
   // Variante puede sobreescribir el precio base del producto (campo opcional).
   const base = v.precioVenta ?? p.precioVenta;
@@ -325,7 +332,13 @@ export default function PosPage() {
       ? { tipo: 'nota_venta', label: 'Nota de venta', descripcion: 'Interna · no se envía a SUNAT' }
       : cliente?.tipoDocumento === 'ruc'
       ? { tipo: 'factura', label: 'Factura electrónica', descripcion: 'Se enviará a SUNAT al confirmar' }
-      : { tipo: 'boleta', label: 'Boleta electrónica', descripcion: cliente ? 'Se enviará a SUNAT al confirmar' : 'A consumidor final (VARIOS)' };
+      : { tipo: 'boleta', label: 'Boleta electrónica', descripcion: cliente ? 'Se enviará a SUNAT al confirmar' : 'A consumidor final' };
+
+  // ── Guard SUNAT: boletas > S/700 requieren DNI del cliente ──
+  // El '00000000' (consumidor final) solo es válido en boletas hasta el umbral.
+  const clienteIdentificado = Boolean(cliente?.documento && cliente.documento !== '00000000');
+  const requiereDni =
+    modalidadComprobante.tipo === 'boleta' && total > UMBRAL_DNI_BOLETA && !clienteIdentificado;
 
   return (
     <div className="grid lg:grid-cols-[1fr_440px] gap-6 -m-8 p-8 min-h-[calc(100vh-3.5rem)]">
@@ -626,6 +639,23 @@ export default function PosPage() {
                 )}
               </div>
             )}
+
+            {requiereDni && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                data-testid="pos-alerta-dni-boleta"
+                className="flex items-start gap-2 rounded-md border border-[hsl(35_90%_55%/0.45)] bg-[hsl(35_90%_55%/0.1)] px-3 py-2 text-xs"
+              >
+                <AlertTriangle className="size-3.5 text-[hsl(35_90%_55%)] shrink-0 mt-0.5" />
+                <p className="text-[hsl(var(--text-muted))]">
+                  SUNAT exige el{' '}
+                  <span className="font-semibold text-[hsl(var(--text))]">DNI del cliente</span> en
+                  boletas mayores a {formatearMoneda(UMBRAL_DNI_BOLETA)}. Busca o crea el cliente
+                  arriba para continuar.
+                </p>
+              </motion.div>
+            )}
           </div>
 
           {/* Bloque modalidad del comprobante */}
@@ -796,10 +826,14 @@ export default function PosPage() {
             size="xl"
             className="w-full glow-brand"
             data-testid="btn-cobrar-pos"
-            disabled={carrito.length === 0 || cobrar.isPending || !sucursalId || total <= 0}
+            disabled={carrito.length === 0 || cobrar.isPending || !sucursalId || total <= 0 || requiereDni}
             onClick={() => cobrar.mutate()}
           >
-            {cobrar.isPending ? 'Procesando…' : `Cobrar ${formatearMoneda(total)}`}
+            {cobrar.isPending
+              ? 'Procesando…'
+              : requiereDni
+              ? 'Falta DNI del cliente'
+              : `Cobrar ${formatearMoneda(total)}`}
           </Button>
         </div>
       </Card>

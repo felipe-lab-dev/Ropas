@@ -6,7 +6,7 @@
  * No hay DB, no hay HTTP, no hay NestJS runtime.
  */
 import { DocumentoElectronicoService } from './documento-electronico.service';
-import { ErrorNoEncontrado, ErrorConflicto } from '../../../core/errors/errores';
+import { ErrorNoEncontrado, ErrorConflicto, ErrorValidacion } from '../../../core/errors/errores';
 import type { MifactRespuesta } from '../mifact/types';
 import type { TenantContext } from '../../../core/tenancy/tenant-context';
 
@@ -276,7 +276,7 @@ describe('DocumentoElectronicoService', () => {
 
   // ─── 3. Boleta VARIOS — sin cliente ──────────────────────────────────────
 
-  it('boleta VARIOS: venta sin cliente → tipoCpe boleta, receptor={dni,00000000,VARIOS}', async () => {
+  it('boleta consumidor final: venta sin cliente → receptor={otro(0),00000000,CLIENTE SIN NOMBRE,SIN DIRECCION}', async () => {
     prisma.documentoElectronico.findFirst.mockResolvedValue(null);
     prisma.venta.findUnique.mockResolvedValue(crearVenta(null));
     mifactService.enviarCpe.mockResolvedValue(crearRespuestaMifact({ estadoSunat: 'aceptado' }));
@@ -289,15 +289,65 @@ describe('DocumentoElectronicoService', () => {
       SUCURSAL_ID,
       'boleta',
     );
+    // Convención documentada por Mifact para boleta sin DNI: tipo '0' (que en el
+    // catálogo local es 'otro') + '00000000' + placeholders de nombre/dirección.
     expect(orquestador.construirCpe).toHaveBeenCalledWith(
       expect.objectContaining({
         receptor: {
-          tipoDocumento: 'dni',
+          tipoDocumento: 'otro',
           numeroDocumento: '00000000',
-          razonSocial: 'VARIOS',
+          razonSocial: 'CLIENTE SIN NOMBRE',
+          direccion: 'SIN DIRECCION',
         },
       }),
     );
+  });
+
+  // ─── 3b. Boleta > S/700 sin DNI → bloqueada (guard SUNAT) ─────────────────
+
+  it('boleta > S/700 sin cliente: lanza ErrorValidacion y NO consume correlativo ni llama a Mifact', async () => {
+    prisma.documentoElectronico.findFirst.mockResolvedValue(null);
+    prisma.venta.findUnique.mockResolvedValue({ ...crearVenta(null), total: 800 });
+
+    await expect(service.emitirCpe(CTX_TEST, VENTA_ID)).rejects.toBeInstanceOf(ErrorValidacion);
+
+    expect(serieCpeService.asignarProximoCorrelativo).not.toHaveBeenCalled();
+    expect(mifactService.enviarCpe).not.toHaveBeenCalled();
+  });
+
+  it('boleta > S/700 con cliente DNI identificado: emite normalmente', async () => {
+    prisma.documentoElectronico.findFirst.mockResolvedValue(null);
+    prisma.venta.findUnique.mockResolvedValue({ ...crearVenta(crearClienteDni()), total: 800 });
+    mifactService.enviarCpe.mockResolvedValue(crearRespuestaMifact({ estadoSunat: 'aceptado' }));
+    prisma.documentoElectronico.upsert.mockResolvedValue(crearDocumentoExistente('aceptado'));
+
+    await service.emitirCpe(CTX_TEST, VENTA_ID);
+
+    expect(serieCpeService.asignarProximoCorrelativo).toHaveBeenCalledWith(
+      CTX_TEST,
+      SUCURSAL_ID,
+      'boleta',
+    );
+    expect(mifactService.enviarCpe).toHaveBeenCalled();
+  });
+
+  // ─── 3c. Factura sin RUC válido → bloqueada (bug fallback 00000000) ───────
+
+  it('factura con cliente RUC pero sin documento: lanza ErrorValidacion (no manda RUC 00000000)', async () => {
+    prisma.documentoElectronico.findFirst.mockResolvedValue(null);
+    prisma.venta.findUnique.mockResolvedValue(
+      crearVenta({
+        id: 'cliente-uuid-099',
+        tipoDocumento: 'ruc',
+        documento: null,
+        nombre: 'EMPRESA SIN RUC SAC',
+        email: null,
+        direccion: null,
+      }),
+    );
+
+    await expect(service.emitirCpe(CTX_TEST, VENTA_ID)).rejects.toBeInstanceOf(ErrorValidacion);
+    expect(mifactService.enviarCpe).not.toHaveBeenCalled();
   });
 
   // ─── 4. Idempotencia — estado aceptado ───────────────────────────────────

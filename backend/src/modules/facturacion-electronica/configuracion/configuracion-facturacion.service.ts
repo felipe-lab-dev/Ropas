@@ -43,6 +43,17 @@ export interface ConfiguracionFacturacionResuelta {
 export class ConfiguracionFacturacionService {
   constructor(private readonly prismaTenancy: PrismaTenantService) {}
 
+  /**
+   * ¿El tenant tiene facturación electrónica configurada? Chequeo barato (sin
+   * descifrar token) para que otros módulos decidan si una venta emitirá CPE.
+   */
+  async estaConfigurada(ctx: TenantContext): Promise<boolean> {
+    const config = await this.prismaTenancy
+      .forTenant(ctx)
+      .configuracionFacturacion.findFirst({ select: { id: true } });
+    return config !== null;
+  }
+
   async obtenerConfiguracion(ctx: TenantContext): Promise<ConfiguracionFacturacionResuelta> {
     const config = await this.prismaTenancy.forTenant(ctx).configuracionFacturacion.findFirst();
 

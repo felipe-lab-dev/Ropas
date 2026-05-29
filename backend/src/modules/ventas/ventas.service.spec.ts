@@ -5,6 +5,7 @@ import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { InventarioService } from '../inventario/inventario.service';
 import { MotorCuponesService } from '../cupones/motor-cupones.service';
 import { SerieCpeService } from '../facturacion-electronica/series-cpe/series-cpe.service';
+import { ConfiguracionFacturacionService } from '../facturacion-electronica/configuracion/configuracion-facturacion.service';
 import { AppEventEmitter } from '../../core/events/app-event-emitter';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import {
@@ -81,6 +82,7 @@ describe('VentasService', () => {
   let inventario: { ajustarEnTx: jest.Mock };
   let motorCupones: { evaluar: jest.Mock };
   let serieCpe: { asignarProximoCorrelativoEnTenant: jest.Mock };
+  let configFacturacion: { estaConfigurada: jest.Mock };
   let eventEmitter: { emit: jest.Mock };
 
   beforeEach(async () => {
@@ -96,6 +98,9 @@ describe('VentasService', () => {
         correlativo: '00000001',
       }),
     };
+    // Por defecto el tenant NO tiene facturación configurada → el guard de
+    // identificación de boletas queda inactivo en los tests existentes.
+    configFacturacion = { estaConfigurada: jest.fn().mockResolvedValue(false) };
     eventEmitter = { emit: jest.fn() };
 
     const cliente = {
@@ -111,6 +116,7 @@ describe('VentasService', () => {
         { provide: InventarioService, useValue: inventario },
         { provide: MotorCuponesService, useValue: motorCupones },
         { provide: SerieCpeService, useValue: serieCpe },
+        { provide: ConfiguracionFacturacionService, useValue: configFacturacion },
         { provide: AppEventEmitter, useValue: eventEmitter },
       ],
     }).compile();
@@ -457,6 +463,78 @@ describe('VentasService', () => {
       const data = tx.venta.create.mock.calls[0][0].data;
       // 10.005 redondeado a 2 → 10.01
       expect(data.total).toBeCloseTo(10.01, 2);
+    });
+  });
+
+  // ---------- crear: guard SUNAT (boleta > S/700 requiere DNI) ----------
+
+  describe('crear (guard identificación boleta > S/700)', () => {
+    it('rechaza boleta > S/700 sin cliente cuando el tenant emite CPE', async () => {
+      tx.sucursal.findFirst.mockResolvedValue({ id: 's' });
+      tx.variante.findMany.mockResolvedValue([variante('v1', '800')]);
+      configFacturacion.estaConfigurada.mockResolvedValue(true);
+      await expect(
+        service.crear(
+          { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+          ctx,
+          'u1',
+        ),
+      ).rejects.toBeInstanceOf(ErrorValidacion);
+    });
+
+    it('permite boleta > S/700 con cliente DNI identificado', async () => {
+      mockHappyPath(tx);
+      tx.variante.findMany.mockResolvedValue([variante('v1', '800')]);
+      configFacturacion.estaConfigurada.mockResolvedValue(true);
+      tx.cliente.findFirst.mockResolvedValue({
+        id: 'c1',
+        tipoDocumento: 'dni',
+        documento: '12345678',
+        clasificacion: null,
+        totalCompras: new Prisma.Decimal('0'),
+        ultimaCompraEn: null,
+      });
+      await expect(
+        service.crear(
+          {
+            sucursalId: 's',
+            clienteId: 'c1',
+            items: [{ varianteId: 'v1', cantidad: 1 }],
+          } as never,
+          ctx,
+          'u1',
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    it('permite boleta > S/700 si es nota de venta interna (ni consulta config)', async () => {
+      mockHappyPath(tx);
+      tx.variante.findMany.mockResolvedValue([variante('v1', '800')]);
+      await expect(
+        service.crear(
+          {
+            sucursalId: 's',
+            items: [{ varianteId: 'v1', cantidad: 1 }],
+            esNotaDeVenta: true,
+          } as never,
+          ctx,
+          'u1',
+        ),
+      ).resolves.toBeDefined();
+      expect(configFacturacion.estaConfigurada).not.toHaveBeenCalled();
+    });
+
+    it('permite boleta > S/700 si el tenant no tiene facturación configurada', async () => {
+      mockHappyPath(tx);
+      tx.variante.findMany.mockResolvedValue([variante('v1', '800')]);
+      configFacturacion.estaConfigurada.mockResolvedValue(false);
+      await expect(
+        service.crear(
+          { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+          ctx,
+          'u1',
+        ),
+      ).resolves.toBeDefined();
     });
   });
 
