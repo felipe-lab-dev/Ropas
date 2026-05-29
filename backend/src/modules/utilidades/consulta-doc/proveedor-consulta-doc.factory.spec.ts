@@ -30,6 +30,7 @@ describe('proveedorConsultaDocProvider (DI)', () => {
     expect(proveedor.nombre).toBe('json.pe');
     expect(typeof proveedor.consultarDni).toBe('function');
     expect(typeof proveedor.consultarRuc).toBe('function');
+    expect(typeof proveedor.consultarTipoCambio).toBe('function');
     // Sin token configurado, el contrato exige degradar a fuera_de_servicio.
     const r = await proveedor.consultarDni('27427864');
     expect(r.tipo).toBe('fuera_de_servicio');

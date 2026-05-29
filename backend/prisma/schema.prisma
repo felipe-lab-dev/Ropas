@@ -545,6 +545,9 @@ model SesionCaja {
   montoCierre   Decimal?         @map("monto_cierre") @db.Decimal(12, 2)
   montoEsperado Decimal?         @map("monto_esperado") @db.Decimal(12, 2)
   diferencia    Decimal?         @db.Decimal(12, 2)
+  // Arqueo de monedas ADICIONALES a PEN (p.ej. USD). PEN vive en las columnas
+  // monto* de arriba. Array de { moneda, apertura, cierre, esperado, diferencia }.
+  saldosMoneda  Json?            @map("saldos_moneda")
   notasApertura String?          @map("notas_apertura") @db.Text
   notasCierre   String?          @map("notas_cierre") @db.Text
   abiertaEn     DateTime         @default(now()) @map("abierta_en")
@@ -603,6 +606,7 @@ model MovimientoCaja {
   categoria             CategoriaMovimientoCaja? @default(otro_ingreso)
   subCategoria          String?                  @map("sub_categoria") @db.VarChar(40)
   medio                 MedioPago                @default(efectivo)
+  moneda                String                   @default("PEN") @db.VarChar(3)
   monto                 Decimal                  @db.Decimal(12, 2)
   motivo                String                   @db.VarChar(240)
   comprobante           String?                  @db.VarChar(60)

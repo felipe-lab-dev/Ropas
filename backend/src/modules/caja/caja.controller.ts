@@ -42,7 +42,13 @@ export class CajaController {
   // Apertura / cierre
   @Post('abrir') @RequierePermiso('caja:operar')
   async abrir(
-    @Body() body: { sucursalId: string; montoApertura: number; notas?: string },
+    @Body()
+    body: {
+      sucursalId: string;
+      montoApertura: number;
+      aperturasMoneda?: { moneda: string; monto: number }[];
+      notas?: string;
+    },
     @Tenant() ctx: TenantContext,
     @Req() req: Request,
   ) {
@@ -51,6 +57,7 @@ export class CajaController {
         sucursalId: body.sucursalId,
         cajeroId: req.usuario!.sub,
         montoApertura: body.montoApertura,
+        aperturasMoneda: body.aperturasMoneda,
         notas: body.notas,
       },
       ctx,
@@ -61,7 +68,12 @@ export class CajaController {
   @Post(':id/cerrar') @RequierePermiso('caja:operar')
   async cerrar(
     @Param('id') id: string,
-    @Body() body: { montoCierre: number; notas?: string },
+    @Body()
+    body: {
+      montoCierre: number;
+      cierresMoneda?: { moneda: string; monto: number }[];
+      notas?: string;
+    },
     @Tenant() ctx: TenantContext,
   ) {
     const sesion = await this.service.cerrar(id, body, ctx);

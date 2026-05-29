@@ -70,7 +70,7 @@ export class ProveedoresService {
     const cliente = this.prisma.forTenant(ctx);
     const proveedor = await this.obtener(id, ctx);
 
-    const [totalCompras, ultima, agregados] = await Promise.all([
+    const [totalCompras, ultima, abiertas] = await Promise.all([
       cliente.compra.count({
         where: { proveedorId: id, eliminadoEn: null, anuladaEn: null },
       }),
@@ -79,20 +79,23 @@ export class ProveedoresService {
         orderBy: { fechaEmision: 'desc' },
         select: { fechaEmision: true, total: true, numero: true, id: true },
       }),
-      cliente.compra.aggregate({
+      // No usamos aggregate _sum: mezclaría USD+PEN. Traemos las compras abiertas
+      // (conjunto acotado por proveedor) y sumamos la deuda en PEN con el TC.
+      cliente.compra.findMany({
         where: {
           proveedorId: id,
           eliminadoEn: null,
           anuladaEn: null,
           estadoPago: { in: ['pendiente', 'parcial', 'vencida'] },
         },
-        _sum: { total: true, totalPagado: true },
+        select: { total: true, totalPagado: true, tipoCambio: true },
       }),
     ]);
 
-    const totalSum = agregados._sum.total ?? new Prisma.Decimal(0);
-    const pagadoSum = agregados._sum.totalPagado ?? new Prisma.Decimal(0);
-    const deudaCalculada = totalSum.minus(pagadoSum);
+    const deudaCalculada = abiertas.reduce(
+      (acc, c) => acc.plus(c.total.minus(c.totalPagado).times(c.tipoCambio)),
+      new Prisma.Decimal(0),
+    );
 
     return {
       ...proveedor,

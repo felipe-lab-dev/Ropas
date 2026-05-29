@@ -20,6 +20,7 @@ interface Props {
 
 export function DialogApertura({ open, onOpenChange, sucursalId, sucursalNombre }: Props) {
   const [monto, setMonto] = React.useState('');
+  const [montoUsd, setMontoUsd] = React.useState('');
   const [notas, setNotas] = React.useState('');
   const qc = useQueryClient();
 
@@ -28,11 +29,16 @@ export function DialogApertura({ open, onOpenChange, sucursalId, sucursalNombre 
       postear('/caja/abrir', {
         sucursalId,
         montoApertura: parseFloat(monto),
+        aperturasMoneda:
+          montoUsd && parseFloat(montoUsd) > 0
+            ? [{ moneda: 'USD', monto: parseFloat(montoUsd) }]
+            : undefined,
         notas: notas || undefined,
       }),
     onSuccess: () => {
       toast.success('Caja abierta correctamente');
       setMonto('');
+      setMontoUsd('');
       setNotas('');
       qc.invalidateQueries({ queryKey: ['caja-mi-sesion'] });
       qc.invalidateQueries({ queryKey: ['caja-sesiones'] });
@@ -71,7 +77,7 @@ export function DialogApertura({ open, onOpenChange, sucursalId, sucursalNombre 
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="apertura-monto">Monto inicial en caja</Label>
+          <Label htmlFor="apertura-monto">Monto inicial en soles (S/)</Label>
           <Input
             id="apertura-monto"
             type="number"
@@ -82,6 +88,22 @@ export function DialogApertura({ open, onOpenChange, sucursalId, sucursalNombre 
             onChange={e => setMonto(e.target.value)}
             className="text-lg font-mono"
             autoFocus
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="apertura-monto-usd">
+            Saldo inicial en dólares (US$) <span className="text-[hsl(var(--text-muted))]">— opcional</span>
+          </Label>
+          <Input
+            id="apertura-monto-usd"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            value={montoUsd}
+            onChange={e => setMontoUsd(e.target.value)}
+            className="text-lg font-mono"
           />
         </div>
 

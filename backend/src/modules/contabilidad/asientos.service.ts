@@ -235,12 +235,16 @@ export class AsientosService {
       proveedorDoc: { tipo: string; numero: string };
       docTipo: string;
       docNumero: string;
+      moneda?: string;
+      tipoCambio?: number;
       usuarioId: string;
     },
   ) {
     const base = round2(params.subtotal);
-    const igv = round2(params.igv);
     const total = round2(params.total);
+    // Derivamos el IGV del total para que el asiento cuadre por construcción
+    // (base + igv = total), evitando descuadres de 0.01 al convertir montos a PEN.
+    const igv = round2(total - base);
 
     const detallesCompra: DetalleAsiento[] = [
       {
@@ -281,6 +285,8 @@ export class AsientosService {
       origenTipo: 'compra',
       origenId: params.compraId,
       detalles: detallesCompra,
+      moneda: params.moneda,
+      tipoCambio: params.tipoCambio,
       usuarioId: params.usuarioId,
     });
 
@@ -296,6 +302,8 @@ export class AsientosService {
           { cuentaCodigo: CUENTAS.mercaderias, glosa: 'Ingreso a mercaderías', debe: base },
           { cuentaCodigo: CUENTAS.variacionExistencias, glosa: 'Variación existencias', haber: base },
         ],
+        moneda: params.moneda,
+        tipoCambio: params.tipoCambio,
         usuarioId: params.usuarioId,
       });
     }
@@ -317,6 +325,8 @@ export class AsientosService {
       monto: number;
       medio: string;
       proveedorDoc: { tipo: string; numero: string };
+      moneda?: string;
+      tipoCambio?: number;
       usuarioId: string;
     },
   ) {
@@ -341,6 +351,8 @@ export class AsientosService {
           haber: monto,
         },
       ],
+      moneda: params.moneda,
+      tipoCambio: params.tipoCambio,
       usuarioId: params.usuarioId,
     });
   }

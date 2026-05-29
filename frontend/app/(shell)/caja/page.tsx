@@ -67,6 +67,7 @@ interface MovimientoCaja {
   categoria: CategoriaMovimiento | null;
   subCategoria: string | null;
   medio: string;
+  moneda: string;
   monto: string;
   motivo: string;
   comprobante: string | null;
@@ -76,9 +77,18 @@ interface MovimientoCaja {
   creadoPor: { id: string; nombre: string } | null;
 }
 
+interface SaldoMonedaExtra {
+  moneda: string;
+  apertura: number;
+  ingresos: number;
+  egresos: number;
+  efectivoEsperado: number;
+}
+
 interface TotalesSesion {
   sesionId: string;
   efectivoEsperado: number;
+  porMoneda?: SaldoMonedaExtra[];
   ventas: { cantidad: number; total: number; totalCobrado: number; porMedio: Record<string, number> };
   ingresosManual: { total: number; porMedio: Record<string, number> };
   egresosManual: { total: number; porMedio: Record<string, number> };
@@ -270,7 +280,10 @@ export default function CajaPage() {
             )}
           >
             {modo === 'egreso' ? '−' : '+'}
-            {formatearMoneda(m.monto)}
+            {formatearMoneda(m.monto, m.moneda || 'PEN')}
+            {m.moneda && m.moneda !== 'PEN' && (
+              <span className="ml-1 text-[10px] font-mono text-[hsl(var(--text-muted))]">{m.moneda}</span>
+            )}
           </span>
         ),
       },
@@ -462,6 +475,20 @@ export default function CajaPage() {
                   </p>
                 </div>
               </div>
+              {totalesQ.data.porMoneda && totalesQ.data.porMoneda.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-[hsl(var(--border))] flex flex-wrap gap-6">
+                  {totalesQ.data.porMoneda.map(pm => (
+                    <div key={pm.moneda}>
+                      <p className="text-[10px] uppercase tracking-widest text-[hsl(var(--text-muted))] font-bold">
+                        Efectivo esperado {pm.moneda}
+                      </p>
+                      <p className="text-lg font-bold tabular-nums mt-1">
+                        {formatearMoneda(pm.efectivoEsperado, pm.moneda)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
           )}
 
@@ -645,6 +672,7 @@ export default function CajaPage() {
           onOpenChange={setOpenCierre}
           sesionId={sesion.id}
           efectivoEsperado={totalesQ.data.efectivoEsperado}
+          porMoneda={totalesQ.data.porMoneda}
         />
       )}
       {sesion && (

@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { z } from 'zod';
 import { ProveedorConsultaDoc } from '../proveedor-consulta-doc.puerto';
-import { ResultadoConsulta, DatosRuc, DatosDni } from '../tipos';
+import { ResultadoConsulta, DatosRuc, DatosDni, DatosTipoCambio } from '../tipos';
 
 /**
  * ADAPTADOR para la API pública peruana **json.pe** (RENIEC/SUNAT).
@@ -25,6 +25,8 @@ import { ResultadoConsulta, DatosRuc, DatosDni } from '../tipos';
 
 const MSG_SIN_TOKEN =
   'Servicio de consulta de RUC/DNI no configurado (falta JSONPE_API_TOKEN).';
+const MSG_SIN_TOKEN_TC =
+  'Servicio de tipo de cambio no configurado (falta JSONPE_API_TOKEN).';
 
 // Forma real verificada (2026-05) de `data` en json.pe. Se aceptan variantes
 // camelCase por compatibilidad defensiva.
@@ -58,6 +60,22 @@ const DniPayload = z
     apellidoPaterno: z.string().optional(),
     apellido_materno: z.string().optional(),
     apellidoMaterno: z.string().optional(),
+  })
+  .passthrough();
+
+// json.pe duplica venta/compra (español) y sale/purchase (inglés). Algunos
+// proveedores serializan decimales como string, por eso z.union.
+const TipoCambioPayload = z
+  .object({
+    moneda: z.string().optional(),
+    fecha_sunat: z.string().optional(),
+    fechaSunat: z.string().optional(),
+    fecha_busqueda: z.string().optional(),
+    date: z.string().optional(),
+    venta: z.union([z.number(), z.string()]).optional(),
+    compra: z.union([z.number(), z.string()]).optional(),
+    sale: z.union([z.number(), z.string()]).optional(),
+    purchase: z.union([z.number(), z.string()]).optional(),
   })
   .passthrough();
 
@@ -180,6 +198,73 @@ export class JsonPeAdapter implements ProveedorConsultaDoc {
         nombreCompleto: completo,
       },
     };
+  }
+
+  async consultarTipoCambio(
+    fecha?: string,
+  ): Promise<ResultadoConsulta<DatosTipoCambio>> {
+    if (!this.disponible) {
+      return { tipo: 'fuera_de_servicio', mensaje: MSG_SIN_TOKEN_TC };
+    }
+    const dia = (fecha ?? this.hoyLima()).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) {
+      return { tipo: 'error_tecnico', mensaje: 'Fecha inválida (use YYYY-MM-DD)' };
+    }
+    let resp: { status: number; data: unknown };
+    try {
+      resp = await this.pedir('/api/tipo_de_cambio', { fecha: dia });
+    } catch (err) {
+      return this.errorRed(err, '/api/tipo_de_cambio');
+    }
+    const noOk = this.clasificarHttp(resp.status);
+    if (noOk) {
+      // Para TC un 404/"no encontrado" NO es semántica de negocio (no hay "doc
+      // inexistente"): es fallo de fuente. Reclasificar a error_tecnico para que
+      // la UI ofrezca reintento/override manual, no "no encontrado".
+      return noOk.tipo === 'sin_datos'
+        ? {
+            tipo: 'error_tecnico',
+            mensaje: 'No se pudo obtener el tipo de cambio de la fuente',
+          }
+        : noOk;
+    }
+
+    const parsed = TipoCambioPayload.safeParse(this.desenvolver(resp.data));
+    if (!parsed.success) {
+      this.logger.warn({ fecha: dia }, 'Respuesta json.pe tipo_de_cambio no parseable');
+      return {
+        tipo: 'error_tecnico',
+        mensaje: 'Respuesta inesperada del servicio de tipo de cambio',
+      };
+    }
+    const r = parsed.data;
+    const venta = Number(r.venta ?? r.sale);
+    const compra = Number(r.compra ?? r.purchase);
+    if (!Number.isFinite(venta) || venta <= 0) {
+      return {
+        tipo: 'error_tecnico',
+        mensaje: 'El tipo de cambio recibido no es válido',
+      };
+    }
+    return {
+      tipo: 'datos',
+      datos: {
+        venta,
+        compra: Number.isFinite(compra) && compra > 0 ? compra : venta,
+        moneda: r.moneda ?? 'USD',
+        fecha: r.fecha_sunat ?? r.fechaSunat ?? r.date ?? r.fecha_busqueda ?? dia,
+      },
+    };
+  }
+
+  /** Fecha de hoy YYYY-MM-DD en zona Lima (evita desfase de día por UTC). */
+  private hoyLima(): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Lima',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
   }
 
   /** POST crudo. No lanza por status (validateStatus true); sí lanza por red. */

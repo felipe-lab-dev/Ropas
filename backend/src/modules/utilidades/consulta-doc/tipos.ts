@@ -28,6 +28,13 @@ export interface DatosDni {
   nombreCompleto: string;
 }
 
+export interface DatosTipoCambio {
+  venta: number; // TC venta — el usado para valorizar compras/ventas en USD
+  compra: number; // TC compra
+  moneda: string; // 'USD' (par USD/PEN)
+  fecha: string; // fecha SUNAT efectiva del TC (YYYY-MM-DD)
+}
+
 /**
  * Resultado discriminado de cualquier consulta. Quien lo recibe DEBE chequear
  * `tipo` antes de leer `datos`. Distingue los 4 casos de la guía (sección 6):

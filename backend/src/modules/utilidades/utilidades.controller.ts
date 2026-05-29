@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import {
   ErrorNoEncontrado,
@@ -45,6 +45,14 @@ export class UtilidadesController {
       throw new ErrorValidacion('El DNI debe tener 8 dígitos');
     }
     return this.aRespuesta(await this.proveedor.consultarDni(dni));
+  }
+
+  @Get('tipo-cambio')
+  async tipoCambio(@Query('fecha') fecha?: string) {
+    if (fecha !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      throw new ErrorValidacion('La fecha debe tener formato YYYY-MM-DD');
+    }
+    return this.aRespuesta(await this.proveedor.consultarTipoCambio(fecha));
   }
 
   /**

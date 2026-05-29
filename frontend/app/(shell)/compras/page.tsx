@@ -30,6 +30,7 @@ interface CompraLista {
   sucursal: { id: string; nombre: string };
   fechaEmision: string;
   fechaVencimiento?: string | null;
+  moneda: string;
   total: string;
   totalPagado: string;
   estado: 'borrador' | 'recibida' | 'anulada';
@@ -165,8 +166,13 @@ export default function ComprasPage() {
                   </TableCell>
                   <TableCell className="text-xs hidden lg:table-cell">{formatearFecha(c.fechaEmision)}</TableCell>
                   <TableCell className="text-xs hidden 2xl:table-cell">{c.fechaVencimiento ? formatearFecha(c.fechaVencimiento) : '—'}</TableCell>
-                  <TableCell className="text-right tabular-nums font-bold">{formatearMoneda(c.total)}</TableCell>
-                  <TableCell className="text-right tabular-nums hidden xl:table-cell">{formatearMoneda(c.totalPagado)}</TableCell>
+                  <TableCell className="text-right tabular-nums font-bold">
+                    {formatearMoneda(c.total, c.moneda)}
+                    {c.moneda !== 'PEN' && (
+                      <span className="ml-1 text-[10px] font-mono text-[hsl(var(--text-muted))]">{c.moneda}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums hidden xl:table-cell">{formatearMoneda(c.totalPagado, c.moneda)}</TableCell>
                   <TableCell>
                     {c.estado === 'anulada' ? (
                       <Badge variant="danger">Anulada</Badge>

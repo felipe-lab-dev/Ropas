@@ -167,4 +167,121 @@ describe('JsonPeAdapter', () => {
       expect(r.tipo).toBe('error_tecnico');
     });
   });
+
+  // ── Tipo de cambio ───────────────────────────────────────────────────────
+  describe('consultarTipoCambio', () => {
+    it('fecha válida → tipo "datos" con venta/compra normalizados y body+header correctos', async () => {
+      const http = httpMock(
+        axiosResp({
+          success: true,
+          data: {
+            moneda: 'USD',
+            fecha_sunat: '2024-01-15',
+            venta: 3.696,
+            compra: 3.69,
+            sale: 3.696,
+            purchase: 3.69,
+          },
+        }),
+      );
+      const adapter = new JsonPeAdapter(http as never, configMock(TOKEN) as never);
+
+      const r = await adapter.consultarTipoCambio('2024-01-15');
+
+      expect(r.tipo).toBe('datos');
+      if (r.tipo === 'datos') {
+        expect(r.datos.venta).toBe(3.696);
+        expect(r.datos.compra).toBe(3.69);
+        expect(r.datos.moneda).toBe('USD');
+        expect(r.datos.fecha).toBe('2024-01-15');
+      }
+      expect(http.post).toHaveBeenCalledWith(
+        'https://api.json.pe/api/tipo_de_cambio',
+        { fecha: '2024-01-15' },
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: `Bearer ${TOKEN}`,
+          }),
+        }),
+      );
+    });
+
+    it('payload solo con sale/purchase (inglés) → normaliza a venta/compra', async () => {
+      const http = httpMock(
+        axiosResp({ data: { sale: 3.7, purchase: 3.65, fecha_sunat: '2024-02-01' } }),
+      );
+      const adapter = new JsonPeAdapter(http as never, configMock(TOKEN) as never);
+
+      const r = await adapter.consultarTipoCambio('2024-02-01');
+
+      expect(r.tipo).toBe('datos');
+      if (r.tipo === 'datos') {
+        expect(r.datos.venta).toBe(3.7);
+        expect(r.datos.compra).toBe(3.65);
+      }
+    });
+
+    it('HTTP 400 inválido → tipo "error_tecnico"', async () => {
+      const http = httpMock(axiosResp({ success: false, message: 'Bad Request' }, 400));
+      const adapter = new JsonPeAdapter(http as never, configMock(TOKEN) as never);
+
+      const r = await adapter.consultarTipoCambio('2024-01-15');
+
+      expect(r.tipo).toBe('error_tecnico');
+    });
+
+    it('HTTP 404 de fuente → tipo "error_tecnico" (NO sin_datos)', async () => {
+      const http = httpMock(axiosResp({ success: false }, 404));
+      const adapter = new JsonPeAdapter(http as never, configMock(TOKEN) as never);
+
+      const r = await adapter.consultarTipoCambio('2024-01-15');
+
+      expect(r.tipo).toBe('error_tecnico');
+    });
+
+    it('caída de red → tipo "error_tecnico"', async () => {
+      const http = {
+        post: jest
+          .fn()
+          .mockReturnValue(throwError(() => new Error('ETIMEDOUT'))),
+      };
+      const adapter = new JsonPeAdapter(http as never, configMock(TOKEN) as never);
+
+      const r = await adapter.consultarTipoCambio('2024-01-15');
+
+      expect(r.tipo).toBe('error_tecnico');
+    });
+
+    it('sin token → tipo "fuera_de_servicio" y NO llama a la API', async () => {
+      const http = httpMock(axiosResp({}, 200));
+      const adapter = new JsonPeAdapter(http as never, configMock(undefined) as never);
+
+      const r = await adapter.consultarTipoCambio('2024-01-15');
+
+      expect(r.tipo).toBe('fuera_de_servicio');
+      expect(http.post).not.toHaveBeenCalled();
+    });
+
+    it('fecha mal formateada → tipo "error_tecnico" sin llamar a la red', async () => {
+      const http = httpMock(axiosResp({}, 200));
+      const adapter = new JsonPeAdapter(http as never, configMock(TOKEN) as never);
+
+      const r = await adapter.consultarTipoCambio('15/01/2024');
+
+      expect(r.tipo).toBe('error_tecnico');
+      expect(http.post).not.toHaveBeenCalled();
+    });
+
+    it('sin fecha → usa la de hoy en formato YYYY-MM-DD', async () => {
+      const http = httpMock(
+        axiosResp({ data: { venta: 3.8, compra: 3.75, moneda: 'USD' } }),
+      );
+      const adapter = new JsonPeAdapter(http as never, configMock(TOKEN) as never);
+
+      await adapter.consultarTipoCambio();
+
+      const body = (http.post as jest.Mock).mock.calls[0][1] as { fecha: string };
+      expect(body.fecha).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+  });
 });
