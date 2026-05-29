@@ -182,7 +182,7 @@ export function NotaCreditoDetalleCliente() {
           <p className="text-sm text-[hsl(var(--text-muted))] mt-1 ml-12">
             Emitida {formatearFecha(nc.creadoEn, 'completa')} por {nc.emitidaPor.nombre} ·{' '}
             sobre venta{' '}
-            <Link href={`/ventas/${nc.venta.id}`} className="hover:underline font-mono">
+            <Link href={`/ventas?ver=${nc.venta.id}`} className="hover:underline font-mono">
               {nc.venta.numero}
             </Link>
           </p>
@@ -355,7 +355,7 @@ export function NotaCreditoDetalleCliente() {
               <h2 className="font-semibold text-sm">Venta de origen</h2>
             </div>
             <Link
-              href={`/ventas/${nc.venta.id}`}
+              href={`/ventas?ver=${nc.venta.id}`}
               className="block px-5 py-4 hover:bg-[hsl(var(--surface-2))]/50 transition-colors"
             >
               <div className="flex items-center justify-between gap-3">

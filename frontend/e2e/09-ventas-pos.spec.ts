@@ -64,6 +64,47 @@ test.describe('Ventas POS · cobrar', () => {
     ).toBeVisible({ timeout: 8_000 });
   });
 
+  test('abre el detalle de una venta en drawer (sin redirección) y lo cierra', async ({
+    page,
+  }) => {
+    // ── ARRANGE: vender para tener una venta en la lista ────────────────────
+    const api = await apiContext();
+    const sucursalId = await sucursalActivaDelPos(api);
+    const producto = await seedProducto(api, { precioVenta: 100, stockInicial: 5, sucursalId });
+    await api.dispose();
+
+    await gotoY(page, '/pos');
+    await fillEstable(page, '[data-testid="pos-buscar-producto"]', producto.sku);
+    const resultado = page.locator('[data-testid^="pos-resultado-E2E-V-"]').first();
+    await expect(resultado).toBeVisible({ timeout: 8_000 });
+    await resultado.click();
+    await page.locator('[data-testid="btn-cobrar-pos"]').click();
+    const toast = page
+      .locator('[data-sonner-toast]')
+      .filter({ hasText: /venta\s+\S+\s+registrada/i })
+      .first();
+    await expect(toast).toBeVisible({ timeout: 12_000 });
+    const numero = (await toast.textContent())!.match(/venta\s+(\S+?)\s+registrada/i)![1]!;
+
+    // ── ACT: abrir el detalle desde la tabla (drawer, NO navegación) ────────
+    await gotoY(page, '/ventas');
+    await page.locator('[data-busqueda]').fill(numero);
+    const fila = page.getByRole('row').filter({ hasText: numero }).first();
+    await expect(fila).toBeVisible({ timeout: 8_000 });
+    await fila.getByTestId('btn-ver-venta').click();
+
+    // ── ASSERT: el drawer abre con el detalle + la URL lleva ?ver= ──────────
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible({ timeout: 8_000 });
+    await expect(drawer.getByText('Detalle de productos')).toBeVisible();
+    await expect(page).toHaveURL(/[?&]ver=/);
+
+    // ── ASSERT: se cierra con Escape y la URL vuelve a /ventas ──────────────
+    await page.keyboard.press('Escape');
+    await expect(drawer).toBeHidden({ timeout: 8_000 });
+    await expect(page).not.toHaveURL(/[?&]ver=/);
+  });
+
   test('vende con cliente asignado desde el popover', async ({ page }) => {
     const api = await apiContext();
     const sucursalId = await sucursalActivaDelPos(api);

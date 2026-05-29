@@ -24,8 +24,8 @@ export class VentasController {
   constructor(private readonly service: VentasService) {}
 
   @Get() @RequierePermiso('ventas:leer')
-  async listar(@Query() q: any, @Tenant() ctx: TenantContext) {
-    return this.service.listar(q, ctx);
+  async listar(@Query() q: any, @Tenant() ctx: TenantContext, @Req() req: Request) {
+    return this.service.listar(q, ctx, req.usuario!.permisos);
   }
 
   @Get(':id') @RequierePermiso('ventas:leer')

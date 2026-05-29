@@ -116,10 +116,10 @@ test.describe('POS · Nota de venta (modalidad sin SUNAT)', () => {
     await expect(fila).toBeVisible({ timeout: 8_000 });
     await expect(fila.locator('text=/^NV$/').first()).toBeVisible();
 
-    // Detalle de la venta: badge "Nota de venta" en el header
-    await fila.locator(`a:has-text("${numero}")`).first().click();
-    await expect(page).toHaveURL(/\/ventas\//);
-    await expect(page.getByText(/Nota de venta/i).first()).toBeVisible();
+    // Detalle de la venta (drawer): badge "Nota de venta"
+    await fila.getByTestId('btn-ver-venta').click();
+    await expect(page).toHaveURL(/[?&]ver=/);
+    await expect(page.getByText(/Nota de venta/i).first()).toBeVisible({ timeout: 8_000 });
     // El card "Facturación electrónica" no debe estar — en su lugar el aviso "Nota de venta interna"
     await expect(page.getByText(/Nota de venta interna/i).first()).toBeVisible();
 
@@ -165,7 +165,7 @@ test.describe('POS · Nota de venta (modalidad sin SUNAT)', () => {
     await gotoY(page, '/ventas');
     await page.locator('[data-busqueda]').fill(numero);
     const fila = page.getByRole('row').filter({ hasText: numero }).first();
-    await fila.locator(`a:has-text("${numero}")`).first().click();
+    await fila.getByTestId('btn-ver-venta').click();
 
     // Botón "Devolución" debe estar visible (NO "Nota de crédito")
     const btnDevolucion = page.getByRole('button', { name: /devoluci[oó]n/i }).first();

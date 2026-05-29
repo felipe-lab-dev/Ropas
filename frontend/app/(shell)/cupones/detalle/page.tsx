@@ -268,7 +268,7 @@ function CuponDetalleContenido({ id }: { id: string }) {
                       </TableCell>
                       <TableCell>{u.cliente?.nombre ?? <span className="text-[hsl(var(--text-muted))]">Sin cliente</span>}</TableCell>
                       <TableCell>
-                        <Link href={`/ventas/${u.venta.id}`} className="font-mono text-xs hover:underline">
+                        <Link href={`/ventas?ver=${u.venta.id}`} className="font-mono text-xs hover:underline">
                           {u.venta.numero}
                         </Link>
                       </TableCell>
