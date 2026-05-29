@@ -536,25 +536,26 @@ function ProductosPageContenido() {
       <MotorLogisticoModal abierto={motorAbierto} onAbiertoChange={setMotorAbierto} />
       <ImportarExportarModal abierto={importarAbierto} onAbiertoChange={setImportarAbierto} />
 
-      {/* Modal "Nuevo producto" — tras crear pasa a "editar" para sumar imágenes */}
-      <Dialog open={modal?.tipo === 'nuevo'} onOpenChange={a => !a && cerrarModal()}>
-        <DialogContent
-          className="max-w-5xl w-[min(95vw,72rem)] max-h-[92vh] overflow-y-auto p-6"
-          data-testid="modal-nuevo-producto"
-        >
-          <DialogTitle>Nuevo producto</DialogTitle>
-          <DialogDescription className="sr-only">
-            Datos esenciales del producto. Las variantes y las imágenes son opcionales.
-          </DialogDescription>
-          {modal?.tipo === 'nuevo' && (
+      {/* "Nuevo producto" — drawer (acorde al patrón de detalle). Tras crear,
+          abre el drawer de detalle (que tiene "Subir foto") en vez del modal de editar. */}
+      <DetalleSheet
+        open={modal?.tipo === 'nuevo'}
+        onOpenChange={a => { if (!a) cerrarModal(); }}
+        titulo="Nuevo producto"
+        subtitulo="Datos esenciales · variantes e imágenes son opcionales"
+        icono={<Plus className="size-4" />}
+        ancho="4xl"
+      >
+        {modal?.tipo === 'nuevo' && (
+          <div className="p-4 sm:p-5" data-testid="modal-nuevo-producto">
             <NuevoProductoCliente
               modoModal
               onCerrar={cerrarModal}
-              onCreado={(id) => abrirEditar(id)}
+              onCreado={(id) => abrir(id)}
             />
-          )}
-        </DialogContent>
-      </Dialog>
+          </div>
+        )}
+      </DetalleSheet>
 
       <Dialog open={modal?.tipo === 'editar'} onOpenChange={a => !a && cerrarModal()}>
         <DialogContent className="max-w-5xl w-[min(95vw,72rem)] max-h-[92vh] overflow-y-auto p-6">

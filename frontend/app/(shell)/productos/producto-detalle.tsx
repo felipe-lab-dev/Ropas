@@ -10,7 +10,6 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { obtener } from '@/lib/api/client';
-import { formatearMoneda } from '@/lib/utils';
 import { colorCategoria } from '@/lib/color-categoria';
 import { PanelInsightsProducto } from './panel-insights-producto';
 
@@ -92,28 +91,6 @@ export function ProductoDetalle({ productoId, onEditar, onKardex }: ProductoDeta
         </span>
       </div>
 
-      {/* Precio / stock */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="p-4">
-          <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))]">Precio de venta</p>
-          <p className="text-xl font-black tracking-tight tabular-nums mt-1">{formatearMoneda(p.precioVenta)}</p>
-          {p.precioCompra != null && (
-            <p className="text-[11px] text-[hsl(var(--text-muted))] mt-0.5">
-              Costo {formatearMoneda(p.precioCompra)}
-            </p>
-          )}
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))]">Stock total</p>
-          <p className={`text-xl font-black tracking-tight tabular-nums mt-1 ${stockTotal === 0 ? 'text-[hsl(var(--brand-danger))]' : ''}`}>
-            {stockTotal}
-          </p>
-          <p className="text-[11px] text-[hsl(var(--text-muted))] mt-0.5">
-            {p.variantes.length} variante{p.variantes.length === 1 ? '' : 's'}
-          </p>
-        </Card>
-      </div>
-
       {/* Fotos + insights (reutiliza el panel existente) */}
       <PanelInsightsProducto productoId={p.id} imagenes={p.imagenes} nombre={p.nombre} />
 
@@ -122,6 +99,9 @@ export function ProductoDetalle({ productoId, onEditar, onKardex }: ProductoDeta
         <div className="p-3 border-b border-[hsl(var(--border))] flex items-center gap-2">
           <Boxes className="size-4" />
           <h3 className="font-semibold text-sm">Variantes y stock</h3>
+          <Badge variant="outline" className="ml-auto tabular-nums">
+            {stockTotal} en stock · {p.variantes.length} var.
+          </Badge>
         </div>
         <Table>
           <TableHeader>
