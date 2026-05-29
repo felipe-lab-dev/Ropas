@@ -1,14 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { fillEstable, gotoY, login } from './helpers';
 
-test.describe('Cupones · plantillas brutales + render PDF/PNG', () => {
+test.describe('Cupones · plantillas destacadas + render PDF/PNG', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
   });
 
   test('aplica plantilla "flash_sale", pre-llena el formulario y permite guardar', async ({ page }) => {
     await gotoY(page,'/cupones/nuevo?wizard=plantillas');
-    await expect(page.getByText('Plantillas brutales')).toBeVisible();
+    await expect(page.getByText('Plantillas destacadas')).toBeVisible();
 
     // Las 5 plantillas deben estar visibles
     for (const id of ['bienvenida_vip', 'reactivacion_urgente', 'cumpleanios', 'recompra_inteligente', 'flash_sale']) {

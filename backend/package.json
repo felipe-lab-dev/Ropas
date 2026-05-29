@@ -15,14 +15,21 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:format": "prisma format",
+    "schema:snapshot": "tsx scripts/generar-snapshot-schema.ts",
     "tenant:crear": "tsx scripts/crear-tenant.ts",
     "tenant:migrar": "tsx scripts/migrar-tenants.ts",
-    "seed": "tsx scripts/seed.ts",
+    "tenant:modulo": "tsx scripts/tenant-modulo.ts",
+    "tenant:plan": "tsx scripts/tenant-plan.ts",
+    "seed": "tsx scripts/seed-demo.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
     "seed:mujer": "tsx scripts/seed-mujer.ts",
     "seed:ventas": "tsx scripts/seed-ventas.ts",
+    "seed:proveedores": "tsx scripts/seed-proveedores.ts",
     "migrar:codigo": "tsx scripts/aplicar-migracion-codigo.ts",
     "migrar:clasificacion-clientes": "tsx scripts/aplicar-migracion-clasificacion-clientes.ts",
-    "migrar:cupones": "tsx scripts/aplicar-migracion-cupones.ts"
+    "migrar:cupones": "tsx scripts/aplicar-migracion-cupones.ts",
+    "setup:facturacion": "tsx scripts/setup-facturacion.ts",
+    "facturacion:master-key": "tsx scripts/generar-master-key-facturacion.ts"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",
@@ -84,8 +91,8 @@
   "jest": {
     "moduleFileExtensions": [
       "js",
-      "json",
-      "ts"
+      "ts",
+      "json"
     ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",

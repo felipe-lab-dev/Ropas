@@ -1,9 +1,16 @@
 # NestJS + Prisma multi-tenant para Ropas.
 # Build context = raiz del monorepo (necesita pnpm-workspace.yaml + pnpm-lock.yaml).
 # Uso: az acr build --file backend/Dockerfile .
+#
+# Imagen base parametrizable: en CI pasamos --build-arg NODE_IMAGE apuntando
+# al ACR (acrropas.azurecr.io/library/node:22-bookworm-slim, mirror de Node
+# importado desde public.ecr.aws/docker/library/node) para evitar el rate
+# limit de pulls anonimas de Docker Hub en los agentes de ACR Tasks.
+# En build local no hace falta pasar nada — usa Docker Hub por default.
+ARG NODE_IMAGE=node:22-bookworm-slim
 
 # -------- Stage 1: builder --------
-FROM node:22-bookworm-slim AS builder
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /repo
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -38,7 +45,7 @@ WORKDIR /repo/deploy
 RUN ./node_modules/.bin/prisma generate
 
 # -------- Stage 2: runtime --------
-FROM node:22-bookworm-slim AS runtime
+FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

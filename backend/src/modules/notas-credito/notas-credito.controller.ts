@@ -15,10 +15,11 @@ import { Tenant } from '../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { AuthGuard, RequierePermiso } from '../auth/auth.guard';
 import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../saas/catalogo-modulos';
 
 @Controller('notas-credito')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('notas-credito')
+@ModuloHabilitado(CATALOGO_MODULOS.NOTAS_CREDITO)
 export class NotasCreditoController {
   constructor(private readonly service: NotasCreditoService) {}
 

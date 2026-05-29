@@ -8,14 +8,17 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
-import type { Express, Request } from 'express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import type { Express, Request, Response } from 'express';
 import { ProductosService } from './productos.service';
 import { MotorLogisticoService } from './motor-logistico.service';
+import { ImportacionProductosService } from './importacion-productos.service';
 import { CrearProductoDto } from './dto/crear-producto.dto';
 import { ActualizarProductoDto } from './dto/actualizar-producto.dto';
 import {
@@ -26,14 +29,16 @@ import { Tenant } from '../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { AuthGuard, RequierePermiso } from '../auth/auth.guard';
 import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../saas/catalogo-modulos';
 
 @Controller('productos')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('productos')
+@ModuloHabilitado(CATALOGO_MODULOS.PRODUCTOS)
 export class ProductosController {
   constructor(
     private readonly service: ProductosService,
     private readonly motor: MotorLogisticoService,
+    private readonly importacion: ImportacionProductosService,
   ) {}
 
   @Post('motor-logistico/calcular')
@@ -41,6 +46,45 @@ export class ProductosController {
   async motorLogistico(@Tenant() ctx: TenantContext) {
     const datos = await this.motor.calcular(ctx);
     return { datos, mensaje: 'Motor Logístico ejecutado' };
+  }
+
+  // ─── Importación / Exportación ────────────────────────────────────────
+
+  @Get('importar/plantilla')
+  @RequierePermiso('productos:crear')
+  plantilla(@Res() res: Response): void {
+    const csv = this.importacion.plantillaCsv();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="plantilla-productos.csv"');
+    res.send(csv);
+  }
+
+  @Post('importar')
+  @RequierePermiso('productos:crear')
+  @UseInterceptors(FileInterceptor('archivo', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  async importar(
+    @UploadedFile() archivo: Express.Multer.File,
+    @Tenant() ctx: TenantContext,
+    @Req() req: Request,
+  ) {
+    const datos = await this.importacion.importar(archivo, ctx, req.usuario?.sub);
+    return { datos, mensaje: 'Importación completada' };
+  }
+
+  @Get('exportar')
+  @RequierePermiso('productos:leer')
+  async exportar(@Tenant() ctx: TenantContext, @Res() res: Response) {
+    const csv = await this.importacion.exportarCsv(ctx);
+    const fecha = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="productos-${fecha}.csv"`);
+    res.send(csv);
+  }
+
+  @Get('importaciones/historial')
+  @RequierePermiso('productos:leer')
+  async historialImportaciones(@Query() query: any, @Tenant() ctx: TenantContext) {
+    return this.importacion.historial(query, ctx);
   }
 
   @Get()
@@ -69,6 +113,13 @@ export class ProductosController {
     @Tenant() ctx: TenantContext,
   ) {
     return this.service.kardex(id, query, ctx);
+  }
+
+  @Get(':id/insights')
+  @RequierePermiso('productos:leer')
+  async insights(@Param('id') id: string, @Tenant() ctx: TenantContext) {
+    const datos = await this.service.obtenerInsights(id, ctx);
+    return { datos };
   }
 
   @Post()

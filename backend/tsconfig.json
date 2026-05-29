@@ -23,7 +23,8 @@
     "strictNullChecks": true,
     "strictFunctionTypes": true,
     "noUncheckedIndexedAccess": true,
-    "noImplicitReturns": true
+    "noImplicitReturns": true,
+    "resolveJsonModule": true
   },
   "include": ["src/**/*", "scripts/**/*"],
   "exclude": ["node_modules", "dist"]

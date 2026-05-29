@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Eye, History, Search, User } from 'lucide-react';
+import { Eye, History, Search, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -24,6 +24,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Pagination } from '@/components/ui/pagination';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FacetFilter } from '@/components/ui/facet-filter';
+import { CajaTabs } from '@/components/caja/caja-tabs';
 
 interface Sucursal { id: string; nombre: string }
 interface SesionItem {
@@ -100,16 +101,11 @@ export default function HistorialCajaPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        titulo="Historial de caja"
+        titulo="Cierres de caja"
         descripcion="Consulta de cierres anteriores, montos y movimientos."
-        acciones={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/caja">
-              <ArrowLeft className="size-4" /> Operaciones del día
-            </Link>
-          </Button>
-        }
       />
+
+      <CajaTabs />
 
       <Card className="p-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">

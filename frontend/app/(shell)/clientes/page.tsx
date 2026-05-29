@@ -162,7 +162,7 @@ export default function ClientesPage() {
                   <EmptyState
                     ilustracion={<IlustracionClientes className="w-full h-full" />}
                     titulo="Tu base de clientes está vacía"
-                    descripcion="Registrá tus clientes para llevar el control de sus compras y fidelizar."
+                    descripcion="Registra tus clientes para llevar el control de sus compras y fidelizar."
                     accion={{ label: '＋ Nuevo cliente', href: '/clientes/nuevo' }}
                   />
                 </TableCell>

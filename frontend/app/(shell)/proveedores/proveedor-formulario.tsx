@@ -7,7 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Save } from 'lucide-react';
+import { Save, Search, Loader2, Check } from 'lucide-react';
+import { toast } from 'sonner';
+import { obtener, mensajeError } from '@/lib/api/client';
 import {
   CONDICION_LABEL,
   CONDICION_PAGO,
@@ -30,6 +32,18 @@ interface Props {
 
 type Errores = Partial<Record<keyof ProveedorFormValues, string>>;
 
+interface DatosRucNorm {
+  ruc: string;
+  razonSocial: string;
+  nombreComercial: string | null;
+  estado: string | null;
+  direccion: string | null;
+  departamento: string | null;
+  provincia: string | null;
+  distrito: string | null;
+  ubigeo: string | null;
+}
+
 const TIPO_LABEL: Record<(typeof TIPO_DOC)[number], string> = {
   ruc: 'RUC',
   dni: 'DNI',
@@ -45,6 +59,8 @@ function placeholderDoc(tipo: (typeof TIPO_DOC)[number]) {
   return 'Número de documento';
 }
 
+type EstadoConsulta = 'idle' | 'cargando' | 'ok' | 'error';
+
 export function ProveedorFormulario({
   inicial,
   guardando,
@@ -59,10 +75,12 @@ export function ProveedorFormulario({
     ...inicial,
   });
   const [errores, setErrores] = React.useState<Errores>({});
+  const [consulta, setConsulta] = React.useState<EstadoConsulta>('idle');
+  const [consultaMsg, setConsultaMsg] = React.useState<string | null>(null);
+  const ultimoRucConsultadoRef = React.useRef<string>('');
 
   React.useEffect(() => {
     if (inicial) setForm(prev => ({ ...prev, ...inicial }));
-    // Solo se recarga cuando cambia la identidad del objeto inicial (carga remota).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inicial]);
 
@@ -81,6 +99,62 @@ export function ProveedorFormulario({
     setErrores(e => ({ ...e, condicionPago: undefined, diasCredito: undefined }));
   };
 
+  // ── Consulta json.pe ── (solo dispara con click explícito en botón SUNAT) ──
+  const docLimpio = (form.documento ?? '').replace(/\D+/g, '');
+
+  const consultarRuc = React.useCallback(
+    async (rucLimpio: string, opciones: { silenciarToast?: boolean; forzar?: boolean } = {}) => {
+      if (consulta === 'cargando') return;
+      if (!opciones.forzar && ultimoRucConsultadoRef.current === rucLimpio) return;
+      ultimoRucConsultadoRef.current = rucLimpio;
+      setConsulta('cargando');
+      setConsultaMsg(null);
+      try {
+        const datos = await obtener<DatosRucNorm>(`/utilidades/ruc/${rucLimpio}`);
+        setForm(f => ({
+          ...f,
+          razonSocial: opciones.forzar || !f.razonSocial.trim() ? datos.razonSocial : f.razonSocial,
+          nombreComercial:
+            (opciones.forzar || !f.nombreComercial?.trim()) && datos.nombreComercial
+              ? datos.nombreComercial
+              : f.nombreComercial,
+          direccion:
+            (opciones.forzar || !f.direccion?.trim()) && datos.direccion
+              ? datos.direccion
+              : f.direccion,
+          ciudad:
+            (opciones.forzar || !f.ciudad?.trim()) && (datos.provincia || datos.departamento)
+              ? (datos.provincia ?? datos.departamento ?? '')
+              : f.ciudad,
+        }));
+        setErrores(e => ({
+          ...e,
+          razonSocial: undefined,
+          nombreComercial: undefined,
+          direccion: undefined,
+          ciudad: undefined,
+        }));
+        setConsulta('ok');
+        setConsultaMsg(`SUNAT · ${datos.estado ?? 'sin estado'}`);
+        if (!opciones.silenciarToast) toast.success(`RUC encontrado: ${datos.razonSocial}`);
+      } catch (err) {
+        setConsulta('error');
+        const msg = mensajeError(err);
+        setConsultaMsg(msg);
+        if (!opciones.silenciarToast) toast.error(msg);
+      }
+    },
+    [consulta],
+  );
+
+  // Resetear estado de consulta si el usuario cambia el documento
+  React.useEffect(() => {
+    if (consulta !== 'idle' && docLimpio !== ultimoRucConsultadoRef.current) {
+      setConsulta('idle');
+      setConsultaMsg(null);
+    }
+  }, [docLimpio, consulta]);
+
   const submit = () => {
     const parsed = proveedorSchema.safeParse(form);
     if (!parsed.success) {
@@ -90,7 +164,6 @@ export function ProveedorFormulario({
         if (k && !nuevos[k]) nuevos[k] = issue.message;
       }
       setErrores(nuevos);
-      // Enfocar el primer campo con error
       const primer = parsed.error.issues[0]?.path[0];
       if (primer) {
         const el = document.querySelector<HTMLElement>(`[name="${primer}"]`);
@@ -102,7 +175,6 @@ export function ProveedorFormulario({
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    // Ctrl/Cmd + Enter envía
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       submit();
@@ -117,6 +189,7 @@ export function ProveedorFormulario({
         <Campo label="Tipo doc." error={errores.tipoDocumento}>
           <Select
             name="tipoDocumento"
+            data-testid="select-tipo-doc-proveedor"
             value={form.tipoDocumento}
             onChange={e => set('tipoDocumento', e.target.value as ProveedorFormValues['tipoDocumento'])}
           >
@@ -126,21 +199,66 @@ export function ProveedorFormulario({
           </Select>
         </Campo>
         <Campo label="Documento *" error={errores.documento} className="md:col-span-2">
-          <Input
-            name="documento"
-            value={form.documento}
-            onChange={e => set('documento', e.target.value)}
-            placeholder={placeholderDoc(form.tipoDocumento)}
-            inputMode={form.tipoDocumento === 'ruc' || form.tipoDocumento === 'dni' ? 'numeric' : 'text'}
-            maxLength={20}
-            autoComplete="off"
-          />
+          <div className="flex gap-2 items-stretch">
+            <Input
+              name="documento"
+              data-testid="input-documento-proveedor"
+              value={form.documento}
+              onChange={e => set('documento', e.target.value)}
+              placeholder={placeholderDoc(form.tipoDocumento)}
+              inputMode={form.tipoDocumento === 'ruc' || form.tipoDocumento === 'dni' ? 'numeric' : 'text'}
+              maxLength={20}
+              autoComplete="off"
+              className="flex-1"
+            />
+            {form.tipoDocumento === 'ruc' && (
+              <Button
+                type="button"
+                variant="outline"
+                size="default"
+                onClick={() => {
+                  if (docLimpio.length !== 11) {
+                    toast.error('El RUC debe tener 11 dígitos');
+                    return;
+                  }
+                  void consultarRuc(docLimpio, { forzar: true });
+                }}
+                disabled={consulta === 'cargando' || docLimpio.length !== 11}
+                data-testid="btn-consultar-ruc"
+                title="Consultar RUC en SUNAT vía json.pe"
+                className="shrink-0"
+              >
+                {consulta === 'cargando' ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : consulta === 'ok' ? (
+                  <Check className="size-4 text-[hsl(var(--brand-success))]" />
+                ) : (
+                  <Search className="size-4" />
+                )}
+                <span className="hidden sm:inline ml-1">SUNAT</span>
+              </Button>
+            )}
+          </div>
+          {consultaMsg && (
+            <p
+              className={
+                'text-[11px] mt-1 ' +
+                (consulta === 'ok'
+                  ? 'text-[hsl(var(--brand-success))]'
+                  : 'text-[hsl(355_75%_70%)]')
+              }
+              role="status"
+            >
+              {consultaMsg}
+            </p>
+          )}
         </Campo>
       </div>
 
       <Campo label="Razón social *" error={errores.razonSocial}>
         <Input
           name="razonSocial"
+          data-testid="input-razon-social-proveedor"
           value={form.razonSocial}
           onChange={e => set('razonSocial', e.target.value)}
           placeholder="DISTRIBUIDORA TEXTIL SAC"
@@ -151,6 +269,7 @@ export function ProveedorFormulario({
       <Campo label="Nombre comercial" error={errores.nombreComercial}>
         <Input
           name="nombreComercial"
+          data-testid="input-nombre-comercial-proveedor"
           value={form.nombreComercial ?? ''}
           onChange={e => set('nombreComercial', e.target.value)}
           placeholder="Como se conoce a la empresa"
@@ -215,6 +334,7 @@ export function ProveedorFormulario({
         <Campo label="Condición de pago" error={errores.condicionPago}>
           <Select
             name="condicionPago"
+            data-testid="select-condicion-pago-proveedor"
             value={form.condicionPago}
             onChange={e => cambiarCondicion(e.target.value as ProveedorFormValues['condicionPago'])}
           >
@@ -274,13 +394,20 @@ export function ProveedorFormulario({
 
       <div className="flex flex-wrap gap-3 justify-end pt-2">
         {onCancelar && (
-          <Button variant="ghost" onClick={onCancelar} type="button" disabled={guardando}>
+          <Button
+            variant="ghost"
+            data-testid="btn-cancelar-proveedor"
+            onClick={onCancelar}
+            type="button"
+            disabled={guardando}
+          >
             Cancelar
           </Button>
         )}
         <Button
           size="lg"
           type="button"
+          data-testid="btn-guardar-proveedor"
           disabled={guardando}
           onClick={submit}
         >

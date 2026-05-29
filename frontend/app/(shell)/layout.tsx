@@ -48,11 +48,11 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex min-h-[100dvh] bg-[hsl(var(--bg))] text-[hsl(var(--text))]">
-      <div className="hidden lg:flex">
+    <div className="flex h-[100dvh] overflow-hidden bg-[hsl(var(--bg))] text-[hsl(var(--text))]">
+      <div className="hidden lg:flex h-full">
         <Sidebar />
       </div>
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header onOpenMenu={() => setDrawerOpen(true)} />
         <main
           className="flex-1 overflow-auto scrollbar-thin pb-16 lg:pb-0"

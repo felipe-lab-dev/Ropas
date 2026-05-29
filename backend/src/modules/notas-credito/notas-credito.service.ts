@@ -14,10 +14,33 @@ import {
 } from '../../core/pagination/paginacion';
 import { crearResultadoPaginado } from '../../core/responses/respuesta.interceptor';
 import { InventarioService } from '../inventario/inventario.service';
+import { SerieCpeService } from '../facturacion-electronica/series-cpe/series-cpe.service';
+import { TipoCpe } from '../../core/sunat/codigos';
+import { AppEventEmitter } from '../../core/events/app-event-emitter';
 import { CrearNotaCreditoDto } from './dto/crear-nota-credito.dto';
 
 // Lock advisory (estable por tenant) para serializar generación del número NC.
 const LOCK_KEY_NUMERO_NC = 8_372_481_003;
+
+/**
+ * Estados del CPE original (factura/boleta) sobre los que SE PUEDE emitir NC.
+ *
+ * Excluidos a propósito (cierra limbo fiscal):
+ * - 'pendiente'  → el doc nunca llegó a SUNAT. Si emitiéramos una NC contra esto,
+ *                  SUNAT la rechaza porque docs_referenciado.NUM_SERIE_CPE_REF no
+ *                  existe en sus registros. Ver doc Mifact (URLs_PRUEBAS.txt).
+ * - 'rechazado'  → SUNAT no acepta el CPE original, tampoco aceptará la NC.
+ * - 'anulado' / 'baja_pendiente' → el comprobante ya fue dado de baja.
+ *
+ * Solución para CPE en 'pendiente': el usuario debe reintentar la emisión del
+ * CPE original (botón "Reintentar emisión" en el detalle de la venta) antes
+ * de crear la NC.
+ */
+const ESTADOS_CPE_HABILITAN_NC: ReadonlySet<string> = new Set([
+  'en_proceso',
+  'aceptado',
+  'aceptado_observado',
+]);
 
 interface ListarNotasQuery extends PaginacionDto {
   ventaId?: string;
@@ -31,6 +54,8 @@ export class NotasCreditoService {
   constructor(
     private readonly prisma: PrismaTenantService,
     private readonly inventario: InventarioService,
+    private readonly serieCpeService: SerieCpeService,
+    private readonly eventEmitter: AppEventEmitter,
   ) {}
 
   async listar(query: ListarNotasQuery, ctx: TenantContext) {
@@ -90,7 +115,7 @@ export class NotasCreditoService {
     if (!motivo) throw new ErrorValidacion('El motivo es obligatorio');
 
     const cliente = this.prisma.forTenant(ctx);
-    return cliente.$transaction(async tx => {
+    const nota = await cliente.$transaction(async tx => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${LOCK_KEY_NUMERO_NC})`;
 
       const venta = await tx.venta.findFirst({
@@ -101,11 +126,114 @@ export class NotasCreditoService {
             where: { eliminadoEn: null, estado: 'emitida' },
             include: { items: { select: { ventaItemId: true, cantidad: true } } },
           },
+          documentoElectronico: true,
         },
       });
       if (!venta) throw new ErrorNoEncontrado('Venta no encontrada');
       if (venta.estado === 'anulada') {
         throw new ErrorConflicto('No se puede emitir NC sobre venta anulada');
+      }
+
+      // ─── Modalidad de la NC según la venta original ───────────────────────
+      //
+      // Tres casos posibles:
+      //   A) Venta es nota de venta interna (esNotaDeVenta=true):
+      //      → La "NC" es una devolución interna, NO va a SUNAT. Se crea sin
+      //        datos SUNAT (tipoCpe, serie, correlativo todo null). Stock y
+      //        caja se ajustan igual que cualquier NC.
+      //   B) Tenant con facturación electrónica + venta con tipoCpe pero
+      //      SIN documentoElectronico emitido (caso de error fiscal):
+      //      → Bloquear. El usuario debe emitir primero el CPE de la venta.
+      //   C) Venta con CPE emitido:
+      //      → Validar estado del CPE (debe estar habilitado para NC) y
+      //        asignar serie de NC apropiada.
+      //   D) Tenant sin ConfiguracionFacturacion (legacy):
+      //      → NC sin datos SUNAT, igual que (A) pero por motivo distinto.
+      const configFac = await tx.configuracionFacturacion.findFirst();
+      const tenantUsaFacElec = configFac !== null;
+      const docOriginal = venta.documentoElectronico;
+
+      // Caso B: tenant con facElec, venta debió tener CPE pero no lo tiene.
+      if (tenantUsaFacElec && !venta.esNotaDeVenta && !docOriginal) {
+        throw new ErrorConflicto(
+          `No se puede emitir la nota de crédito: la venta ${venta.numero} no tiene comprobante electrónico emitido. ` +
+            `Emita primero el comprobante (factura o boleta) desde la pantalla de ventas, ` +
+            `y luego registre la nota de crédito.`,
+        );
+      }
+
+      let datosSunat: {
+        tipoCpe: TipoCpe;
+        serieCpeId: string;
+        serie: string;
+        correlativo: string;
+        tipoCpeOriginal: TipoCpe;
+        serieCpeOriginal: string;
+        correlativoCpeOriginal: string;
+      } | null = null;
+
+      if (docOriginal) {
+        if (docOriginal.tipoCpe !== 'factura' && docOriginal.tipoCpe !== 'boleta') {
+          // El comprobante original debería ser factura o boleta — nunca NC, ND, guía.
+          // Defensa por si en el futuro el modelo permite otros tipos en ventas.
+          throw new ErrorValidacion(
+            `El comprobante electrónico original de la venta es '${docOriginal.tipoCpe}', se esperaba factura o boleta`,
+          );
+        }
+        if (!ESTADOS_CPE_HABILITAN_NC.has(docOriginal.estadoSunat)) {
+          const refDoc = `${docOriginal.tipoCpe} ${docOriginal.serie}-${docOriginal.correlativo}`;
+          // Mensaje accionable según el estado real.
+          if (docOriginal.estadoSunat === 'pendiente') {
+            throw new ErrorConflicto(
+              `No se puede emitir la nota de crédito: el comprobante original (${refDoc}) ` +
+                `nunca llegó a SUNAT (estado 'pendiente'). ` +
+                `Reintenta primero la emisión del comprobante desde el detalle de la venta, ` +
+                `espera a que SUNAT lo acepte, y luego registra la nota de crédito.`,
+            );
+          }
+          if (docOriginal.estadoSunat === 'rechazado') {
+            throw new ErrorConflicto(
+              `No se puede emitir la nota de crédito: el comprobante original (${refDoc}) ` +
+                `fue rechazado por SUNAT. Una NC referenciando un comprobante rechazado también será rechazada. ` +
+                `Corrige los datos de la venta y emite un nuevo comprobante antes de continuar.`,
+            );
+          }
+          throw new ErrorConflicto(
+            `No se puede emitir la nota de crédito: el comprobante original (${refDoc}) ` +
+              `está en estado '${docOriginal.estadoSunat}'. Solo se permite sobre estados: ` +
+              `${Array.from(ESTADOS_CPE_HABILITAN_NC).join(', ')}.`,
+          );
+        }
+        const aplicaA: TipoCpe = docOriginal.tipoCpe;
+        // Asignación inline (no podemos usar serieCpeService porque anidaría
+        // $transaction). El lock advisory ya tomado al inicio de la outer tx
+        // serializa la asignación del correlativo a nivel tenant.
+        const serieNc = await tx.serieCpe.findFirst({
+          where: {
+            sucursalId: venta.sucursalId,
+            tipoCpe: 'nota_credito',
+            aplicaA,
+          },
+        });
+        if (!serieNc) {
+          throw new ErrorValidacion(
+            `No hay una serie de Nota de Crédito para ${aplicaA} en esta sucursal. ` +
+              `Configure una en Configuración → Series de comprobantes antes de emitir la nota de crédito.`,
+          );
+        }
+        const actualizada = await tx.serieCpe.update({
+          where: { id: serieNc.id },
+          data: { correlativoActual: { increment: 1 } },
+        });
+        datosSunat = {
+          tipoCpe: 'nota_credito',
+          serieCpeId: serieNc.id,
+          serie: serieNc.serie,
+          correlativo: String(actualizada.correlativoActual).padStart(8, '0'),
+          tipoCpeOriginal: aplicaA,
+          serieCpeOriginal: docOriginal.serie,
+          correlativoCpeOriginal: docOriginal.correlativo,
+        };
       }
 
       // Items duplicados en la petición
@@ -180,6 +308,17 @@ export class NotasCreditoService {
           total,
           restituyeStock,
           items: { create: itemsFinales },
+          // Datos SUNAT — solo se llenan si la venta tenía CPE emitido.
+          ...(datosSunat
+            ? {
+                tipoCpe: datosSunat.tipoCpe,
+                serieCpeId: datosSunat.serieCpeId,
+                correlativo: datosSunat.correlativo,
+                tipoCpeOriginal: datosSunat.tipoCpeOriginal,
+                serieCpeOriginal: datosSunat.serieCpeOriginal,
+                correlativoCpeOriginal: datosSunat.correlativoCpeOriginal,
+              }
+            : {}),
         },
         include: { items: true },
       });
@@ -209,6 +348,15 @@ export class NotasCreditoService {
 
       return nota;
     });
+
+    // Emitir DESPUÉS del commit. El listener decidirá si emite CPE
+    // (solo si el tenant tiene facElec activa y la NC tiene datos SUNAT).
+    this.eventEmitter.emit('nota-credito.creada', {
+      notaCreditoId: nota.id,
+      tenantCode: ctx.codigo,
+    });
+
+    return nota;
   }
 
   async anular(id: string, motivo: string, ctx: TenantContext, usuarioId: string) {

@@ -22,10 +22,11 @@ import { Tenant } from '../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { AuthGuard, RequierePermiso } from '../auth/auth.guard';
 import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../saas/catalogo-modulos';
 
 @Controller('inventario')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('inventario')
+@ModuloHabilitado(CATALOGO_MODULOS.INVENTARIO)
 export class InventarioController {
   constructor(private readonly service: InventarioService) {}
 

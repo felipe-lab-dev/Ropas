@@ -1,5 +1,5 @@
 /**
- * Plantillas de marketing brutal — campañas pre-armadas con copy,
+ * Plantillas de marketing destacadas — campañas pre-armadas con copy,
  * diseño y reglas listas. El usuario solo confirma fechas y código.
  *
  * Cada plantilla retorna un objeto compatible con CrearCuponDto, salvo
@@ -144,8 +144,8 @@ export const PLANTILLAS_CUPONES: Record<PlantillaCuponId, PlantillaCupon> = {
     titulo: 'Recompra inteligente',
     tagline: 'Sube el ticket promedio de tus clientes recurrentes',
     copyMarketing:
-      'Identificá clientes que compran chico y empújalos al siguiente nivel. ' +
-      'Monto mínimo alto = forzás a sumar piezas que en frío no comprarían.',
+      'Identifica clientes que compran chico y empújalos al siguiente nivel. ' +
+      'Monto mínimo alto = fuerzas a sumar piezas que en frío no comprarían.',
     diasVigenciaSugeridos: 14,
     config: {
       nombre: 'Llévate más, paga menos',

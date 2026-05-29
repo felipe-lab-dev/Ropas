@@ -16,6 +16,11 @@ import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
 import { obtener, postear, actualizar, eliminar, subirArchivos, mensajeError } from '@/lib/api/client';
 import { formatearMoneda, cn } from '@/lib/utils';
+import {
+  useUnidadesMedida,
+  useTiposAfectacionIgv,
+} from '@/lib/api/hooks/use-catalogos-sunat';
+import { ChevronDown } from 'lucide-react';
 
 interface Categoria { id: string; nombre: string }
 interface Variante {
@@ -45,6 +50,8 @@ interface ProductoDetalle {
   activo: boolean;
   imagenes: string[];
   variantes: Variante[];
+  unidadMedidaCodigo: string;
+  tipoAfectacionIgv: string;
 }
 
 export function EditarProductoCliente({
@@ -68,7 +75,11 @@ export function EditarProductoCliente({
     queryFn: () => obtener<Categoria[]>('/categorias'),
   });
 
+  const { data: unidades } = useUnidadesMedida();
+  const { data: tiposAfectacion } = useTiposAfectacionIgv();
+
   const [form, setForm] = React.useState<Partial<ProductoDetalle>>({});
+  const [mostrarSunat, setMostrarSunat] = React.useState(false);
   const [confirmarEliminar, setConfirmarEliminar] = React.useState(false);
   const [agregandoVariante, setAgregandoVariante] = React.useState(false);
   const [varianteEditandoId, setVarianteEditandoId] = React.useState<string | null>(null);
@@ -88,6 +99,8 @@ export function EditarProductoCliente({
         precioVenta: producto.precioVenta,
         precioCompra: producto.precioCompra ?? '',
         activo: producto.activo,
+        unidadMedidaCodigo: producto.unidadMedidaCodigo ?? 'NIU',
+        tipoAfectacionIgv: producto.tipoAfectacionIgv ?? 'gravado_onerosa',
       });
     }
   }, [producto]);
@@ -106,6 +119,8 @@ export function EditarProductoCliente({
         precioVenta: Number(form.precioVenta),
         precioCompra: form.precioCompra ? Number(form.precioCompra) : null,
         activo: form.activo,
+        unidadMedidaCodigo: form.unidadMedidaCodigo,
+        tipoAfectacionIgv: form.tipoAfectacionIgv,
       }),
     onSuccess: () => {
       toast.success('Producto actualizado');
@@ -308,6 +323,72 @@ export function EditarProductoCliente({
             Activo (visible en POS y catálogo)
           </label>
         </div>
+      </Card>
+
+      {/* Configuración SUNAT (plegable) */}
+      <Card className="p-0 overflow-hidden" data-testid="seccion-sunat">
+        <button
+          type="button"
+          onClick={() => setMostrarSunat(o => !o)}
+          className="w-full flex items-center justify-between p-4 hover:bg-[hsl(var(--surface-2))]/30 transition-colors"
+        >
+          <div className="text-left">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]">
+              Configuración SUNAT (avanzado)
+            </h2>
+            <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
+              Unidad de medida e IGV para facturación electrónica
+            </p>
+          </div>
+          <ChevronDown
+            className={cn(
+              'size-4 text-[hsl(var(--text-muted))] transition-transform',
+              mostrarSunat && 'rotate-180',
+            )}
+          />
+        </button>
+        {mostrarSunat && (
+          <div className="p-6 pt-0 space-y-5 border-t border-[hsl(var(--border))]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-5">
+              <div className="space-y-1.5">
+                <Label htmlFor="unidadMedida">Unidad de medida (SUNAT Cat. 03)</Label>
+                <Select
+                  id="unidadMedida"
+                  value={form.unidadMedidaCodigo ?? 'NIU'}
+                  onChange={e => setForm(f => ({ ...f, unidadMedidaCodigo: e.target.value }))}
+                  data-testid="select-unidad-medida"
+                >
+                  {unidades?.map(u => (
+                    <option key={u.codigo} value={u.codigo}>
+                      {u.codigo} — {u.nombre}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-[10px] text-[hsl(var(--text-muted))]">
+                  Cómo se contabiliza la cantidad en la factura. Default: NIU (unidad).
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tipoAfectacion">Tipo de afectación IGV (SUNAT Cat. 07)</Label>
+                <Select
+                  id="tipoAfectacion"
+                  value={form.tipoAfectacionIgv ?? 'gravado_onerosa'}
+                  onChange={e => setForm(f => ({ ...f, tipoAfectacionIgv: e.target.value }))}
+                  data-testid="select-tipo-afectacion"
+                >
+                  {tiposAfectacion?.map(t => (
+                    <option key={t.codigo} value={t.codigo}>
+                      {t.sunatCodigo} — {t.nombre}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-[10px] text-[hsl(var(--text-muted))]">
+                  Define si el producto está gravado, exonerado o inafecto al IGV.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Imágenes */}

@@ -25,28 +25,28 @@ const PASOS: Paso[] = [
     id: 'bienvenida',
     icono: Sparkles,
     titulo: '¡Bienvenido a Ropas!',
-    descripcion: 'Tu ERP para tienda de ropa. Vendé más rápido, controlá tu tienda. Te mostramos lo esencial en 4 pasos.',
+    descripcion: 'Tu ERP para tienda de ropa. Vende más rápido, controla tu tienda. Te mostramos lo esencial en 4 pasos.',
     highlight: ['Catálogo con variantes', 'POS rápido', 'Inventario multi-sucursal', 'Reportes en tiempo real'],
   },
   {
     id: 'productos',
     icono: Package,
-    titulo: 'Cargá tu catálogo',
+    titulo: 'Carga tu catálogo',
     descripcion: 'Crea productos con variantes (talla, color, material). Cada variante tiene su propio SKU, código de barras y stock por sucursal.',
     highlight: ['Imágenes múltiples', 'Categorías y marcas', 'Precio base + override por variante'],
   },
   {
     id: 'pos',
     icono: ShoppingCart,
-    titulo: 'Vendé desde el POS',
-    descripcion: 'Buscá por nombre, SKU o escanea el código de barras. Aceptá efectivo, tarjeta o Yape/Plin. El stock se descuenta automáticamente.',
+    titulo: 'Vende desde el POS',
+    descripcion: 'Busca por nombre, SKU o escanea el código de barras. Acepta efectivo, tarjeta o Yape/Plin. El stock se descuenta automáticamente.',
     highlight: ['Búsqueda al instante', 'Cobro multi-medio', 'Stock real-time'],
   },
   {
     id: 'reportes',
     icono: BarChart3,
     titulo: 'Reportes y analítica',
-    descripcion: 'Mirá tus ventas por categoría, tendencia semanal, top vendidos y stock crítico. Todo en gráficos animados.',
+    descripcion: 'Mira tus ventas por categoría, tendencia semanal, top vendidos y stock crítico. Todo en gráficos animados.',
     highlight: ['Ventas por categoría', 'Stock bajo automático', 'Top vendidos mensual'],
   },
 ];
@@ -162,7 +162,7 @@ export function OnboardingModal() {
                 <a href="/configuracion" className="font-semibold underline">
                   Configuración
                 </a>{' '}
-                podés elegir entre 7 paletas y modo claro/oscuro.
+                puedes elegir entre 7 paletas y modo claro/oscuro.
               </span>
             </motion.div>
           )}

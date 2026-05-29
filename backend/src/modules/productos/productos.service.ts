@@ -17,6 +17,7 @@ import {
 import { crearResultadoPaginado } from '../../core/responses/respuesta.interceptor';
 import { CrearProductoDto, CrearVarianteDto } from './dto/crear-producto.dto';
 import { ActualizarProductoDto } from './dto/actualizar-producto.dto';
+import { unidadMedidaExiste } from '../../core/sunat/unidades-medida';
 import {
   AgregarVarianteDto,
   ActualizarVarianteDto,
@@ -197,6 +198,12 @@ export class ProductosService {
       throw new ErrorValidacion('Debe incluir al menos una variante');
     }
 
+    if (dto.unidadMedidaCodigo && !unidadMedidaExiste(dto.unidadMedidaCodigo)) {
+      throw new ErrorValidacion(
+        `Unidad de medida "${dto.unidadMedidaCodigo}" no existe en el catálogo SUNAT`,
+      );
+    }
+
     // Validar que no haya pares (talla,color) duplicados en el payload.
     const claves = new Set<string>();
     for (const v of dto.variantes) {
@@ -293,6 +300,8 @@ export class ProductosService {
           precioCompra: dto.precioCompra,
           imagenes: dto.imagenes ?? [],
           tags: dto.tags ?? [],
+          ...(dto.unidadMedidaCodigo !== undefined && { unidadMedidaCodigo: dto.unidadMedidaCodigo }),
+          ...(dto.tipoAfectacionIgv !== undefined && { tipoAfectacionIgv: dto.tipoAfectacionIgv as any }),
         },
       });
 
@@ -389,6 +398,12 @@ export class ProductosService {
       }
     }
 
+    if (dto.unidadMedidaCodigo && !unidadMedidaExiste(dto.unidadMedidaCodigo)) {
+      throw new ErrorValidacion(
+        `Unidad de medida "${dto.unidadMedidaCodigo}" no existe en el catálogo SUNAT`,
+      );
+    }
+
     const data: Prisma.ProductoUpdateInput = {};
     if (dto.codigo !== undefined) data.codigo = dto.codigo?.trim() || null;
     if (dto.nombre !== undefined) data.nombre = dto.nombre.trim();
@@ -406,6 +421,8 @@ export class ProductosService {
     if (dto.imagenes !== undefined) data.imagenes = dto.imagenes;
     if (dto.tags !== undefined) data.tags = dto.tags;
     if (dto.activo !== undefined) data.activo = dto.activo;
+    if (dto.unidadMedidaCodigo !== undefined) data.unidadMedidaCodigo = dto.unidadMedidaCodigo;
+    if (dto.tipoAfectacionIgv !== undefined) data.tipoAfectacionIgv = dto.tipoAfectacionIgv as any;
 
     return cliente.producto.update({
       where: { id },
@@ -832,5 +849,116 @@ export class ProductosService {
       data: { imagenes: imagenesActualizadas },
     });
     return imagenesActualizadas;
+  }
+
+  // ─── Insights ──────────────────────────────────────────────────────────────
+
+  async obtenerInsights(productoId: string, ctx: TenantContext) {
+    const producto = await this.obtenerPorId(productoId, ctx);
+    const cliente = this.prisma.forTenant(ctx);
+    const ahora = new Date();
+    const hace30 = new Date(ahora.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const hace90 = new Date(ahora.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    const varianteIds = producto.variantes.map(v => v.id);
+
+    let stockTotal = 0;
+    for (const v of producto.variantes) {
+      for (const s of v.stocks) stockTotal += s.disponible;
+    }
+
+    const ventaWhereBase: Prisma.VentaWhereInput = {
+      eliminadoEn: null,
+      anuladaEn: null,
+      estado: 'confirmada',
+    };
+
+    const [agg30, agg90, historicoPrecio] = await Promise.all([
+      varianteIds.length
+        ? cliente.ventaItem.aggregate({
+            where: {
+              varianteId: { in: varianteIds },
+              venta: { ...ventaWhereBase, creadoEn: { gte: hace30 } },
+            },
+            _sum: { cantidad: true, subtotal: true },
+          })
+        : Promise.resolve({ _sum: { cantidad: 0, subtotal: new Prisma.Decimal(0) } }),
+      varianteIds.length
+        ? cliente.ventaItem.aggregate({
+            where: {
+              varianteId: { in: varianteIds },
+              venta: { ...ventaWhereBase, creadoEn: { gte: hace90 } },
+            },
+            _sum: { cantidad: true, subtotal: true },
+          })
+        : Promise.resolve({ _sum: { cantidad: 0, subtotal: new Prisma.Decimal(0) } }),
+      cliente.auditLog.findMany({
+        where: {
+          modulo: 'productos',
+          entidadId: productoId,
+          cambios: { path: ['precioVenta'], not: Prisma.JsonNull },
+        },
+        orderBy: { creadoEn: 'asc' },
+        select: { creadoEn: true, cambios: true },
+        take: 50,
+      }).catch(() => []),
+    ]);
+
+    const ventas30Unid = Number(agg30._sum.cantidad ?? 0);
+    const ventas90Unid = Number(agg90._sum.cantidad ?? 0);
+    const ventas30Monto = Number(agg30._sum.subtotal ?? 0);
+    const ventas90Monto = Number(agg90._sum.subtotal ?? 0);
+
+    const ventasDiariasPromedio = ventas90Unid > 0 ? ventas90Unid / 90 : 0;
+    const diasCobertura =
+      ventasDiariasPromedio > 0 ? stockTotal / ventasDiariasPromedio : null;
+
+    const precioVenta = Number(producto.precioVenta);
+    const precioCompra = producto.precioCompra ? Number(producto.precioCompra) : null;
+    const margenPct =
+      precioCompra !== null && precioCompra > 0
+        ? ((precioVenta - precioCompra) / precioVenta) * 100
+        : null;
+
+    const historico = historicoPrecio
+      .map(h => {
+        const c = h.cambios as Prisma.JsonObject | null;
+        const valor = c && typeof c === 'object' ? (c['precioVenta'] as unknown) : null;
+        // Acepta tanto { precioVenta: 99.9 } como { precioVenta: { nuevo: 99.9 } }
+        let precio: number | null = null;
+        if (typeof valor === 'number') precio = valor;
+        else if (typeof valor === 'string') precio = Number(valor);
+        else if (valor && typeof valor === 'object' && 'nuevo' in (valor as object)) {
+          const n = (valor as { nuevo?: unknown }).nuevo;
+          if (typeof n === 'number') precio = n;
+          else if (typeof n === 'string') precio = Number(n);
+        }
+        return precio !== null && !Number.isNaN(precio)
+          ? { fecha: h.creadoEn, precioVenta: precio }
+          : null;
+      })
+      .filter((x): x is { fecha: Date; precioVenta: number } => x !== null);
+
+    return {
+      rotacion: {
+        diasCobertura,
+        stockTotal,
+        ventasDiariasPromedio,
+        claseAbc: producto.clasificacion,
+        score: producto.clasificacionScore ? Number(producto.clasificacionScore) : null,
+        clasificadoEn: producto.clasificadoEn,
+      },
+      ventas: {
+        ultimos30d: { unidades: ventas30Unid, monto: ventas30Monto },
+        ultimos90d: { unidades: ventas90Unid, monto: ventas90Monto },
+      },
+      margen: {
+        precioVenta,
+        precioCompra,
+        margenPct,
+        moneda: 'PEN',
+        historico,
+      },
+    };
   }
 }

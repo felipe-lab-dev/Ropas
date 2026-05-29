@@ -20,10 +20,11 @@ import { Tenant } from '../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { AuthGuard, RequierePermiso } from '../auth/auth.guard';
 import { ModuloHabilitado, ModuloHabilitadoGuard } from '../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../saas/catalogo-modulos';
 
 @Controller('caja')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('caja')
+@ModuloHabilitado(CATALOGO_MODULOS.CAJA)
 export class CajaController {
   constructor(private readonly service: CajaService) {}
 
@@ -84,6 +85,13 @@ export class CajaController {
   @Get('sesiones/:id/totales') @RequierePermiso('caja:leer')
   async totales(@Param('id') id: string, @Tenant() ctx: TenantContext) {
     const datos = await this.service.totalesSesion(id, ctx);
+    return { datos };
+  }
+
+  // Desglose de movimientos manuales por categoría
+  @Get('sesiones/:id/desglose-categorias') @RequierePermiso('caja:leer')
+  async desglose(@Param('id') id: string, @Tenant() ctx: TenantContext) {
+    const datos = await this.service.desglosePorCategoria(id, ctx);
     return { datos };
   }
 

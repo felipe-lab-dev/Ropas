@@ -1,14 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   Wallet,
   Lock,
   Unlock,
-  History,
   Plus,
   Minus,
   RefreshCw,
@@ -17,6 +15,7 @@ import {
   CreditCard,
   Banknote,
   Trash2,
+  Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -24,24 +23,31 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  DataTable,
+  type ColumnaTabla,
+  type TableState,
+} from '@/components/ui/data-table';
+import { Pagination } from '@/components/ui/pagination';
 import { obtener, obtenerPaginado, eliminar, mensajeError } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda, cn } from '@/lib/utils';
 import { useSesion } from '@/lib/store/sesion';
+import { usePreferencias } from '@/lib/use-preferencias';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { KpiCard } from '@/components/caja/kpi-card';
 import { DialogApertura } from '@/components/caja/dialog-apertura';
 import { DialogCierre } from '@/components/caja/dialog-cierre';
 import { DialogMovimiento } from '@/components/caja/dialog-movimiento';
+import { CajaTabs } from '@/components/caja/caja-tabs';
 import { etiquetaMedio, esMedioFisico } from '@/components/caja/medio-pago';
+import {
+  CATEGORIAS_INGRESO,
+  CATEGORIAS_EGRESO,
+  categoriaDef,
+  type CategoriaMovimiento,
+} from '@/components/caja/categorias';
 
 interface Sucursal { id: string; nombre: string }
 
@@ -57,11 +63,14 @@ interface SesionCaja {
 interface MovimientoCaja {
   id: string;
   tipo: 'ingreso' | 'egreso' | 'retiro' | 'ajuste';
+  categoria: CategoriaMovimiento | null;
+  subCategoria: string | null;
   medio: string;
   monto: string;
   motivo: string;
   comprobante: string | null;
   contraparte: string | null;
+  contraparteDocumento: string | null;
   creadoEn: string;
   creadoPor: { id: string; nombre: string } | null;
 }
@@ -74,15 +83,37 @@ interface TotalesSesion {
   egresosManual: { total: number; porMedio: Record<string, number> };
 }
 
+type Flujo = 'todos' | 'fisico' | 'virtual';
+
+const ESTADO_DEFAULT: TableState = {
+  sort: { campo: 'creadoEn', dir: 'desc' },
+};
+
 export default function CajaPage() {
   const usuario = useSesion(s => s.usuario);
   const qc = useQueryClient();
   const [sucursalId, setSucursalId] = React.useState(usuario?.sucursalDefecto ?? '');
   const [modo, setModo] = React.useState<'ingreso' | 'egreso'>('ingreso');
+  const [flujo, setFlujo] = React.useState<Flujo>('todos');
+  const [categoria, setCategoria] = React.useState<CategoriaMovimiento | ''>('');
+  const [buscar, setBuscar] = React.useState('');
+  const [debouncedBuscar, setDebouncedBuscar] = React.useState('');
+  const [pagina, setPagina] = React.useState(1);
   const [openApertura, setOpenApertura] = React.useState(false);
   const [openCierre, setOpenCierre] = React.useState(false);
   const [openMov, setOpenMov] = React.useState(false);
   const [tipoMov, setTipoMov] = React.useState<'ingreso' | 'egreso'>('ingreso');
+
+  const [estadoTabla, setEstadoTabla] = usePreferencias<TableState>('caja-movs', ESTADO_DEFAULT);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedBuscar(buscar), 250);
+    return () => clearTimeout(t);
+  }, [buscar]);
+
+  // Reset categoría cuando cambias entre ingreso/egreso
+  React.useEffect(() => { setCategoria(''); setPagina(1); }, [modo]);
+  React.useEffect(() => { setPagina(1); }, [flujo, categoria, debouncedBuscar]);
 
   const { data: sucursales } = useQuery({
     queryKey: ['sucursales'],
@@ -108,14 +139,23 @@ export default function CajaPage() {
   });
 
   const movimientosQ = useQuery({
-    queryKey: ['caja-movimientos', sesion?.id, modo],
+    queryKey: ['caja-movimientos', sesion?.id, modo, flujo, categoria, debouncedBuscar, pagina],
     queryFn: () =>
       obtenerPaginado<MovimientoCaja>(`/caja/sesiones/${sesion!.id}/movimientos`, {
         tipo: modo,
-        limite: 50,
+        ...(flujo !== 'todos' ? { flujo } : {}),
+        ...(categoria ? { categoria } : {}),
+        ...(debouncedBuscar ? { buscar: debouncedBuscar } : {}),
+        pagina,
+        limite: 20,
       }),
     enabled: !!sesion?.id,
   });
+
+  const saldoAnteriorYaRegistrado = React.useMemo(
+    () => (movimientosQ.data?.datos ?? []).some(m => m.categoria === 'saldo_anterior'),
+    [movimientosQ.data],
+  );
 
   const eliminarMov = useMutation({
     mutationFn: (id: string) => eliminar(`/caja/movimientos/${id}`),
@@ -138,19 +178,130 @@ export default function CajaPage() {
   const egrEfectivo = totalesQ.data?.egresosManual.porMedio['efectivo'] ?? 0;
   const egrVirtual = sumarNoEfectivo(totalesQ.data?.egresosManual.porMedio ?? {});
 
+  const categoriasDelModo = modo === 'ingreso' ? CATEGORIAS_INGRESO : CATEGORIAS_EGRESO;
+
+  const columnas: ColumnaTabla<MovimientoCaja>[] = React.useMemo(
+    () => [
+      {
+        id: 'creadoEn',
+        titulo: 'Hora',
+        width: 130,
+        sortValor: m => m.creadoEn,
+        render: m => (
+          <span className="text-xs font-semibold tabular-nums whitespace-nowrap">
+            {formatearFecha(m.creadoEn, 'completa')}
+          </span>
+        ),
+      },
+      {
+        id: 'categoria',
+        titulo: 'Categoría',
+        width: 170,
+        sortValor: m => m.categoria ?? '',
+        render: m => {
+          const def = categoriaDef(m.categoria);
+          if (!def) return <span className="text-[hsl(var(--text-muted))]">—</span>;
+          return (
+            <div className="flex items-center gap-2">
+              <span className="text-base leading-none">{def.icono}</span>
+              <span className="text-xs font-semibold">{def.label}</span>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'motivo',
+        titulo: 'Detalle',
+        width: 260,
+        render: m => (
+          <div className="flex flex-col">
+            <span className="text-sm font-medium truncate">{m.motivo}</span>
+            {m.contraparte && (
+              <span className="text-[11px] text-[hsl(var(--text-muted))] truncate">
+                {m.contraparte}
+                {m.contraparteDocumento && (
+                  <span className="font-mono ml-1">· {m.contraparteDocumento}</span>
+                )}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'comprobante',
+        titulo: 'N° comprobante',
+        width: 140,
+        render: m =>
+          m.comprobante ? (
+            <span className="text-xs font-mono">{m.comprobante}</span>
+          ) : (
+            <span className="text-xs text-[hsl(var(--text-muted))]">S/N</span>
+          ),
+      },
+      {
+        id: 'medio',
+        titulo: 'Medio',
+        width: 130,
+        render: m => (
+          <Badge
+            variant={esMedioFisico(m.medio as never) ? 'success' : 'default'}
+            className="uppercase text-[10px]"
+          >
+            {etiquetaMedio(m.medio)}
+          </Badge>
+        ),
+      },
+      {
+        id: 'monto',
+        titulo: 'Monto',
+        align: 'right',
+        width: 130,
+        sortValor: m => Number(m.monto),
+        render: m => (
+          <span
+            className={cn(
+              'font-bold tabular-nums',
+              modo === 'ingreso'
+                ? 'text-[hsl(150_55%_60%)]'
+                : 'text-[hsl(355_85%_70%)]',
+            )}
+          >
+            {modo === 'egreso' ? '−' : '+'}
+            {formatearMoneda(m.monto)}
+          </span>
+        ),
+      },
+      {
+        id: 'acciones',
+        titulo: '',
+        width: 56,
+        movible: false,
+        render: m => (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => {
+              if (confirm('¿Eliminar este movimiento?')) eliminarMov.mutate(m.id);
+            }}
+            className="text-[hsl(355_85%_70%)] hover:bg-[hsl(355_75%_55%)]/15"
+            title="Eliminar"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        ),
+      },
+    ],
+    [modo, eliminarMov],
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
         titulo="Operaciones del día"
         descripcion="Estado de caja, ingresos y egresos de la sesión activa."
-        acciones={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/caja/historial">
-              <History className="size-4" /> Historial
-            </Link>
-          </Button>
-        }
       />
+
+      <CajaTabs />
 
       {/* Tarjeta de estado de caja */}
       <Card className="overflow-hidden">
@@ -304,156 +455,140 @@ export default function CajaPage() {
             </Card>
           )}
 
-          {/* Toggle + tabla de movimientos */}
-          <Card className="overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-[hsl(var(--border))]">
-              <div className="inline-flex rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/40 p-1">
-                <button
-                  onClick={() => setModo('ingreso')}
-                  className={cn(
-                    'flex items-center gap-2 px-4 h-8 rounded-md text-xs font-bold uppercase tracking-widest transition-all',
-                    modo === 'ingreso'
-                      ? 'bg-gradient-to-br from-[hsl(150_55%_42%)] to-[hsl(150_55%_32%)] text-white shadow-md'
-                      : 'text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
-                  )}
+          {/* Toggle + filtros + tabla */}
+          <Card className="overflow-hidden p-0">
+            <div className="flex flex-col gap-3 p-4 border-b border-[hsl(var(--border))]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* Toggle Ingresos/Egresos */}
+                <div className="inline-flex rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/40 p-1">
+                  <button
+                    onClick={() => setModo('ingreso')}
+                    className={cn(
+                      'flex items-center gap-2 px-4 h-8 rounded-md text-xs font-bold uppercase tracking-widest transition-all',
+                      modo === 'ingreso'
+                        ? 'bg-gradient-to-br from-[hsl(150_55%_42%)] to-[hsl(150_55%_32%)] text-white shadow-md'
+                        : 'text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
+                    )}
+                  >
+                    <ArrowDownToLine className="size-3.5" /> Ingresos
+                  </button>
+                  <button
+                    onClick={() => setModo('egreso')}
+                    className={cn(
+                      'flex items-center gap-2 px-4 h-8 rounded-md text-xs font-bold uppercase tracking-widest transition-all',
+                      modo === 'egreso'
+                        ? 'bg-gradient-to-br from-[hsl(355_75%_55%)] to-[hsl(355_70%_42%)] text-white shadow-md'
+                        : 'text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
+                    )}
+                  >
+                    <ArrowUpFromLine className="size-3.5" /> Egresos
+                  </button>
+                </div>
+
+                <Button
+                  variant={modo === 'ingreso' ? 'default' : 'danger'}
+                  size="sm"
+                  onClick={() => {
+                    setTipoMov(modo);
+                    setOpenMov(true);
+                  }}
                 >
-                  <ArrowDownToLine className="size-3.5" /> Ingresos
-                </button>
-                <button
-                  onClick={() => setModo('egreso')}
-                  className={cn(
-                    'flex items-center gap-2 px-4 h-8 rounded-md text-xs font-bold uppercase tracking-widest transition-all',
-                    modo === 'egreso'
-                      ? 'bg-gradient-to-br from-[hsl(355_75%_55%)] to-[hsl(355_70%_42%)] text-white shadow-md'
-                      : 'text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
+                  {modo === 'ingreso' ? (
+                    <>
+                      <Plus className="size-4" /> Registrar ingreso
+                    </>
+                  ) : (
+                    <>
+                      <Minus className="size-4" /> Registrar egreso
+                    </>
                   )}
-                >
-                  <ArrowUpFromLine className="size-3.5" /> Egresos
-                </button>
+                </Button>
               </div>
 
-              <Button
-                variant={modo === 'ingreso' ? 'default' : 'danger'}
-                size="sm"
-                onClick={() => {
-                  setTipoMov(modo);
-                  setOpenMov(true);
-                }}
-              >
-                {modo === 'ingreso' ? (
-                  <>
-                    <Plus className="size-4" /> Registrar ingreso
-                  </>
-                ) : (
-                  <>
-                    <Minus className="size-4" /> Registrar egreso
-                  </>
-                )}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Filtros físico/virtual */}
+                <div className="inline-flex rounded-lg border border-[hsl(var(--border))] p-0.5">
+                  {(['todos', 'fisico', 'virtual'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setFlujo(f)}
+                      className={cn(
+                        'h-7 px-3 rounded-md text-[11px] font-bold uppercase tracking-wide transition-all',
+                        flujo === f
+                          ? 'bg-[hsl(var(--brand-accent))]/15 text-[hsl(var(--brand-accent))]'
+                          : 'text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
+                      )}
+                    >
+                      {f === 'todos' ? 'Todos' : f === 'fisico' ? '💵 Físico' : '💳 Virtual'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Filtro categoría */}
+                <Select
+                  value={categoria}
+                  onChange={e => setCategoria(e.target.value as CategoriaMovimiento | '')}
+                  className="h-8 text-xs max-w-[200px]"
+                >
+                  <option value="">Todas las categorías</option>
+                  {categoriasDelModo.map(c => (
+                    <option key={c.valor} value={c.valor}>
+                      {c.icono} {c.label}
+                    </option>
+                  ))}
+                </Select>
+
+                {/* Buscar */}
+                <div className="relative flex-1 min-w-[180px] max-w-xs">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[hsl(var(--text-muted))] pointer-events-none" />
+                  <Input
+                    value={buscar}
+                    onChange={e => setBuscar(e.target.value)}
+                    placeholder="Buscar motivo, comprobante, contraparte…"
+                    className="h-8 pl-8 text-xs"
+                  />
+                </div>
+              </div>
             </div>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Hora</TableHead>
-                  <TableHead>Motivo</TableHead>
-                  <TableHead>Comprobante</TableHead>
-                  <TableHead>Medio</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
-                  <TableHead className="w-[60px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {movimientosQ.isLoading ? (
-                  [...Array(4)].map((_, i) => (
-                    <TableRow key={i}>
-                      {Array(6).fill(0).map((_, j) => (
-                        <TableCell key={j}>
-                          <Skeleton className="h-5" />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : movimientosQ.data?.datos.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="p-0">
-                      <EmptyState
-                        icono={
-                          modo === 'ingreso' ? (
-                            <ArrowDownToLine className="size-6" />
-                          ) : (
-                            <ArrowUpFromLine className="size-6" />
-                          )
-                        }
-                        titulo={
-                          modo === 'ingreso'
-                            ? 'Sin ingresos manuales registrados'
-                            : 'Sin egresos registrados'
-                        }
-                        descripcion={
-                          modo === 'ingreso'
-                            ? 'Las ventas se contabilizan automáticamente. Aquí puedes registrar ingresos manuales como adelantos o cobros de letras.'
-                            : 'Registra salidas de dinero: pagos a proveedores, viáticos, retiros, etc.'
-                        }
-                      />
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  movimientosQ.data?.datos.map(m => (
-                    <TableRow key={m.id}>
-                      <TableCell className="text-xs font-semibold tabular-nums whitespace-nowrap">
-                        {formatearFecha(m.creadoEn, 'completa')}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{m.motivo}</span>
-                          {m.contraparte && (
-                            <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-muted))]">
-                              {m.contraparte}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs font-mono">
-                        {m.comprobante ?? <span className="text-[hsl(var(--text-muted))]">S/N</span>}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={esMedioFisico(m.medio as never) ? 'success' : 'default'}
-                          className="uppercase text-[10px]"
-                        >
-                          {etiquetaMedio(m.medio)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          'text-right font-bold tabular-nums',
-                          modo === 'ingreso'
-                            ? 'text-[hsl(150_55%_60%)]'
-                            : 'text-[hsl(355_85%_70%)]',
-                        )}
-                      >
-                        {modo === 'egreso' ? '−' : '+'}
-                        {formatearMoneda(m.monto)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => {
-                            if (confirm('¿Eliminar este movimiento?')) eliminarMov.mutate(m.id);
-                          }}
-                          className="text-[hsl(355_85%_70%)] hover:bg-[hsl(355_75%_55%)]/15"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+            <DataTable<MovimientoCaja>
+              columnas={columnas}
+              filas={movimientosQ.data?.datos ?? []}
+              getRowKey={m => m.id}
+              estado={estadoTabla}
+              onEstadoChange={setEstadoTabla}
+              cargando={movimientosQ.isLoading}
+              vacioRender={
+                <EmptyState
+                  icono={
+                    modo === 'ingreso' ? (
+                      <ArrowDownToLine className="size-6" />
+                    ) : (
+                      <ArrowUpFromLine className="size-6" />
+                    )
+                  }
+                  titulo={
+                    modo === 'ingreso'
+                      ? 'Sin ingresos manuales registrados'
+                      : 'Sin egresos registrados'
+                  }
+                  descripcion={
+                    modo === 'ingreso'
+                      ? 'Las ventas se contabilizan automáticamente. Aquí registras saldo anterior, adelantos, cobros de crédito y otros ingresos manuales.'
+                      : 'Registra salidas de dinero: pagos a proveedores, servicios, comisiones, movilidad, etc.'
+                  }
+                />
+              }
+            />
+            {movimientosQ.data && movimientosQ.data.total > 0 && (
+              <Pagination
+                pagina={movimientosQ.data.pagina}
+                totalPaginas={movimientosQ.data.totalPaginas}
+                total={movimientosQ.data.total}
+                limite={20}
+                onCambiar={setPagina}
+              />
+            )}
           </Card>
         </>
       ) : (
@@ -495,9 +630,9 @@ export default function CajaPage() {
           onOpenChange={setOpenMov}
           sesionId={sesion.id}
           tipo={tipoMov}
+          saldoAnteriorYaRegistrado={saldoAnteriorYaRegistrado}
         />
       )}
     </div>
   );
 }
-

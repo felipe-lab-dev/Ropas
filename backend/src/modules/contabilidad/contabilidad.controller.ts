@@ -19,10 +19,11 @@ import {
   ModuloHabilitado,
   ModuloHabilitadoGuard,
 } from '../../saas/modulo-habilitado.guard';
+import { CATALOGO_MODULOS } from '../../saas/catalogo-modulos';
 
 @Controller('contabilidad')
 @UseGuards(ModuloHabilitadoGuard, AuthGuard)
-@ModuloHabilitado('contabilidad')
+@ModuloHabilitado(CATALOGO_MODULOS.CONTABILIDAD)
 export class ContabilidadController {
   constructor(
     private readonly service: ContabilidadService,

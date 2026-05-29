@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ShoppingCart, X, Plus, Minus, ScanBarcode, CreditCard, Banknote, Smartphone, Tag, CheckCircle2, XCircle, AlertTriangle, UserPlus, User as UserIcon, Percent } from 'lucide-react';
+import { Search, ShoppingCart, X, Plus, Minus, ScanBarcode, CreditCard, Banknote, Smartphone, Tag, CheckCircle2, XCircle, AlertTriangle, UserPlus, User as UserIcon, Percent, FileText, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -90,6 +90,7 @@ export default function PosPage() {
   const [buscarCliente, setBuscarCliente] = React.useState('');
   const [debouncedBuscarCliente, setDebouncedBuscarCliente] = React.useState('');
   const [popoverClienteAbierto, setPopoverClienteAbierto] = React.useState(false);
+  const [esNotaDeVenta, setEsNotaDeVenta] = React.useState(false);
 
   React.useEffect(() => {
     const t = setTimeout(() => setDebouncedBuscarCliente(buscarCliente), 200);
@@ -256,6 +257,7 @@ export default function PosPage() {
         })),
         pagos: total > 0 ? [{ medio: medioPago, monto: total }] : [],
         descuento: descuentoEfectivo > 0 ? descuentoEfectivo : undefined,
+        esNotaDeVenta,
         ...(cuponValidado?.valido ? { codigoCupon: cuponValidado.codigo } : {}),
       }),
     onSuccess: data => {
@@ -265,9 +267,18 @@ export default function PosPage() {
       setCodigoCupon('');
       setDescuentoManual(0);
       setCliente(null);
+      setEsNotaDeVenta(false);
     },
     onError: err => toast.error(mensajeError(err)),
   });
+
+  // Modalidad del comprobante derivada del cliente + toggle.
+  const modalidadComprobante: { tipo: 'boleta' | 'factura' | 'nota_venta'; label: string; descripcion: string } =
+    esNotaDeVenta
+      ? { tipo: 'nota_venta', label: 'Nota de venta', descripcion: 'Interna · no se envía a SUNAT' }
+      : cliente?.tipoDocumento === 'ruc'
+      ? { tipo: 'factura', label: 'Factura electrónica', descripcion: 'Se enviará a SUNAT al confirmar' }
+      : { tipo: 'boleta', label: 'Boleta electrónica', descripcion: cliente ? 'Se enviará a SUNAT al confirmar' : 'A consumidor final (VARIOS)' };
 
   return (
     <div className="grid lg:grid-cols-[1fr_440px] gap-6 -m-8 p-8 min-h-[calc(100vh-3.5rem)]">
@@ -306,6 +317,7 @@ export default function PosPage() {
             <Input
               autoFocus
               data-busqueda
+              data-testid="pos-buscar-producto"
               placeholder="Buscar producto por nombre, SKU o escanear código de barras…"
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
@@ -338,6 +350,7 @@ export default function PosPage() {
                   return (
                     <button
                       key={v.id}
+                      data-testid={`pos-resultado-${v.sku}`}
                       disabled={sinStock}
                       onClick={() => agregar(v, p)}
                       className={`text-left p-3 rounded-lg border bg-[hsl(var(--surface))] transition-all ${
@@ -381,7 +394,7 @@ export default function PosPage() {
               <div className="py-20 text-center">
                 <ShoppingCart className="size-12 mx-auto text-[hsl(var(--text-muted))]/50 mb-3" />
                 <p className="text-sm text-[hsl(var(--text-muted))]">
-                  Carrito vacío. Buscá productos arriba.
+                  Carrito vacío. Busca productos arriba.
                 </p>
               </div>
             ) : (
@@ -551,6 +564,58 @@ export default function PosPage() {
             )}
           </div>
 
+          {/* Bloque modalidad del comprobante */}
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))] flex items-center gap-1.5">
+              {modalidadComprobante.tipo === 'nota_venta'
+                ? <Receipt className="size-3.5" />
+                : <FileText className="size-3.5" />}
+              Comprobante
+            </p>
+            <div
+              className={`p-3 rounded-md border transition-colors ${
+                modalidadComprobante.tipo === 'nota_venta'
+                  ? 'border-[hsl(35_90%_55%/0.4)] bg-[hsl(35_90%_55%/0.06)]'
+                  : 'border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/30'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{modalidadComprobante.label}</div>
+                  <div className="text-[11px] text-[hsl(var(--text-muted))] mt-0.5">
+                    {modalidadComprobante.descripcion}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={esNotaDeVenta}
+                  aria-label="Marcar como nota de venta interna"
+                  data-testid="pos-toggle-nota-venta"
+                  onClick={() => setEsNotaDeVenta(v => !v)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none mt-0.5 ${
+                    esNotaDeVenta ? 'bg-[hsl(35_90%_55%)]' : 'bg-[hsl(var(--border))]'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block size-5 rounded-full bg-white shadow-md transform transition duration-200 ease-in-out ${
+                      esNotaDeVenta ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEsNotaDeVenta(v => !v)}
+                className="block w-full text-left mt-2 text-[10px] text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))] transition-colors"
+              >
+                {esNotaDeVenta
+                  ? '↩  Desactivar y volver al flujo normal de SUNAT'
+                  : 'Sin comprobante SUNAT (nota de venta)'}
+              </button>
+            </div>
+          </div>
+
           {/* Bloque descuento manual */}
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))] flex items-center gap-1.5">
@@ -666,6 +731,7 @@ export default function PosPage() {
           <Button
             size="xl"
             className="w-full glow-brand"
+            data-testid="btn-cobrar-pos"
             disabled={carrito.length === 0 || cobrar.isPending || !sucursalId || total <= 0}
             onClick={() => cobrar.mutate()}
           >

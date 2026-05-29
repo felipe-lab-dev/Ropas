@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ClasificacionAbc, Prisma } from '@prisma/client';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { TenantContext } from '../../core/tenancy/tenant-context';
-import { ErrorNoEncontrado } from '../../core/errors/errores';
+import { ErrorNoEncontrado, ErrorValidacion } from '../../core/errors/errores';
 import {
   obtenerPaginacion,
   PaginacionDto,
@@ -11,6 +11,7 @@ import {
 import { crearResultadoPaginado } from '../../core/responses/respuesta.interceptor';
 import { CrearClienteDto } from './dto/crear-cliente.dto';
 import { ActualizarClienteDto } from './dto/actualizar-cliente.dto';
+import { ubigeoExiste } from '../../core/sunat/ubigeos';
 
 const CLASES_VALIDAS = new Set<ClasificacionAbc>(['AA', 'A', 'B', 'C', 'D']);
 
@@ -51,7 +52,12 @@ export class ClientesService {
     return c;
   }
 
-  crear(data: CrearClienteDto, ctx: TenantContext) {
+  async crear(data: CrearClienteDto, ctx: TenantContext) {
+    if (data.ubigeoCodigo && !ubigeoExiste(data.ubigeoCodigo)) {
+      throw new ErrorValidacion(
+        `Ubigeo "${data.ubigeoCodigo}" no existe en el catálogo SUNAT`,
+      );
+    }
     const { fechaNacimiento, ...rest } = data;
     return this.prisma.forTenant(ctx).cliente.create({
       data: {
@@ -63,6 +69,11 @@ export class ClientesService {
 
   async actualizar(id: string, data: ActualizarClienteDto, ctx: TenantContext) {
     await this.obtener(id, ctx);
+    if (data.ubigeoCodigo && !ubigeoExiste(data.ubigeoCodigo)) {
+      throw new ErrorValidacion(
+        `Ubigeo "${data.ubigeoCodigo}" no existe en el catálogo SUNAT`,
+      );
+    }
     const { fechaNacimiento, ...rest } = data;
     return this.prisma.forTenant(ctx).cliente.update({
       where: { id },

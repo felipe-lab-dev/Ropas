@@ -106,17 +106,17 @@ export default function NuevoCuponPage() {
       disenoEmoji: p.config.disenoEmoji,
     });
     setVista('libre');
-    toast.success(`Plantilla "${p.titulo}" aplicada — revisá y guardá`);
+    toast.success(`Plantilla "${p.titulo}" aplicada — revisa y guarda`);
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        titulo={vista === 'plantillas' ? 'Plantillas brutales' : 'Nuevo cupón'}
+        titulo={vista === 'plantillas' ? 'Plantillas destacadas' : 'Nuevo cupón'}
         descripcion={
           vista === 'plantillas'
-            ? '5 campañas pre-armadas por un experto en marketing. Solo elige y ajustá.'
-            : 'Configurá el cupón al detalle. Vista previa en vivo a la derecha.'
+            ? '5 campañas pre-armadas por un experto en marketing. Solo elige y ajusta.'
+            : 'Configura el cupón al detalle. Vista previa en vivo a la derecha.'
         }
         acciones={
           <div className="flex gap-2">

@@ -49,3 +49,5 @@ prisma/migrations/dev/
 # Locks de otros gestores (usamos pnpm)
 package-lock.json
 yarn.lock
+
+/facturacion

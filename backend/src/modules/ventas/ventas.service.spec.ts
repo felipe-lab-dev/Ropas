@@ -4,6 +4,8 @@ import { VentasService } from './ventas.service';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { InventarioService } from '../inventario/inventario.service';
 import { MotorCuponesService } from '../cupones/motor-cupones.service';
+import { SerieCpeService } from '../facturacion-electronica/series-cpe/series-cpe.service';
+import { AppEventEmitter } from '../../core/events/app-event-emitter';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import {
   ErrorConflicto,
@@ -27,12 +29,14 @@ function crearTxMock() {
   const venta: Mocked<{
     create: unknown;
     findFirst: unknown;
+    findUnique: unknown;
     findMany: unknown;
     count: unknown;
     update: unknown;
   }> = {
     create: jest.fn(),
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
     update: jest.fn(),
@@ -76,6 +80,8 @@ describe('VentasService', () => {
   let tx: ReturnType<typeof crearTxMock>;
   let inventario: { ajustarEnTx: jest.Mock };
   let motorCupones: { evaluar: jest.Mock };
+  let serieCpe: { asignarProximoCorrelativoEnTenant: jest.Mock };
+  let eventEmitter: { emit: jest.Mock };
 
   beforeEach(async () => {
     tx = crearTxMock();
@@ -83,6 +89,14 @@ describe('VentasService', () => {
     motorCupones = {
       evaluar: jest.fn().mockReturnValue({ valido: true, descuento: 0, mensaje: 'ok' }),
     };
+    serieCpe = {
+      asignarProximoCorrelativoEnTenant: jest.fn().mockResolvedValue({
+        serieCpeId: 'serie-1',
+        serie: 'B001',
+        correlativo: '00000001',
+      }),
+    };
+    eventEmitter = { emit: jest.fn() };
 
     const cliente = {
       ...tx,
@@ -96,6 +110,8 @@ describe('VentasService', () => {
         { provide: PrismaTenantService, useValue: prisma },
         { provide: InventarioService, useValue: inventario },
         { provide: MotorCuponesService, useValue: motorCupones },
+        { provide: SerieCpeService, useValue: serieCpe },
+        { provide: AppEventEmitter, useValue: eventEmitter },
       ],
     }).compile();
     service = mod.get(VentasService);
@@ -727,6 +743,272 @@ describe('VentasService', () => {
           'v1', { medio: 'efectivo', monto: 10, sesionCajaId: 'sess' }, ctx, 'u1',
         ),
       ).rejects.toBeInstanceOf(ErrorConflicto);
+    });
+  });
+
+  // ---------- crear: stamp tipoCpe + serie (etapa 3.4a) ----------
+
+  describe('crear (stamp tipoCpe + serie)', () => {
+    it('cliente con RUC → asigna tipoCpe=factura', async () => {
+      mockHappyPath(tx);
+      tx.cliente.findFirst.mockResolvedValue({
+        id: 'c-ruc',
+        clasificacion: null,
+        totalCompras: new Prisma.Decimal('0'),
+        ultimaCompraEn: null,
+      });
+      // venta.findUnique para stampearTipoCpeYSerie: devuelve cliente con RUC
+      tx.venta.findUnique.mockResolvedValue({
+        sucursalId: 's',
+        cliente: { tipoDocumento: 'ruc' },
+      });
+
+      await service.crear(
+        { sucursalId: 's', clienteId: 'c-ruc', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      // Esperar microtasks del fire-and-forget
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(serieCpe.asignarProximoCorrelativoEnTenant).toHaveBeenCalledWith(
+        expect.anything(),
+        's',
+        'factura',
+      );
+      expect(tx.venta.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'venta-1' },
+          data: expect.objectContaining({ tipoCpe: 'factura', serieCpeId: 'serie-1', correlativo: '00000001' }),
+        }),
+      );
+    });
+
+    it('cliente con DNI → asigna tipoCpe=boleta', async () => {
+      mockHappyPath(tx);
+      tx.cliente.findFirst.mockResolvedValue({
+        id: 'c-dni',
+        clasificacion: null,
+        totalCompras: new Prisma.Decimal('0'),
+        ultimaCompraEn: null,
+      });
+      tx.venta.findUnique.mockResolvedValue({
+        sucursalId: 's',
+        cliente: { tipoDocumento: 'dni' },
+      });
+
+      await service.crear(
+        { sucursalId: 's', clienteId: 'c-dni', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(serieCpe.asignarProximoCorrelativoEnTenant).toHaveBeenCalledWith(
+        expect.anything(),
+        's',
+        'boleta',
+      );
+    });
+
+    it('sin cliente (clienteId null) → asigna tipoCpe=boleta', async () => {
+      mockHappyPath(tx);
+      // Sin cliente: el select devuelve cliente: null
+      tx.venta.findUnique.mockResolvedValue({
+        sucursalId: 's',
+        cliente: null,
+      });
+
+      await service.crear(
+        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(serieCpe.asignarProximoCorrelativoEnTenant).toHaveBeenCalledWith(
+        expect.anything(),
+        's',
+        'boleta',
+      );
+    });
+
+    it('sin serie configurada → venta creada OK, stamp falla silenciosamente', async () => {
+      mockHappyPath(tx);
+      tx.venta.findUnique.mockResolvedValue({
+        sucursalId: 's',
+        cliente: null,
+      });
+      serieCpe.asignarProximoCorrelativoEnTenant.mockRejectedValue(
+        new ErrorNoEncontrado('No hay serie activa configurada para sucursal s tipo boleta'),
+      );
+
+      // La venta debe retornar OK
+      const resultado = await service.crear(
+        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      expect(resultado).toBeDefined();
+      expect(resultado.id).toBe('venta-1');
+
+      // Esperar a que el catch se ejecute
+      await new Promise(r => setTimeout(r, 0));
+
+      // No debe haberse llamado venta.update con stamp (el error se capturó antes)
+      expect(tx.venta.update).not.toHaveBeenCalled();
+    });
+
+    it('error inesperado en stamp → venta retorna OK, error capturado sin re-lanzar', async () => {
+      mockHappyPath(tx);
+      tx.venta.findUnique.mockResolvedValue({
+        sucursalId: 's',
+        cliente: null,
+      });
+      serieCpe.asignarProximoCorrelativoEnTenant.mockRejectedValue(
+        new Error('Timeout de conexión'),
+      );
+
+      const resultado = await service.crear(
+        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      // La venta retorna, el error no se re-lanza
+      expect(resultado).toBeDefined();
+      expect(resultado.id).toBe('venta-1');
+
+      // Verificar que el proceso no explota después del flush
+      await expect(new Promise(r => setTimeout(r, 0))).resolves.toBeUndefined();
+    });
+
+    it('stamp exitoso → emite evento venta.creada con ventaId y tenantCode', async () => {
+      mockHappyPath(tx);
+      tx.venta.findUnique.mockResolvedValue({
+        sucursalId: 's',
+        cliente: null,
+      });
+
+      await service.crear(
+        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      // Esperar microtasks del fire-and-forget
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith('venta.creada', {
+        ventaId: 'venta-1',
+        tenantCode: 'mi-tienda',
+      });
+    });
+
+    it('stamp falla → NO emite evento venta.creada', async () => {
+      mockHappyPath(tx);
+      tx.venta.findUnique.mockResolvedValue({
+        sucursalId: 's',
+        cliente: null,
+      });
+      serieCpe.asignarProximoCorrelativoEnTenant.mockRejectedValue(
+        new Error('No hay serie activa'),
+      );
+
+      await service.crear(
+        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------- crear: nota de venta interna ----------
+
+  describe('crear (esNotaDeVenta)', () => {
+    it('esNotaDeVenta=true → persiste el flag en venta.create', async () => {
+      mockHappyPath(tx);
+      // venta.create devuelve esNotaDeVenta=true para reflejar lo persistido.
+      tx.venta.create.mockResolvedValue({
+        id: 'venta-nv',
+        numero: 'V-000099',
+        esNotaDeVenta: true,
+        items: [],
+        pagos: [],
+      });
+
+      await service.crear(
+        {
+          sucursalId: 's',
+          items: [{ varianteId: 'v1', cantidad: 1 }],
+          esNotaDeVenta: true,
+        } as never,
+        ctx,
+        'u1',
+      );
+
+      expect(tx.venta.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ esNotaDeVenta: true }),
+        }),
+      );
+    });
+
+    it('esNotaDeVenta=true → NO llama stampearTipoCpeYSerie ni emite venta.creada', async () => {
+      mockHappyPath(tx);
+      tx.venta.create.mockResolvedValue({
+        id: 'venta-nv',
+        numero: 'V-000099',
+        esNotaDeVenta: true,
+        items: [],
+        pagos: [],
+      });
+
+      await service.crear(
+        {
+          sucursalId: 's',
+          items: [{ varianteId: 'v1', cantidad: 1 }],
+          esNotaDeVenta: true,
+        } as never,
+        ctx,
+        'u1',
+      );
+      // Esperar microtasks por si el fire-and-forget se hubiera disparado.
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(serieCpe.asignarProximoCorrelativoEnTenant).not.toHaveBeenCalled();
+      expect(tx.venta.update).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('esNotaDeVenta omitido → default false, flujo normal con stamp', async () => {
+      mockHappyPath(tx);
+      tx.venta.create.mockResolvedValue({
+        id: 'venta-1',
+        numero: 'V-000001',
+        esNotaDeVenta: false,
+        items: [],
+        pagos: [],
+      });
+      tx.venta.findUnique.mockResolvedValue({
+        sucursalId: 's',
+        cliente: null,
+      });
+
+      await service.crear(
+        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(tx.venta.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ esNotaDeVenta: false }),
+        }),
+      );
+      expect(serieCpe.asignarProximoCorrelativoEnTenant).toHaveBeenCalled();
     });
   });
 });

@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Search, Edit2, Trash2, History, Zap } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, History, Zap, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -23,8 +23,13 @@ import { DataTable, type ColumnaTabla, type TableState } from '@/components/ui/d
 import { colorCategoria } from '@/lib/color-categoria';
 import { usePreferencias } from '@/lib/use-preferencias';
 import { MotorLogisticoModal } from './motor-logistico-modal';
+<<<<<<< HEAD
 import { EditarProductoCliente } from './editar/editar-cliente';
 import { KardexCliente } from './kardex/kardex-cliente';
+=======
+import { PanelInsightsProducto } from './panel-insights-producto';
+import { ImportarExportarModal } from './importar-exportar-modal';
+>>>>>>> 65ae9d4c94c89ae1d35f42faf90b8737aa47e1bc
 
 interface Categoria { id: string; nombre: string }
 
@@ -78,7 +83,12 @@ export default function ProductosPage() {
   const [categoriaIdFiltro, setCategoriaIdFiltro] = React.useState('');
   const [confirmandoId, setConfirmandoId] = React.useState<string | null>(null);
   const [motorAbierto, setMotorAbierto] = React.useState(false);
+<<<<<<< HEAD
   const [modal, setModal] = React.useState<{ tipo: 'editar' | 'kardex'; id: string } | null>(null);
+=======
+  const [importarAbierto, setImportarAbierto] = React.useState(false);
+  const [filaExpandidaId, setFilaExpandidaId] = React.useState<string | null>(null);
+>>>>>>> 65ae9d4c94c89ae1d35f42faf90b8737aa47e1bc
   const qc = useQueryClient();
 
   const [estadoTabla, setEstadoTabla] = usePreferencias<TableState>('productos', ESTADO_DEFAULT);
@@ -412,6 +422,15 @@ export default function ProductosPage() {
             <Button
               variant="outline"
               size="lg"
+              onClick={() => setImportarAbierto(true)}
+              className="border-[hsl(var(--border))]"
+              data-testid="btn-importar-exportar"
+            >
+              <FileSpreadsheet className="size-4" /> Importar / Exportar
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
               onClick={() => setMotorAbierto(true)}
               className="relative overflow-hidden border-[hsl(var(--brand-primary))]/40 bg-gradient-to-r from-[hsl(var(--brand-primary))]/10 to-[#ec4899]/10 hover:from-[hsl(var(--brand-primary))]/20 hover:to-[#ec4899]/20"
             >
@@ -425,6 +444,7 @@ export default function ProductosPage() {
         }
       />
       <MotorLogisticoModal abierto={motorAbierto} onAbiertoChange={setMotorAbierto} />
+      <ImportarExportarModal abierto={importarAbierto} onAbiertoChange={setImportarAbierto} />
 
       <Dialog open={modal?.tipo === 'editar'} onOpenChange={a => !a && setModal(null)}>
         <DialogContent className="max-w-5xl w-[min(95vw,72rem)] max-h-[92vh] overflow-y-auto p-6">
@@ -503,6 +523,17 @@ export default function ProductosPage() {
             estado={estadoTabla}
             onEstadoChange={setEstadoTabla}
             cargando={isLoading}
+            filaExpandidaKey={filaExpandidaId}
+            onToggleFilaExpandida={(key) =>
+              setFilaExpandidaId(prev => (prev === key ? null : key))
+            }
+            renderFilaExpandida={(p) => (
+              <PanelInsightsProducto
+                productoId={p.id}
+                imagenes={p.imagenes}
+                nombre={p.nombre}
+              />
+            )}
             renderRowAccent={p => {
               const cat = colorCategoria(p.categoria.slug ?? p.categoria.nombre);
               return (
@@ -518,7 +549,7 @@ export default function ProductosPage() {
                 ilustracion={<IlustracionProductos className="w-full h-full" />}
                 titulo={debouncedBuscar ? 'Sin resultados' : 'Aún no hay productos'}
                 descripcion={debouncedBuscar
-                  ? 'Probá con otra búsqueda o limpiá los filtros.'
+                  ? 'Prueba con otra búsqueda o limpia los filtros.'
                   : 'Crea tu primer producto con variantes de talla y color.'}
                 accion={debouncedBuscar ? undefined : { label: '＋ Nuevo producto', href: '/productos/nuevo' }}
               />

@@ -14,11 +14,17 @@ import {
   Loader2,
   AlertTriangle,
   Printer,
+  Clock,
+  PackageCheck,
+  PackageX,
+  ExternalLink,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -34,11 +40,14 @@ import {
 import { obtener, postear, mensajeError } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { tienePermiso, useSesion } from '@/lib/store/sesion';
+import { SeccionCpe } from '@/components/facturacion-electronica/seccion-cpe';
 
 interface NotaDetalle {
   id: string;
   numero: string;
   estado: 'emitida' | 'anulada';
+  /** Si null, es una devolución interna sin SUNAT (la venta original era nota de venta). */
+  tipoCpe: string | null;
   motivo: string;
   subtotal: string;
   total: string;
@@ -46,7 +55,7 @@ interface NotaDetalle {
   anuladaEn: string | null;
   motivoAnulacion: string | null;
   creadoEn: string;
-  venta: { id: string; numero: string; total: string };
+  venta: { id: string; numero: string; total: string; esNotaDeVenta?: boolean };
   sucursal: { id: string; nombre: string };
   cliente: { id: string; nombre: string; documento: string | null; tipoDocumento: string } | null;
   emitidaPor: { id: string; nombre: string; email: string };
@@ -115,9 +124,38 @@ export function NotaCreditoDetalleCliente() {
   }
 
   const puedeAnular = tienePermiso(permisos, 'notas-credito:anular') && nc.estado !== 'anulada';
+  const puedeEmitirCpe = tienePermiso(permisos, 'notas-credito:emitir-cpe');
+
+  type EventoTimeline = {
+    fecha: string;
+    icono: React.ElementType;
+    color: string;
+    titulo: string;
+    detalle?: string;
+  };
+  const eventos: EventoTimeline[] = [
+    {
+      fecha: nc.creadoEn,
+      icono: RotateCcw,
+      color: 'hsl(35 90% 60%)',
+      titulo: `Nota de crédito ${nc.numero} emitida`,
+      detalle: `sobre venta ${nc.venta.numero} · por ${nc.emitidaPor.nombre}`,
+    },
+    ...(nc.anuladaEn
+      ? [
+          {
+            fecha: nc.anuladaEn,
+            icono: Ban,
+            color: 'hsl(355 75% 60%)',
+            titulo: 'Nota de crédito anulada',
+            detalle: nc.motivoAnulacion ?? undefined,
+          },
+        ]
+      : []),
+  ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div className="flex items-start gap-4">
         <Button variant="ghost" size="icon-sm" asChild>
           <Link href="/notas-credito" aria-label="Volver"><ArrowLeft className="size-4" /></Link>
@@ -129,6 +167,17 @@ export function NotaCreditoDetalleCliente() {
             </div>
             <h1 className="text-2xl font-bold tracking-tight font-mono">{nc.numero}</h1>
             <Badge variant={nc.estado === 'anulada' ? 'danger' : 'success'}>{nc.estado}</Badge>
+            <Badge
+              variant="outline"
+              className={
+                nc.tipoCpe
+                  ? 'border-[hsl(var(--brand-primary))]/40 bg-[hsl(var(--brand-primary))]/10 text-[hsl(var(--brand-primary))]'
+                  : 'border-[hsl(35_90%_55%/0.4)] bg-[hsl(35_90%_55%/0.08)] text-[hsl(35_90%_55%)]'
+              }
+              title={nc.tipoCpe ? 'NC enviada a SUNAT' : 'Devolución interna · no se envía a SUNAT'}
+            >
+              {nc.tipoCpe ? 'NC SUNAT' : 'Devolución interna'}
+            </Badge>
           </div>
           <p className="text-sm text-[hsl(var(--text-muted))] mt-1 ml-12">
             Emitida {formatearFecha(nc.creadoEn, 'completa')} por {nc.emitidaPor.nombre} ·{' '}
@@ -138,7 +187,7 @@ export function NotaCreditoDetalleCliente() {
             </Link>
           </p>
         </div>
-        <div className="flex gap-2 no-print">
+        <div className="flex gap-2 flex-wrap no-print">
           <Button variant="outline" onClick={() => window.print()}>
             <Printer className="size-4" /> Imprimir
           </Button>
@@ -166,19 +215,23 @@ export function NotaCreditoDetalleCliente() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] items-start">
+        <div className="space-y-6 min-w-0">
           <Card className="overflow-hidden">
-            <div className="p-4 border-b border-[hsl(var(--border))]">
+            <div className="p-4 border-b border-[hsl(var(--border))] flex items-center gap-2">
+              <PackageX className="size-4" />
               <h2 className="font-semibold">Items devueltos</h2>
+              <Badge variant="outline" className="ml-auto">
+                {nc.items.length} {nc.items.length === 1 ? 'item' : 'items'}
+              </Badge>
             </div>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Producto</TableHead>
-                  <TableHead className="text-right">Cant.</TableHead>
-                  <TableHead className="text-right">Precio</TableHead>
-                  <TableHead className="text-right">Subtotal</TableHead>
+                  <TableHead className="w-20 text-right">Cant.</TableHead>
+                  <TableHead className="w-32 text-right">Precio</TableHead>
+                  <TableHead className="w-32 text-right">Subtotal</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -199,34 +252,122 @@ export function NotaCreditoDetalleCliente() {
             </Table>
           </Card>
 
-          <Card className="p-4">
-            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))] mb-2">Motivo</p>
-            <p className="text-sm whitespace-pre-line">{nc.motivo}</p>
-            <p className="text-xs text-[hsl(var(--text-muted))] mt-3">
-              {nc.restituyeStock
-                ? 'Stock restituido al inventario.'
-                : 'Stock NO restituido (mercadería descartada).'}
-            </p>
+          <Card className="overflow-hidden">
+            <div className="p-4 border-b border-[hsl(var(--border))] flex items-center gap-2">
+              <FileText className="size-4" />
+              <h2 className="font-semibold">Motivo de la devolución</h2>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm whitespace-pre-line">{nc.motivo}</p>
+              <div
+                className={`flex items-start gap-3 rounded-md p-3 text-sm ${
+                  nc.restituyeStock
+                    ? 'bg-[hsl(150_55%_42%/0.08)] border border-[hsl(150_55%_42%/0.3)]'
+                    : 'bg-[hsl(var(--surface-2))] border border-[hsl(var(--border))]'
+                }`}
+              >
+                {nc.restituyeStock ? (
+                  <PackageCheck className="size-4 mt-0.5 text-[hsl(150_55%_55%)] shrink-0" />
+                ) : (
+                  <PackageX className="size-4 mt-0.5 text-[hsl(var(--text-muted))] shrink-0" />
+                )}
+                <div>
+                  <p className="font-medium">
+                    {nc.restituyeStock
+                      ? 'Stock restituido al inventario'
+                      : 'Stock NO restituido'}
+                  </p>
+                  <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
+                    {nc.restituyeStock
+                      ? `Las ${nc.items.reduce((s, i) => s + i.cantidad, 0)} unidades volvieron al stock de ${nc.sucursal.nombre}.`
+                      : 'La mercadería se descartó. No se incrementó el inventario.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <div className="p-4 border-b border-[hsl(var(--border))] flex items-center gap-2">
+              <Clock className="size-4" />
+              <h2 className="font-semibold">Historial</h2>
+            </div>
+            <ol className="p-5 space-y-4">
+              {eventos.map((ev, i) => {
+                const Icon = ev.icono;
+                return (
+                  <li key={`${ev.fecha}-${i}`} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className="size-8 rounded-full grid place-items-center shrink-0"
+                        style={{
+                          backgroundColor: ev.color.replace(')', ' / 0.15)'),
+                          color: ev.color,
+                        }}
+                      >
+                        <Icon className="size-4" />
+                      </div>
+                      {i < eventos.length - 1 && (
+                        <div className="w-px flex-1 mt-1 bg-[hsl(var(--border))]" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 pb-4">
+                      <p className="text-sm font-medium">{ev.titulo}</p>
+                      {ev.detalle && (
+                        <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5 break-words">
+                          {ev.detalle}
+                        </p>
+                      )}
+                      <p className="text-xs text-[hsl(var(--text-muted))] mt-1 font-mono">
+                        {formatearFecha(ev.fecha, 'completa')}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 lg:sticky lg:top-6">
           <Card className="p-5 space-y-3">
             <div className="flex items-baseline justify-between text-sm">
-              <span>Subtotal</span>
-              <span className="font-mono tabular-nums">{formatearMoneda(nc.subtotal)}</span>
+              <span className="text-[hsl(var(--text-muted))]">Subtotal</span>
+              <span className="font-mono tabular-nums text-[hsl(var(--text-muted))]">
+                {formatearMoneda(nc.subtotal)}
+              </span>
             </div>
-            <div className="flex items-baseline justify-between border-t border-[hsl(var(--border))] pt-3">
-              <span className="text-sm font-semibold">Total NC</span>
-              <span className="text-2xl font-black tabular-nums">{formatearMoneda(nc.total)}</span>
+            <Separator />
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm font-semibold">Total nota de crédito</span>
+              <span className="text-2xl font-black tracking-tight tabular-nums">
+                {formatearMoneda(nc.total)}
+              </span>
             </div>
             <div className="text-xs text-[hsl(var(--text-muted))]">
-              Venta original:{' '}
-              <Link href={`/ventas/${nc.venta.id}`} className="hover:underline font-mono">
-                {nc.venta.numero}
-              </Link>{' '}
-              ({formatearMoneda(nc.venta.total)})
+              Representa el monto devuelto al cliente.
             </div>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <div className="p-4 border-b border-[hsl(var(--border))] flex items-center gap-2">
+              <Receipt className="size-4" />
+              <h2 className="font-semibold text-sm">Venta de origen</h2>
+            </div>
+            <Link
+              href={`/ventas/${nc.venta.id}`}
+              className="block px-5 py-4 hover:bg-[hsl(var(--surface-2))]/50 transition-colors"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-mono font-semibold">{nc.venta.numero}</p>
+                  <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
+                    Total venta: {formatearMoneda(nc.venta.total)}
+                  </p>
+                </div>
+                <ExternalLink className="size-4 text-[hsl(var(--text-muted))] shrink-0" />
+              </div>
+            </Link>
           </Card>
 
           <Card className="p-5 space-y-4 text-sm">
@@ -236,7 +377,7 @@ export function NotaCreditoDetalleCliente() {
                 <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))]">Cliente</p>
                 {nc.cliente ? (
                   <>
-                    <Link href={`/clientes/${nc.cliente.id}`} className="font-medium hover:underline">
+                    <Link href={`/clientes/${nc.cliente.id}`} className="font-medium hover:underline truncate block">
                       {nc.cliente.nombre}
                     </Link>
                     {nc.cliente.documento && (
@@ -252,20 +393,39 @@ export function NotaCreditoDetalleCliente() {
             </div>
             <div className="flex items-start gap-3">
               <Store className="size-4 mt-0.5 text-[hsl(var(--text-muted))]" />
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))]">Sucursal</p>
                 <p className="font-medium">{nc.sucursal.nombre}</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <Receipt className="size-4 mt-0.5 text-[hsl(var(--text-muted))]" />
-              <div>
+              <User className="size-4 mt-0.5 text-[hsl(var(--text-muted))]" />
+              <div className="flex-1 min-w-0">
                 <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))]">Emitida por</p>
                 <p className="font-medium">{nc.emitidaPor.nombre}</p>
                 <p className="text-xs text-[hsl(var(--text-muted))]">{nc.emitidaPor.email}</p>
               </div>
             </div>
           </Card>
+
+          {nc.tipoCpe ? (
+            <SeccionCpe origen={{ tipo: 'nota-credito', id: nc.id }} puedeEmitir={puedeEmitirCpe} />
+          ) : (
+            <Card className="p-5 border-[hsl(35_90%_55%/0.3)] bg-[hsl(35_90%_55%/0.04)]">
+              <div className="flex items-start gap-3">
+                <div className="size-9 rounded-lg bg-[hsl(35_90%_55%/0.12)] grid place-items-center shrink-0">
+                  <RotateCcw className="size-4 text-[hsl(35_90%_55%)]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold">Devolución interna</h3>
+                  <p className="text-xs text-[hsl(var(--text-muted))] mt-1 leading-relaxed">
+                    La venta original era una nota de venta interna, por lo tanto esta devolución NO se envía a SUNAT.
+                    Stock y caja se ajustaron igual.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 

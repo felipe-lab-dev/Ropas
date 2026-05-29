@@ -135,7 +135,7 @@ export default function CuponesPage() {
     <div className="space-y-6">
       <PageHeader
         titulo="Cupones y promociones"
-        descripcion="Generá campañas brutales, hacé tracking del canje y mide ROI por cada cupón."
+        descripcion="Genera campañas efectivas, haz tracking del canje y mide ROI por cada cupón."
         acciones={
           <div className="flex gap-2">
             <Button asChild variant="outline" size="lg">
@@ -145,7 +145,7 @@ export default function CuponesPage() {
             </Button>
             <Button asChild variant="outline" size="lg">
               <Link href="/cupones/nuevo?wizard=plantillas">
-                <Sparkles className="size-4" /> Plantillas brutales
+                <Sparkles className="size-4" /> Plantillas destacadas
               </Link>
             </Button>
             <Button asChild size="lg">
@@ -230,8 +230,8 @@ export default function CuponesPage() {
                     titulo={debounced || estado || segmento ? 'Sin resultados' : 'Aún no creaste cupones'}
                     descripcion={
                       debounced || estado || segmento
-                        ? 'Probá ajustar los filtros o probar con otra búsqueda.'
-                        : 'Empezá con una plantilla brutal o creá uno desde cero. El marketing pasa por acá.'
+                        ? 'Intenta ajustar los filtros o probar con otra búsqueda.'
+                        : 'Empieza con una plantilla destacada o crea uno desde cero. El marketing pasa por aquí.'
                     }
                     accion={
                       debounced || estado || segmento
