@@ -43,6 +43,13 @@ import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { tienePermiso, useSesion } from '@/lib/store/sesion';
 import { SeccionCpe } from '@/components/facturacion-electronica/seccion-cpe';
 import { useDocumentoElectronico } from '@/lib/api/hooks/use-documento-electronico';
+import {
+  BadgeRentabilidad,
+  NIVEL_LABEL,
+  formatearMargen,
+  type RentabilidadItem,
+  type RentabilidadVenta,
+} from '@/lib/rentabilidad-ui';
 
 export type AccionVenta = 'pago' | 'nc' | 'anular';
 
@@ -80,6 +87,7 @@ interface VentaDetalle {
     cantidad: number;
     descripcion: string;
     precioUnitario: string;
+    costoUnitario: string | null;
     descuento: string;
     subtotal: string;
     variante: {
@@ -90,6 +98,7 @@ interface VentaDetalle {
       producto: { id: string; nombre: string };
     };
     notasCreditoItems?: Array<{ cantidad: number; notaCreditoId: string }>;
+    rentabilidad: RentabilidadItem;
   }>;
   pagos: Array<{
     id: string;
@@ -112,6 +121,7 @@ interface VentaDetalle {
     total: string;
     creadoEn: string;
   }>;
+  rentabilidad: RentabilidadVenta;
 }
 
 const ESTADO_BADGE = {
@@ -401,6 +411,9 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
         )}
       </Card>
 
+      {/* Rentabilidad de la venta */}
+      <ResumenRentabilidad r={venta.rentabilidad} />
+
       {/* Datos cliente / sucursal / vendedor / cupón */}
       <Card className="p-4 space-y-4 text-sm">
         <div className="flex items-start gap-3">
@@ -485,7 +498,9 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
               <TableHead>Producto</TableHead>
               <TableHead className="w-14 text-right">Cant.</TableHead>
               <TableHead className="w-24 text-right">Precio</TableHead>
+              <TableHead className="w-24 text-right hidden sm:table-cell">Costo</TableHead>
               <TableHead className="w-24 text-right">Subtotal</TableHead>
+              <TableHead className="w-20 text-right">Margen</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -506,8 +521,24 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
                 <TableCell className="text-right tabular-nums text-sm">
                   {formatearMoneda(item.precioUnitario)}
                 </TableCell>
+                <TableCell className="text-right tabular-nums text-sm text-[hsl(var(--text-muted))] hidden sm:table-cell">
+                  {item.costoUnitario != null ? formatearMoneda(item.costoUnitario) : '—'}
+                </TableCell>
                 <TableCell className="text-right font-bold tabular-nums text-sm">
                   {formatearMoneda(item.subtotal)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end">
+                    <BadgeRentabilidad
+                      nivel={item.rentabilidad.nivel}
+                      margenPct={item.rentabilidad.margenPct}
+                      title={
+                        item.rentabilidad.nivel === 'sin_datos'
+                          ? 'Sin costo registrado para esta línea'
+                          : `Margen ${formatearMargen(item.rentabilidad.margenPct)} · Costo ${formatearMoneda(item.rentabilidad.costoTotal)} · Ganancia ${formatearMoneda(item.rentabilidad.ganancia ?? 0)}`
+                      }
+                    />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -939,6 +970,66 @@ function BotonVerPdf({ ventaId }: { ventaId: string }) {
         <FileText className="size-4" /> Ver PDF
       </a>
     </Button>
+  );
+}
+
+/** Tarjeta resumen de rentabilidad de la venta (margen, markup, ganancia, cobertura). */
+function ResumenRentabilidad({ r }: { r: RentabilidadVenta }) {
+  const sinDatos = r.nivel === 'sin_datos';
+  const gananciaPositiva = r.ganancia >= 0;
+  return (
+    <Card className="p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Tag className="size-4 text-[hsl(var(--text-muted))]" />
+          <h3 className="font-semibold text-sm">Rentabilidad</h3>
+        </div>
+        <BadgeRentabilidad nivel={r.nivel} margenPct={r.margenPct} title={NIVEL_LABEL[r.nivel]} />
+      </div>
+
+      {sinDatos ? (
+        <p className="text-xs text-[hsl(var(--text-muted))]">
+          Sin costo registrado en los productos. Configura el <strong>precio de compra</strong> en
+          el catálogo para ver la rentabilidad de esta venta.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <Linea label="Ingreso neto" valor={r.ingresoNeto} dim />
+          <Linea label="Costo total" valor={r.costoTotal} dim />
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="font-semibold">Ganancia</span>
+            <span
+              className={`tabular-nums font-mono font-semibold ${
+                gananciaPositiva ? 'text-[hsl(150_60%_45%)]' : 'text-[hsl(355_75%_60%)]'
+              }`}
+            >
+              {formatearMoneda(r.ganancia)}
+            </span>
+          </div>
+          <Separator />
+          <div className="flex items-baseline justify-between text-xs">
+            <span className="text-[hsl(var(--text-muted))]">Margen</span>
+            <span className="tabular-nums font-semibold">{formatearMargen(r.margenPct)}</span>
+          </div>
+          {r.markupPct !== null && (
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="text-[hsl(var(--text-muted))]">Markup</span>
+              <span className="tabular-nums">{formatearMargen(r.markupPct)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between text-xs text-[hsl(var(--text-muted))]">
+            <span>Cobertura de costos</span>
+            <span className="tabular-nums">{r.itemsConCosto}/{r.itemsTotal} ítems</span>
+          </div>
+          {!r.confiable && (
+            <div className="flex items-start gap-1.5 text-[11px] text-[hsl(40_85%_45%)] dark:text-[hsl(45_90%_62%)]">
+              <AlertTriangle className="size-3 mt-0.5 shrink-0" />
+              <span>Margen parcial: faltan costos en algunos ítems, el cálculo es aproximado.</span>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
 
