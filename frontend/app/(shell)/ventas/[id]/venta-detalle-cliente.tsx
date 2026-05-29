@@ -648,7 +648,7 @@ export function VentaDetalleCliente() {
                 <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))]">Cliente</p>
                 {venta.cliente ? (
                   <>
-                    <Link href={`/clientes/${venta.cliente.id}`} className="font-medium hover:underline truncate block">
+                    <Link href={`/clientes/editar/?id=${venta.cliente.id}`} className="font-medium hover:underline truncate block">
                       {venta.cliente.nombre}
                     </Link>
                     <p className="text-xs text-[hsl(var(--text-muted))] font-mono">

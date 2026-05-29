@@ -9,9 +9,14 @@ import {
   Query,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Express } from 'express';
 import { Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import { CuponesService } from './cupones.service';
 import { CuponRenderService } from './cupon-render.service';
 import { CrearCuponDto } from './dto/crear-cupon.dto';
@@ -19,6 +24,9 @@ import { ActualizarCuponDto } from './dto/actualizar-cupon.dto';
 import { AplicarPlantillaDto } from './dto/aplicar-plantilla.dto';
 import { ValidarCuponDto } from './dto/validar-cupon.dto';
 import { PLANTILLAS_LISTA, generarCodigoCupon } from './plantillas-cupones';
+import { TEMAS_ESTACIONALES } from './temas-estacionales';
+import { AzureBlobService } from '../../core/storage/azure-blob.service';
+import { ErrorValidacion } from '../../core/errors/errores';
 import { Tenant } from '../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { AuthGuard, RequierePermiso } from '../auth/auth.guard';
@@ -35,9 +43,46 @@ export class CuponesController {
   constructor(
     private readonly service: CuponesService,
     private readonly render: CuponRenderService,
+    private readonly blob: AzureBlobService,
   ) {}
 
-  // ─── PLANTILLAS (público dentro del tenant, sin permiso especial) ────
+  // ─── PLANTILLAS y TEMAS (público dentro del tenant) ──────────────────
+
+  @Get('temas') @RequierePermiso('cupones:leer')
+  listarTemas() {
+    return { datos: TEMAS_ESTACIONALES };
+  }
+
+  /**
+   * Sube una imagen (PNG/JPG/WebP) para usar como fondo de un cupón.
+   * El blob queda en `<tenant>/cupones/fondos/<uuid>.<ext>` y devuelve la URL pública.
+   */
+  @Post('fondos/upload') @RequierePermiso('cupones:crear')
+  @UseInterceptors(FileInterceptor('archivo', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  async subirFondo(
+    @UploadedFile() archivo: Express.Multer.File,
+    @Tenant() ctx: TenantContext,
+  ) {
+    if (!archivo) throw new ErrorValidacion('No se recibió archivo');
+
+    const mimeOk = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!mimeOk.includes(archivo.mimetype)) {
+      throw new ErrorValidacion(`Solo PNG, JPG o WebP (recibido: ${archivo.mimetype})`);
+    }
+    if (archivo.size > 5 * 1024 * 1024) {
+      throw new ErrorValidacion('Tamaño máximo 5 MB');
+    }
+    const ext =
+      archivo.mimetype === 'image/png' ? 'png' :
+      archivo.mimetype === 'image/webp' ? 'webp' : 'jpg';
+    const url = await this.blob.subir(
+      ctx.codigo,
+      `cupones/fondos/${randomUUID()}.${ext}`,
+      archivo.buffer,
+      archivo.mimetype,
+    );
+    return { datos: { url }, mensaje: 'Fondo subido' };
+  }
 
   @Get('plantillas') @RequierePermiso('cupones:leer')
   listarPlantillas() {
@@ -150,6 +195,8 @@ export class CuponesController {
       disenoMensaje: cupon.disenoMensaje,
       disenoEmoji: cupon.disenoEmoji,
       tienda: tiendaOverride?.trim() || ctx.nombre,
+      temaEstacional: cupon.temaEstacional,
+      fondoImagenUrl: cupon.fondoImagenUrl,
     });
     res
       .setHeader('Content-Type', 'application/pdf')
@@ -180,6 +227,8 @@ export class CuponesController {
       disenoMensaje: cupon.disenoMensaje,
       disenoEmoji: cupon.disenoEmoji,
       tienda: tiendaOverride?.trim() || ctx.nombre,
+      temaEstacional: cupon.temaEstacional,
+      fondoImagenUrl: cupon.fondoImagenUrl,
     });
     res
       .setHeader('Content-Type', 'image/png')

@@ -377,7 +377,7 @@ export function NotaCreditoDetalleCliente() {
                 <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))]">Cliente</p>
                 {nc.cliente ? (
                   <>
-                    <Link href={`/clientes/${nc.cliente.id}`} className="font-medium hover:underline truncate block">
+                    <Link href={`/clientes/editar/?id=${nc.cliente.id}`} className="font-medium hover:underline truncate block">
                       {nc.cliente.nombre}
                     </Link>
                     {nc.cliente.documento && (

@@ -1,7 +1,7 @@
 import { type APIRequestContext, type Page, expect, request as playwrightRequest } from '@playwright/test';
 
 export const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3001';
-export const TENANT_CODE = process.env.E2E_TENANT_CODE ?? 'mi-tienda';
+export const TENANT_CODE = process.env.E2E_TENANT_CODE ?? 'loremstore';
 export const ADMIN_DNI = process.env.E2E_ADMIN_DNI ?? '70498300';
 export const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? '';
 

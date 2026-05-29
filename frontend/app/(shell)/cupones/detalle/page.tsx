@@ -55,6 +55,8 @@ interface CuponDetalle {
   disenoColorSecundario: string;
   disenoMensaje: string | null;
   disenoEmoji: string | null;
+  temaEstacional: string | null;
+  fondoImagenUrl: string | null;
   creadoEn: string;
   _count?: { usos: number };
 }
@@ -176,6 +178,7 @@ function CuponDetalleContenido({ id }: { id: string }) {
             disenoColorSecundario={cupon.disenoColorSecundario}
             disenoMensaje={cupon.disenoMensaje}
             disenoEmoji={cupon.disenoEmoji}
+            fondoImagenUrl={cupon.fondoImagenUrl}
             tienda={tienda}
           />
           <Card className="p-4 space-y-3 text-sm">

@@ -24,6 +24,8 @@ import { NotasCreditoModule } from './modules/notas-credito/notas-credito.module
 import { CatalogosModule } from './modules/catalogos/catalogos.module';
 import { FacturacionElectronicaModule } from './modules/facturacion-electronica/facturacion-electronica.module';
 import { UtilidadesModule } from './modules/utilidades/utilidades.module';
+import { UsuariosModule } from './modules/usuarios/usuarios.module';
+import { RolesModule } from './modules/roles/roles.module';
 
 @Module({
   imports: [
@@ -73,6 +75,8 @@ import { UtilidadesModule } from './modules/utilidades/utilidades.module';
     CatalogosModule,
     FacturacionElectronicaModule,
     UtilidadesModule,
+    UsuariosModule,
+    RolesModule,
   ],
 })
 export class AppModule {}

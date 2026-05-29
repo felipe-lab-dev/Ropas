@@ -992,6 +992,10 @@ model Cupon {
   disenoColorSecundario   String             @default("#1e1b4b") @map("diseno_color_secundario") @db.VarChar(9)
   disenoMensaje           String?            @map("diseno_mensaje") @db.VarChar(240)
   disenoEmoji             String?            @map("diseno_emoji") @db.VarChar(8)
+  /// ID del tema estacional pre-definido (inti-raymi, navidad, etc.). Ver temas-estacionales.ts.
+  temaEstacional          String?            @map("tema_estacional") @db.VarChar(60)
+  /// URL pública (Azure Blob) de imagen de fondo personalizada, en /<tenant>/cupones/fondos/<uuid>.<ext>.
+  fondoImagenUrl          String?            @map("fondo_imagen_url") @db.VarChar(500)
   creadoPorId             String?            @map("creado_por_id") @db.Uuid
   creadoPor               Usuario?           @relation("CuponesCreados", fields: [creadoPorId], references: [id])
   creadoEn                DateTime           @default(now()) @map("creado_en")

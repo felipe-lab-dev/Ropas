@@ -31,8 +31,8 @@ test.describe('Clientes · CRUD', () => {
 
     await page.locator('[data-testid="btn-guardar-cliente"]').click();
     await esperarToast(page, /creado/i);
-    // El nuevo cliente redirige al detalle: /clientes/{uuid}
-    await expect(page).toHaveURL(/\/clientes\/[a-f0-9-]{36}\/?$/, { timeout: 12_000 });
+    // El nuevo cliente redirige a la edición (ruta estática, export-safe): /clientes/editar/?id={uuid}
+    await expect(page).toHaveURL(/\/clientes\/editar\/?\?id=[a-f0-9-]{36}/, { timeout: 12_000 });
 
     // 2. Volver a la lista y buscarlo por documento
     await gotoY(page, '/clientes');
@@ -41,13 +41,13 @@ test.describe('Clientes · CRUD', () => {
       timeout: 8_000,
     });
 
-    // 3. Click en el ícono de editar (único por fila) → detalle
+    // 3. Click en el ícono de editar (único por fila) → edición
     await page
-      .locator('tr', { hasText: nombre })
+      .locator('[data-testid="data-table-row"]', { hasText: nombre })
       .first()
-      .locator('a[href^="/clientes/"]')
+      .locator('a[href^="/clientes/editar"]')
       .click();
-    await expect(page).toHaveURL(/\/clientes\/[a-f0-9-]{36}\/?$/);
+    await expect(page).toHaveURL(/\/clientes\/editar\/?\?id=[a-f0-9-]{36}/);
 
     // En el detalle: cambiar teléfono y guardar
     const telefono = `9${sufijoAleatorio(8)}`;

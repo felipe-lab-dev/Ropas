@@ -121,4 +121,12 @@ export class CrearCuponDto {
 
   @IsOptional() @Transform(trimToNull) @IsString() @Length(0, 8)
   disenoEmoji?: string | null;
+
+  /** ID del tema estacional pre-definido (ver temas-estacionales.ts). */
+  @IsOptional() @Transform(trimToNull) @IsString() @Length(0, 60)
+  temaEstacional?: string | null;
+
+  /** URL pública (Azure Blob) de la imagen de fondo, devuelta por /cupones/fondos/upload. */
+  @IsOptional() @Transform(trimToNull) @IsString() @Length(0, 500)
+  fondoImagenUrl?: string | null;
 }

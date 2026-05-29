@@ -8,10 +8,11 @@ import {
   LayoutDashboard, Package, ShoppingCart, Boxes, Wallet,
   Users, BarChart3, Settings, Building2, ChevronLeft, Sparkles,
   Receipt, Home, History, Truck, PackageCheck, BookOpen, Tag, RotateCcw,
+  UserCog, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useConfigSaas } from '@/lib/store/config-saas';
-import { useSesion } from '@/lib/store/sesion';
+import { useSesion, tienePermiso } from '@/lib/store/sesion';
 import { iniciales } from '@/lib/utils';
 
 interface NavItem {
@@ -19,6 +20,8 @@ interface NavItem {
   href: string;
   icon: React.ElementType;
   modulo?: string;
+  /** Si se define, el item solo aparece si el usuario tiene este permiso (o `*`). */
+  permiso?: string;
 }
 
 interface NavSection {
@@ -76,6 +79,8 @@ const SECCIONES: NavSection[] = [
     items: [
       { label: 'Clientes', href: '/clientes', icon: Users, modulo: 'clientes' },
       { label: 'Sucursales', href: '/sucursales', icon: Building2 },
+      { label: 'Usuarios', href: '/usuarios', icon: UserCog, permiso: 'usuarios:leer' },
+      { label: 'Accesos', href: '/accesos', icon: ShieldCheck, permiso: 'roles:leer' },
     ],
   },
 ];
@@ -130,7 +135,11 @@ export function Sidebar() {
 
       <nav className="flex-1 flex flex-col gap-5 overflow-y-auto scrollbar-thin -mx-1 px-1">
         {SECCIONES.map((seccion, seccionIdx) => {
-          const items = seccion.items.filter(i => !i.modulo || moduloHabilitado(i.modulo));
+          const items = seccion.items.filter(
+            i =>
+              (!i.modulo || moduloHabilitado(i.modulo)) &&
+              (!i.permiso || tienePermiso(usuario?.permisos, i.permiso)),
+          );
           if (items.length === 0) return null;
           return (
             <div key={seccion.titulo} className="flex flex-col gap-0.5">

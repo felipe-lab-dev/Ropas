@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/ui/page-header';
 import { postear, mensajeError } from '@/lib/api/client';
 import { SelectorUbigeo } from '@/components/sunat/selector-ubigeo';
+import { BotonConsultaDoc } from '@/components/sunat/boton-consulta-doc';
 
 const TIPO_DOC = [
   { value: 'dni', label: 'DNI' },
@@ -58,7 +59,7 @@ export default function NuevoClientePage() {
     onSuccess: cliente => {
       toast.success('Cliente creado');
       void qc.invalidateQueries({ queryKey: ['clientes'] });
-      router.push(`/clientes/${cliente.id}`);
+      router.push(`/clientes/editar/?id=${cliente.id}`);
     },
     onError: e => toast.error(mensajeError(e)),
   });
@@ -119,14 +120,30 @@ export default function NuevoClientePage() {
           </div>
           <div className="md:col-span-4 space-y-1.5">
             <Label htmlFor="documento">Número de documento</Label>
-            <Input
-              id="documento"
-              data-testid="input-documento-cliente"
-              value={documento}
-              onChange={e => setDocumento(e.target.value)}
-              placeholder={tipoDocumento === 'ruc' ? '20123456789' : '12345678'}
-              inputMode="numeric"
-            />
+            <div className="flex gap-2 items-start">
+              <Input
+                id="documento"
+                data-testid="input-documento-cliente"
+                value={documento}
+                onChange={e => setDocumento(e.target.value)}
+                placeholder={tipoDocumento === 'ruc' ? '20123456789' : '12345678'}
+                inputMode="numeric"
+                className="flex-1"
+              />
+              <BotonConsultaDoc
+                tipoDocumento={tipoDocumento}
+                documento={documento}
+                testId="btn-consultar-doc-cliente"
+                onDni={d => setNombre(d.nombreCompleto)}
+                onRuc={d => {
+                  setNombre(d.razonSocial);
+                  if (d.direccion) setDireccion(d.direccion);
+                  const ciudadDetectada = d.provincia ?? d.departamento;
+                  if (ciudadDetectada) setCiudad(ciudadDetectada);
+                  if (d.ubigeo) setUbigeoCodigo(d.ubigeo);
+                }}
+              />
+            </div>
           </div>
           <div className="md:col-span-4 space-y-1.5">
             <Label htmlFor="fechaNacimiento">Fecha de nacimiento</Label>

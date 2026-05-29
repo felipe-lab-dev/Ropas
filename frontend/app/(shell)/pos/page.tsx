@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { obtener, obtenerPaginado, postear, mensajeError } from '@/lib/api/client';
 import { formatearMoneda } from '@/lib/utils';
 import { useSesion } from '@/lib/store/sesion';
+import { useConsultaDoc } from '@/components/sunat/use-consulta-doc';
 
 interface VarianteBuscable {
   id: string;
@@ -106,6 +107,52 @@ export default function PosPage() {
       }),
     enabled: debouncedBuscarCliente.length >= 2,
   });
+
+  // ── Consulta json.pe + creación inline de cliente durante la venta ──
+  const { consultarRuc, consultarDni } = useConsultaDoc();
+  const [creandoClienteDoc, setCreandoClienteDoc] = React.useState(false);
+  const docBusquedaLimpio = debouncedBuscarCliente.replace(/\D+/g, '');
+  const tipoDocBusqueda: 'ruc' | 'dni' | null =
+    docBusquedaLimpio.length === 11 ? 'ruc' : docBusquedaLimpio.length === 8 ? 'dni' : null;
+
+  const consultarYCrearCliente = React.useCallback(async () => {
+    if (!tipoDocBusqueda || creandoClienteDoc) return;
+    setCreandoClienteDoc(true);
+    try {
+      let nombre = '';
+      let direccion: string | undefined;
+      let ciudad: string | undefined;
+      let ubigeoCodigo: string | undefined;
+      if (tipoDocBusqueda === 'ruc') {
+        const d = await consultarRuc(docBusquedaLimpio);
+        if (!d) return;
+        nombre = d.razonSocial;
+        direccion = d.direccion ?? undefined;
+        ciudad = (d.provincia ?? d.departamento) ?? undefined;
+        ubigeoCodigo = d.ubigeo ?? undefined;
+      } else {
+        const d = await consultarDni(docBusquedaLimpio);
+        if (!d) return;
+        nombre = d.nombreCompleto;
+      }
+      const creado = await postear<{ id: string }>('/clientes', {
+        tipoDocumento: tipoDocBusqueda,
+        documento: docBusquedaLimpio,
+        nombre,
+        ...(direccion ? { direccion } : {}),
+        ...(ciudad ? { ciudad } : {}),
+        ...(ubigeoCodigo ? { ubigeoCodigo } : {}),
+      });
+      setCliente({ id: creado.id, nombre, documento: docBusquedaLimpio, tipoDocumento: tipoDocBusqueda });
+      setBuscarCliente('');
+      setPopoverClienteAbierto(false);
+      toast.success(`Cliente creado: ${nombre}`);
+    } catch (e) {
+      toast.error(mensajeError(e));
+    } finally {
+      setCreandoClienteDoc(false);
+    }
+  }, [tipoDocBusqueda, creandoClienteDoc, docBusquedaLimpio, consultarRuc, consultarDni]);
 
   React.useEffect(() => {
     const t = setTimeout(() => setDebouncedBusqueda(busqueda), 200);
@@ -533,9 +580,26 @@ export default function PosPage() {
                     )}
                     {!buscandoClientes &&
                       (clientesEncontrados?.datos.length === 0 ? (
-                        <p className="p-3 text-xs text-[hsl(var(--text-muted))]">
-                          Sin coincidencias.
-                        </p>
+                        <div className="p-3 space-y-2">
+                          <p className="text-xs text-[hsl(var(--text-muted))]">Sin coincidencias.</p>
+                          {tipoDocBusqueda && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="w-full justify-center"
+                              disabled={creandoClienteDoc}
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={consultarYCrearCliente}
+                              data-testid="pos-crear-cliente-doc"
+                            >
+                              <UserPlus className="size-3.5" />
+                              {creandoClienteDoc
+                                ? 'Consultando…'
+                                : `Consultar ${tipoDocBusqueda === 'ruc' ? 'SUNAT' : 'RENIEC'} y crear`}
+                            </Button>
+                          )}
+                        </div>
                       ) : (
                         clientesEncontrados?.datos.map(c => (
                           <button

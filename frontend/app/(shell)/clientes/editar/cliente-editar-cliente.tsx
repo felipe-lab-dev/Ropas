@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -41,11 +41,16 @@ interface ClienteDetalle {
   clasificacion: string | null;
 }
 
-export default function EditarClientePage() {
-  const params = useParams();
-  const id = params.id as string;
+export function EditarClienteCliente() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get('id') ?? '';
   const router = useRouter();
   const qc = useQueryClient();
+
+  // Sin id → volver al listado (la ruta es estática /clientes/editar?id=...).
+  React.useEffect(() => {
+    if (!id) router.replace('/clientes');
+  }, [id, router]);
 
   const { data: cliente, isLoading } = useQuery({
     queryKey: ['cliente', id],
@@ -132,11 +137,9 @@ export default function EditarClientePage() {
       <PageHeader
         titulo={cliente.nombre}
         descripcion={
-          `${cliente.codigo ? `${cliente.codigo} · ` : ''}${
-            cliente.documento
-              ? `${cliente.tipoDocumento.toUpperCase()} ${cliente.documento}`
-              : 'Sin documento registrado'
-          }`
+          cliente.documento
+            ? `${cliente.tipoDocumento.toUpperCase()} ${cliente.documento}${cliente.codigo ? ` · ${cliente.codigo}` : ''}`
+            : cliente.codigo ?? 'Sin documento registrado'
         }
         acciones={
           <>

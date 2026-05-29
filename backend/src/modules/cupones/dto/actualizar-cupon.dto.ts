@@ -108,4 +108,10 @@ export class ActualizarCuponDto {
 
   @IsOptional() @Transform(trimToNull) @IsString() @Length(0, 8)
   disenoEmoji?: string | null;
+
+  @IsOptional() @Transform(trimToNull) @IsString() @Length(0, 60)
+  temaEstacional?: string | null;
+
+  @IsOptional() @Transform(trimToNull) @IsString() @Length(0, 500)
+  fondoImagenUrl?: string | null;
 }

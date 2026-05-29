@@ -9,7 +9,7 @@ import {
 import {
   LayoutDashboard, Package, ShoppingCart, Boxes, Wallet,
   Users, BarChart3, Settings, Building2, Plus, ArrowRight,
-  Truck, PackageCheck, Tag, Sparkles, ScanLine, RotateCcw,
+  Truck, PackageCheck, Tag, Sparkles, ScanLine, RotateCcw, UserCog, ShieldCheck,
 } from 'lucide-react';
 
 interface Props {
@@ -90,6 +90,12 @@ export function CommandPalette({ open, onOpenChange }: Props) {
           </CommandItem>
           <CommandItem onSelect={() => ir('/sucursales')}>
             <Building2 /> Sucursales
+          </CommandItem>
+          <CommandItem onSelect={() => ir('/usuarios')}>
+            <UserCog /> Usuarios
+          </CommandItem>
+          <CommandItem onSelect={() => ir('/accesos')}>
+            <ShieldCheck /> Accesos y roles
           </CommandItem>
           <CommandItem onSelect={() => ir('/reportes')}>
             <BarChart3 /> Reportes

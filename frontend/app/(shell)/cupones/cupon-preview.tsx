@@ -14,6 +14,8 @@ interface Props {
   disenoColorSecundario: string;
   disenoMensaje?: string | null;
   disenoEmoji?: string | null;
+  /** URL de imagen de fondo personalizada (overlay con colores arriba) */
+  fondoImagenUrl?: string | null;
   tienda?: string;
   compacto?: boolean;
 }
@@ -34,6 +36,7 @@ export function CuponPreview({
   disenoColorSecundario,
   disenoMensaje,
   disenoEmoji,
+  fondoImagenUrl,
   tienda = 'Mi Tienda',
   compacto = false,
 }: Props) {
@@ -56,27 +59,51 @@ export function CuponPreview({
         fontFamily: 'Inter, sans-serif',
       }}
     >
-      {/* Círculos decorativos */}
-      <div
-        className="absolute rounded-full"
-        style={{
-          width: compacto ? 120 : 180,
-          height: compacto ? 120 : 180,
-          right: compacto ? -30 : -40,
-          top: compacto ? -30 : -40,
-          background: 'rgba(255,255,255,0.06)',
-        }}
-      />
-      <div
-        className="absolute rounded-full"
-        style={{
-          width: compacto ? 90 : 130,
-          height: compacto ? 90 : 130,
-          left: compacto ? -20 : -30,
-          bottom: compacto ? -20 : -30,
-          background: 'rgba(255,255,255,0.06)',
-        }}
-      />
+      {/* Imagen de fondo personalizada (si hay) */}
+      {fondoImagenUrl && (
+        <>
+          <img
+            src={fondoImagenUrl}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            aria-hidden
+          />
+          {/* Overlay con gradient de los colores tema para legibilidad */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(180deg, ${disenoColorSecundario}cc 0%, ${disenoColorPrimario}b3 100%)`,
+            }}
+            aria-hidden
+          />
+        </>
+      )}
+
+      {/* Círculos decorativos (solo si NO hay imagen de fondo) */}
+      {!fondoImagenUrl && (
+        <>
+          <div
+            className="absolute rounded-full"
+            style={{
+              width: compacto ? 120 : 180,
+              height: compacto ? 120 : 180,
+              right: compacto ? -30 : -40,
+              top: compacto ? -30 : -40,
+              background: 'rgba(255,255,255,0.06)',
+            }}
+          />
+          <div
+            className="absolute rounded-full"
+            style={{
+              width: compacto ? 90 : 130,
+              height: compacto ? 90 : 130,
+              left: compacto ? -20 : -30,
+              bottom: compacto ? -20 : -30,
+              background: 'rgba(255,255,255,0.06)',
+            }}
+          />
+        </>
+      )}
 
       <div className={`relative z-10 ${compacto ? 'p-4' : 'p-6'} flex flex-col h-full`}>
         {/* Header */}

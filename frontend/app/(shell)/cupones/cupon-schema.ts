@@ -100,6 +100,8 @@ export const cuponSchema = z
       .default('#1e1b4b'),
     disenoMensaje: z.string().trim().max(240).optional().or(z.literal('')),
     disenoEmoji: z.string().trim().max(8).optional().or(z.literal('')),
+    temaEstacional: z.string().trim().max(60).optional().or(z.literal('')),
+    fondoImagenUrl: z.string().trim().max(500).optional().or(z.literal('')),
   })
   .superRefine((v, ctx) => {
     if (new Date(v.fechaFin) <= new Date(v.fechaInicio)) {
@@ -174,6 +176,8 @@ export const CUPON_VACIO: CuponFormValues = {
   disenoColorSecundario: '#1e1b4b',
   disenoMensaje: '',
   disenoEmoji: '',
+  temaEstacional: '',
+  fondoImagenUrl: '',
 };
 
 export function aPayloadApi(v: CuponFormValues) {
@@ -201,5 +205,7 @@ export function aPayloadApi(v: CuponFormValues) {
     disenoColorSecundario: v.disenoColorSecundario,
     disenoMensaje: empty(v.disenoMensaje),
     disenoEmoji: empty(v.disenoEmoji),
+    temaEstacional: empty(v.temaEstacional),
+    fondoImagenUrl: empty(v.fondoImagenUrl),
   };
 }

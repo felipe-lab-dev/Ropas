@@ -40,6 +40,8 @@ interface CuponDetalle {
   disenoColorSecundario: string;
   disenoMensaje: string | null;
   disenoEmoji: string | null;
+  temaEstacional: string | null;
+  fondoImagenUrl: string | null;
 }
 
 function toLocalInput(iso: string) {
@@ -102,6 +104,8 @@ export default function EditarCuponPage() {
         disenoColorSecundario: data.disenoColorSecundario,
         disenoMensaje: data.disenoMensaje ?? '',
         disenoEmoji: data.disenoEmoji ?? '',
+        temaEstacional: data.temaEstacional ?? '',
+        fondoImagenUrl: data.fondoImagenUrl ?? '',
       }
     : undefined;
 

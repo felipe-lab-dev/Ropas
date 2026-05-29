@@ -134,6 +134,8 @@ export class CuponesService {
         disenoColorSecundario: dto.disenoColorSecundario ?? '#1e1b4b',
         disenoMensaje: dto.disenoMensaje ?? null,
         disenoEmoji: dto.disenoEmoji ?? null,
+        temaEstacional: dto.temaEstacional ?? null,
+        fondoImagenUrl: dto.fondoImagenUrl ?? null,
         creadoPorId: creadoPorId ?? null,
       },
     });
@@ -227,6 +229,8 @@ export class CuponesService {
     if (dto.productosAplicablesIds !== undefined) data.productosAplicablesIds = dto.productosAplicablesIds;
     if (dto.campania !== undefined) data.campania = dto.campania;
     if (dto.disenoColorPrimario !== undefined) data.disenoColorPrimario = dto.disenoColorPrimario;
+    if (dto.temaEstacional !== undefined) data.temaEstacional = dto.temaEstacional;
+    if (dto.fondoImagenUrl !== undefined) data.fondoImagenUrl = dto.fondoImagenUrl;
     if (dto.disenoColorSecundario !== undefined) data.disenoColorSecundario = dto.disenoColorSecundario;
     if (dto.disenoMensaje !== undefined) data.disenoMensaje = dto.disenoMensaje;
     if (dto.disenoEmoji !== undefined) data.disenoEmoji = dto.disenoEmoji;

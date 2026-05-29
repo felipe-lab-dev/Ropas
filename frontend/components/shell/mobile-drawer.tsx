@@ -8,10 +8,11 @@ import { X } from 'lucide-react';
 import {
   LayoutDashboard, Package, ShoppingCart, Boxes, Wallet,
   Users, BarChart3, Settings, Building2, Home, History,
-  Truck, PackageCheck, BookOpen, Receipt,
+  Truck, PackageCheck, BookOpen, Receipt, UserCog, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useConfigSaas } from '@/lib/store/config-saas';
+import { useSesion, tienePermiso } from '@/lib/store/sesion';
 
 interface MobileDrawerProps {
   open: boolean;
@@ -61,6 +62,8 @@ const SECCIONES = [
     items: [
       { label: 'Clientes', href: '/clientes', icon: Users, modulo: 'clientes' },
       { label: 'Sucursales', href: '/sucursales', icon: Building2 },
+      { label: 'Usuarios', href: '/usuarios', icon: UserCog, permiso: 'usuarios:leer' },
+      { label: 'Accesos', href: '/accesos', icon: ShieldCheck, permiso: 'roles:leer' },
       { label: 'Configuración', href: '/configuracion', icon: Settings },
     ],
   },
@@ -69,6 +72,7 @@ const SECCIONES = [
 export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
   const pathname = usePathname();
   const moduloHabilitado = useConfigSaas(s => s.moduloHabilitado);
+  const usuario = useSesion(s => s.usuario);
 
   React.useEffect(() => {
     if (!open) return;
@@ -120,7 +124,9 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
             <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4 flex flex-col gap-4">
               {SECCIONES.map(seccion => {
                 const items = seccion.items.filter(
-                  i => !('modulo' in i) || !i.modulo || moduloHabilitado(i.modulo as string),
+                  i =>
+                    (!('modulo' in i) || !i.modulo || moduloHabilitado(i.modulo as string)) &&
+                    (!('permiso' in i) || tienePermiso(usuario?.permisos, i.permiso as string)),
                 );
                 if (items.length === 0) return null;
                 return (

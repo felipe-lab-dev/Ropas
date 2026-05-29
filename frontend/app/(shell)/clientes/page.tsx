@@ -268,7 +268,7 @@ export default function ClientesPage() {
       render: c => (
         <div className="flex items-center justify-end gap-1">
           <Button asChild variant="ghost" size="icon-sm" aria-label={`Editar ${c.nombre}`}>
-            <Link href={`/clientes/${c.id}`}><Edit2 className="size-3.5" /></Link>
+            <Link href={`/clientes/editar/?id=${c.id}`}><Edit2 className="size-3.5" /></Link>
           </Button>
           <Button
             variant="ghost"

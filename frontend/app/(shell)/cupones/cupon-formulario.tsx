@@ -20,6 +20,7 @@ import {
   type CuponFormValues,
 } from './cupon-schema';
 import { CuponPreview } from './cupon-preview';
+import { SelectorTema, type TemaEstacional } from './selector-tema';
 
 interface Props {
   inicial?: Partial<CuponFormValues>;
@@ -65,6 +66,20 @@ export function CuponFormulario({
   const set = <K extends keyof CuponFormValues>(k: K, v: CuponFormValues[K]) => {
     setForm(f => ({ ...f, [k]: v }));
     setErrores(e => (e[k] ? { ...e, [k]: undefined } : e));
+  };
+
+  const aplicarTema = (tema: TemaEstacional) => {
+    setForm(f => ({
+      ...f,
+      temaEstacional: tema.id,
+      disenoColorPrimario: tema.colorPrimario,
+      disenoColorSecundario: tema.colorSecundario,
+      disenoEmoji: tema.emoji,
+      disenoMensaje: tema.mensajeCopy,
+      campania: f.campania || tema.nombreCampania,
+      // Si el descuento es default (20), proponer el del tema
+      valorDescuento: f.valorDescuento === 20 ? tema.descuentoSugeridoPct : f.valorDescuento,
+    }));
   };
 
   const submit = () => {
@@ -390,6 +405,21 @@ export function CuponFormulario({
           </Campo>
         </Seccion>
 
+        {/* TEMA ESTACIONAL + FONDO PERSONALIZADO */}
+        <Seccion
+          titulo="Tema estacional y fondo"
+          descripcion="Aplicá una paleta brutal para Inti Raymi, Navidad, Black Friday y más. O subí tu propia imagen de fondo."
+        >
+          <SelectorTema
+            temaActual={form.temaEstacional ?? ''}
+            fondoActual={form.fondoImagenUrl ?? ''}
+            onAplicarTema={aplicarTema}
+            onLimpiarTema={() => set('temaEstacional', '')}
+            onFondoSubido={url => set('fondoImagenUrl', url)}
+            onQuitarFondo={() => set('fondoImagenUrl', '')}
+          />
+        </Seccion>
+
         {errorServidor && (
           <div
             role="alert"
@@ -428,6 +458,7 @@ export function CuponFormulario({
           disenoColorSecundario={form.disenoColorSecundario}
           disenoMensaje={form.disenoMensaje ?? null}
           disenoEmoji={form.disenoEmoji ?? null}
+          fondoImagenUrl={form.fondoImagenUrl || null}
           tienda={tiendaNombre}
         />
         <p className="text-[10px] text-[hsl(var(--text-muted))] max-w-[420px]">
