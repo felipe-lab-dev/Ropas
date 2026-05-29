@@ -16,9 +16,21 @@ import {
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SelectorTienda } from '@/components/auth/selector-tienda';
 import { postear, mensajeError } from '@/lib/api/client';
 import { useSesion, type UsuarioSesion } from '@/lib/store/sesion';
 import { useApariencia } from '@/lib/store/apariencia';
+import {
+  obtenerTenantCode,
+  setTenantCode,
+  tenantEsFijoPorHost,
+} from '@/lib/tenant';
+import {
+  listarTiendas,
+  obtenerBranding,
+  type BrandingPublico,
+  type TiendaResumen,
+} from '@/lib/branding';
 import { cn } from '@/lib/utils';
 
 const schema = z.object({
@@ -82,7 +94,35 @@ export default function LoginPage() {
   const [mostrarPwd, setMostrarPwd] = React.useState(false);
   const [capsLock, setCapsLock] = React.useState(false);
 
+  // ── Selección de tienda (estilo Velarde) ────────────────────────────────
+  // En localhost/staging el usuario elige la tienda antes de autenticar; en un
+  // subdominio real (*.tienda.enkihubs.com) el host la fija y el selector se oculta.
+  const [tiendas, setTiendas] = React.useState<TiendaResumen[]>([]);
+  const [tiendaSel, setTiendaSel] = React.useState('');
+  const [branding, setBranding] = React.useState<BrandingPublico | null>(null);
+  const [bloqueado, setBloqueado] = React.useState(true);
+
   React.useEffect(() => { hidratar(); }, [hidratar]);
+
+  React.useEffect(() => {
+    const fijo = tenantEsFijoPorHost();
+    setBloqueado(fijo);
+    const inicial = obtenerTenantCode();
+    setTiendaSel(inicial);
+    obtenerBranding(inicial).then(setBranding).catch(() => setBranding(null));
+    if (!fijo) {
+      listarTiendas().then(setTiendas).catch(() => setTiendas([]));
+    }
+  }, []);
+
+  const onSelectTienda = (codigo: string) => {
+    setTenantCode(codigo);
+    setTiendaSel(codigo);
+    obtenerBranding(codigo).then(setBranding).catch(() => setBranding(null));
+  };
+
+  const nombreTienda = branding?.nombre ?? 'Ropas';
+  const subtituloTienda = branding?.subtitulo ?? 'Vende más rápido. Controla tu tienda.';
 
   const form = useForm<FormValues>({ resolver: zodResolver(schema) });
 
@@ -213,13 +253,13 @@ export default function LoginPage() {
             className="text-5xl font-black text-white mb-3 tracking-tight login-reveal-up"
             style={{ animationDelay: '0.2s' }}
           >
-            Ropas
+            {nombreTienda}
           </h1>
           <p
             className="text-xl font-semibold mb-3 login-reveal-up bg-gradient-to-r from-[hsl(var(--brand-accent))] via-white to-[hsl(var(--brand-primary))] bg-clip-text text-transparent"
             style={{ animationDelay: '0.35s' }}
           >
-            Vende más rápido. Controla tu tienda.
+            {subtituloTienda}
           </p>
           <p
             className="text-sm leading-relaxed text-white/65 max-w-sm mx-auto login-reveal-up"
@@ -274,7 +314,7 @@ export default function LoginPage() {
             <div className="size-16 mx-auto mb-4 rounded-2xl gradient-brand-accent grid place-items-center shadow-[0_8px_24px_hsl(var(--brand-primary)/0.4)]">
               <Sparkles className="size-7 text-white" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">Ropas</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{nombreTienda}</h1>
           </div>
 
           {/* Card con borde gradient animado */}
@@ -288,6 +328,21 @@ export default function LoginPage() {
               </div>
 
               <form onSubmit={form.handleSubmit(enviar)} className="space-y-5">
+                {/* Tienda — solo en localhost/staging; en subdominio real el host la fija */}
+                {!bloqueado && tiendas.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tienda">Tienda</Label>
+                    <SelectorTienda
+                      id="tienda"
+                      value={tiendaSel}
+                      onChange={onSelectTienda}
+                      tiendas={tiendas}
+                      nombreActual={branding?.nombre}
+                      disabled={cargando}
+                    />
+                  </div>
+                )}
+
                 {/* Usuario / DNI */}
                 <div className="space-y-1.5">
                   <Label htmlFor="identificador">DNI o Email</Label>

@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { json } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
@@ -25,6 +26,10 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   app.use(helmet());
+  // Límite de body JSON ampliado: el branding (PUT /configuracion/branding) envía el
+  // logo SVG como texto en el body. Un SVG con paths detallados puede pasar los 100kb
+  // del default de Express.
+  app.use(json({ limit: '5mb' }));
   // CORS: orígenes explícitos via env + wildcard implícito para subdominios *.tienda.enkihubs.com
   // (cada tenant SaaS estrena su propio subdominio sin que tengamos que rebootear el backend).
   const origenesExplicitos = config

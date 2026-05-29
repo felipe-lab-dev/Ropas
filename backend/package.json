@@ -4,8 +4,10 @@
   "private": true,
   "description": "API NestJS multi-tenant de Ropas",
   "scripts": {
+    "predev": "node scripts/kill-puerto.mjs 3001 && prisma generate",
     "build": "nest build",
     "dev": "nest start --watch",
+    "kill-puerto": "node scripts/kill-puerto.mjs",
     "start": "node dist/main",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
@@ -22,6 +24,7 @@
     "tenant:plan": "tsx scripts/tenant-plan.ts",
     "seed": "tsx scripts/seed-demo.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
+    "seed:productos": "tsx scripts/seed-productos-10.ts",
     "seed:mujer": "tsx scripts/seed-mujer.ts",
     "seed:ventas": "tsx scripts/seed-ventas.ts",
     "seed:proveedores": "tsx scripts/seed-proveedores.ts",

@@ -150,7 +150,7 @@ export function Header({ onOpenMenu }: HeaderProps = {}) {
               animate={{ opacity: 1, y: 0 }}
               className="hidden md:flex items-center gap-2 text-xs"
             >
-              <span className="text-[hsl(var(--text-muted))]">{config.tenant.nombre}</span>
+              <span className="text-[hsl(var(--text-muted))]">{config.branding?.nombre ?? config.tenant.nombre}</span>
               <span className="rounded-full bg-gradient-to-r from-[hsl(var(--brand-primary))]/15 to-[hsl(var(--brand-accent))]/15 text-[hsl(var(--brand-primary))] px-2.5 py-0.5 font-semibold border border-[hsl(var(--brand-primary))]/20">
                 {config.plan.nombre}
               </span>
