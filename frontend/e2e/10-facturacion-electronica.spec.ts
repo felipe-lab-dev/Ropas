@@ -82,7 +82,7 @@ test.describe('Configuración · Facturación Electrónica (Modo A — sin tocar
     await fillEstable(page, '[data-testid="input-direccion"]', 'Av. La Marina 123');
 
     // 2. UBIGEO (Lima/Lima/Lima = 150101)
-    await page.getByRole('combobox').click();
+    await page.getByRole('combobox', { name: /seleccionar ubigeo/i }).click();
     await page.getByPlaceholder(/buscar departamento/i).fill('150101');
     await page.waitForTimeout(400); // debounce 200ms + fetch
     // El CommandItem renderiza el código como texto — clickeamos el primero
@@ -134,7 +134,9 @@ test.describe('Configuración · Facturación Electrónica (Modo A — sin tocar
       ['A5', '002'],
       ['Ticket 80mm', '004'],
     ] as const) {
-      await page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') }).click();
+      // El botón del RadioFormato concatena label + descripción en accessible name,
+      // así que matcheamos por prefijo (sin anchors estrictos)
+      await page.getByRole('button', { name: new RegExp(`^${label}\\b`, 'i') }).first().click();
       await page.getByRole('button', { name: /guardar configuraci[oó]n/i }).click();
       await esperarToast(page, /configuraci[oó]n guardada/i);
       await page.waitForTimeout(400);

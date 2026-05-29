@@ -14,7 +14,7 @@ test.describe('Cupones · aplicación end-to-end en venta', () => {
     await fillEstable(page, 'input[name="codigo"]', codigo);
     await fillEstable(page, 'input[name="nombre"]', `Cupón aplicar ${codigo}`);
     await fillEstable(page, 'input[name="valorDescuento"]', '20');
-    await page.getByTestId('cupon-guardar').click();
+    await page.getByTestId('btn-guardar').click();
     await page.waitForURL(/\/cupones\/detalle\/?\?id=[a-f0-9-]{36}/);
     const cuponId = new URL(page.url()).searchParams.get('id')!;
 

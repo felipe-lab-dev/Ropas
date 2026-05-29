@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { FormField } from '@/components/ui/form-field';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/ui/page-header';
 import {
@@ -321,10 +321,15 @@ function ModalSerie({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
           {/* Tipo de comprobante (Categoría) */}
-          <div className="space-y-1.5">
-            <Label>Tipo de comprobante</Label>
+          <FormField
+            label="Tipo de comprobante"
+            htmlFor="categoria"
+            requerido
+            error={errors.categoria?.message}
+          >
             <div className="relative">
               <select
+                id="categoria"
                 {...register('categoria')}
                 className={cn(
                   'flex h-10 w-full appearance-none rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] pl-3.5 pr-9 py-2 text-sm cursor-pointer',
@@ -344,58 +349,58 @@ function ModalSerie({
                 aria-hidden="true"
               />
             </div>
-            {errors.categoria && (
-              <p className="text-xs text-[hsl(var(--brand-danger))]">{errors.categoria.message}</p>
-            )}
-          </div>
+          </FormField>
 
           {/* Serie */}
-          <div className="space-y-1.5">
-            <Label>Serie</Label>
+          <FormField
+            label="Serie"
+            htmlFor="serie"
+            requerido
+            hint="Convención: Factura y NC-Factura → F001; Boleta y NC-Boleta → B001. Formato: 1 letra + 3 dígitos."
+          >
             <Input
+              id="serie"
               {...register('serie')}
               placeholder={catDef.prefijoSerie ? `${catDef.prefijoSerie}001` : 'X001'}
               maxLength={4}
               className="font-mono uppercase"
               data-testid="input-serie"
+              aria-invalid={errors.serie ? true : undefined}
               onChange={(e) => {
                 e.target.value = e.target.value.toUpperCase();
                 register('serie').onChange(e);
               }}
             />
-            {errors.serie && (
-              <p className="text-xs text-[hsl(var(--brand-danger))]" data-testid="error-serie">
-                {errors.serie.message}
-              </p>
-            )}
-            <p className="text-[11px] text-[hsl(var(--text-muted))]">
-              Convención: Factura y NC-Factura → F001; Boleta y NC-Boleta → B001. Formato: 1 letra + 3 dígitos.
+          </FormField>
+          {errors.serie && (
+            <p className="text-xs text-[hsl(var(--brand-danger))]" data-testid="error-serie">
+              {errors.serie.message}
             </p>
-          </div>
+          )}
 
           {/* Correlativo inicial */}
-          <div className="space-y-1.5">
-            <Label>
-              Correlativo inicial
-              <span className="ml-1.5 normal-case text-[10px] font-normal text-[hsl(var(--text-muted))]">
-                (opcional)
-              </span>
-            </Label>
+          <FormField
+            label={
+              <>
+                Correlativo inicial
+                <span className="ml-1.5 normal-case text-[10px] font-normal text-[hsl(var(--text-muted))]">
+                  (opcional)
+                </span>
+              </>
+            }
+            htmlFor="correlativoInicial"
+            error={errors.correlativoInicial?.message}
+            hint="Si está migrando desde otro sistema y desea continuar la numeración, ingrese el último correlativo emitido. Si comienza desde cero, deje en 0."
+          >
             <Input
+              id="correlativoInicial"
               {...register('correlativoInicial')}
               type="number"
               min={0}
               defaultValue={0}
               data-testid="input-correlativo-inicial"
             />
-            {errors.correlativoInicial && (
-              <p className="text-xs text-[hsl(var(--brand-danger))]">{errors.correlativoInicial.message}</p>
-            )}
-            <p className="text-[11px] text-[hsl(var(--text-muted))]">
-              Si está migrando desde otro sistema y desea continuar la numeración, ingrese el último
-              correlativo emitido. Si comienza desde cero, deje en 0.
-            </p>
-          </div>
+          </FormField>
 
           {/* Advertencia coherencia letra↔categoría */}
           <AnimatePresence>

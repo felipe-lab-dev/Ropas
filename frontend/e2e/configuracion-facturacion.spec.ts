@@ -100,7 +100,7 @@ test.describe('Configuración Facturación Electrónica', () => {
     await gotoY(page, URL_CONFIG);
 
     // Página cargó
-    await expect(page.getByText('Facturación Electrónica')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: 'Facturación Electrónica' })).toBeVisible({ timeout: 10_000 });
 
     // Campos vacíos
     const inputRuc = page.getByTestId('input-ruc');
@@ -127,7 +127,7 @@ test.describe('Configuración Facturación Electrónica', () => {
     await mockUbigeos(page, []);
     await gotoY(page, URL_CONFIG);
 
-    await expect(page.getByText('Facturación Electrónica')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: 'Facturación Electrónica' })).toBeVisible({ timeout: 10_000 });
 
     // RUC prellenado
     await expect(page.getByTestId('input-ruc')).toHaveValue('20123456789');
@@ -151,7 +151,7 @@ test.describe('Configuración Facturación Electrónica', () => {
     await mockUbigeos(page, []);
     await gotoY(page, URL_CONFIG);
 
-    await expect(page.getByText('Facturación Electrónica')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: 'Facturación Electrónica' })).toBeVisible({ timeout: 10_000 });
 
     // Ingresar RUC inválido
     const inputRuc = page.getByTestId('input-ruc');
@@ -195,7 +195,7 @@ test.describe('Configuración Facturación Electrónica', () => {
     });
 
     await gotoY(page, URL_CONFIG);
-    await expect(page.getByText('Facturación Electrónica')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: 'Facturación Electrónica' })).toBeVisible({ timeout: 10_000 });
 
     // Abrir el combobox de ubigeo
     const combobox = page.getByRole('combobox', { name: /seleccionar ubigeo/i });
@@ -206,16 +206,14 @@ test.describe('Configuración Facturación Electrónica', () => {
     await searchInput.fill('miraflo');
 
     // Esperar resultados
-    await expect(page.getByText('MIRAFLORES')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('MIRAFLORES').first()).toBeVisible({ timeout: 5_000 });
 
     // Seleccionar el primer resultado
     await page.getByText('MIRAFLORES').first().click();
 
-    // El popover se cierra y el valor queda seteado
-    await expect(page.getByRole('combobox', { name: /seleccionar ubigeo/i })).not.toBeVisible();
-
-    // Verificar que el combobox trigger muestra el código seleccionado (alguno de los dos)
-    const trigger = page.locator('[role="combobox"]').first();
+    // El popover se cierra (data-state="closed") y el trigger muestra el ubigeo seleccionado
+    const trigger = page.getByRole('combobox', { name: /seleccionar ubigeo/i });
+    await expect(trigger).toHaveAttribute('data-state', 'closed', { timeout: 5_000 });
     await expect(trigger).toContainText(/150122|040306|MIRAFLORES/i);
   });
 });

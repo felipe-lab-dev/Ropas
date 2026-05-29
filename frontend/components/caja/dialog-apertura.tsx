@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { FormField } from '@/components/ui/form-field';
+import { useValidacionForm } from '@/lib/use-validacion-form';
 import { postear, mensajeError } from '@/lib/api/client';
 
 interface Props {
@@ -18,11 +20,31 @@ interface Props {
   sucursalNombre?: string;
 }
 
+interface FormApertura {
+  monto: string;
+}
+
 export function DialogApertura({ open, onOpenChange, sucursalId, sucursalNombre }: Props) {
   const [monto, setMonto] = React.useState('');
   const [montoUsd, setMontoUsd] = React.useState('');
   const [notas, setNotas] = React.useState('');
   const qc = useQueryClient();
+
+  const validacion = useValidacionForm<FormApertura>({
+    reglas: [
+      {
+        id: 'apertura-monto',
+        label: 'Monto inicial en caja',
+        validar: d => {
+          const v = d.monto.trim();
+          if (!v) return 'Ingresar monto inicial';
+          const n = parseFloat(v);
+          if (Number.isNaN(n) || n < 0) return 'Monto inválido';
+          return null;
+        },
+      },
+    ],
+  });
 
   const abrir = useMutation({
     mutationFn: () =>
@@ -47,6 +69,12 @@ export function DialogApertura({ open, onOpenChange, sucursalId, sucursalNombre 
     onError: e => toast.error(mensajeError(e)),
   });
 
+  const onGuardar = () => {
+    const r = validacion.validar({ monto });
+    if (!r.valido) return;
+    abrir.mutate();
+  };
+
   return (
     <DialogShell
       open={open}
@@ -57,13 +85,14 @@ export function DialogApertura({ open, onOpenChange, sucursalId, sucursalNombre 
       variante="success"
       footer={
         <>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={abrir.isPending}>
             Cancelar
           </Button>
           <Button
             variant="default"
-            onClick={() => abrir.mutate()}
-            disabled={!monto || abrir.isPending}
+            onClick={onGuardar}
+            disabled={abrir.isPending}
+            data-testid="btn-guardar"
           >
             <Unlock className="size-4" /> Abrir caja
           </Button>
@@ -76,8 +105,12 @@ export function DialogApertura({ open, onOpenChange, sucursalId, sucursalNombre 
           referencia al cierre para calcular el monto esperado.
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="apertura-monto">Monto inicial en soles (S/)</Label>
+        <FormField
+          label="Monto inicial en soles (S/)"
+          htmlFor="apertura-monto"
+          requerido
+          error={validacion.errores['apertura-monto']}
+        >
           <Input
             id="apertura-monto"
             type="number"
@@ -85,11 +118,14 @@ export function DialogApertura({ open, onOpenChange, sucursalId, sucursalNombre 
             min="0"
             placeholder="0.00"
             value={monto}
-            onChange={e => setMonto(e.target.value)}
+            onChange={e => {
+              setMonto(e.target.value);
+              validacion.limpiarError('apertura-monto');
+            }}
             className="text-lg font-mono"
             autoFocus
           />
-        </div>
+        </FormField>
 
         <div className="space-y-2">
           <Label htmlFor="apertura-monto-usd">

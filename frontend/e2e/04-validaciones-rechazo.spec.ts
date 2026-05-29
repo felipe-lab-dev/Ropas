@@ -28,7 +28,7 @@ test.describe('Cupones · validaciones y rechazos', () => {
     await fillEstable(page, 'input[name="fechaInicio"]', fmt(inicio));
     await fillEstable(page, 'input[name="fechaFin"]', fmt(fin));
     await fillEstable(page, 'input[name="valorDescuento"]', '20');
-    await page.getByTestId('cupon-guardar').click();
+    await page.getByTestId('btn-guardar').click();
     await expect(page.locator('body')).toContainText(/posterior al inicio|fecha fin/i, { timeout: 5_000 });
   });
 
@@ -37,8 +37,8 @@ test.describe('Cupones · validaciones y rechazos', () => {
     await fillEstable(page, 'input[name="codigo"]', codigoCuponUnico('PCT'));
     await fillEstable(page, 'input[name="nombre"]', 'Cupón % inválido');
     await fillEstable(page, 'input[name="valorDescuento"]', '150');
-    await page.getByTestId('cupon-guardar').click();
-    await expect(page.locator('body')).toContainText(/entre 1 y 100/i, { timeout: 5_000 });
+    await page.getByTestId('btn-guardar').click();
+    await expect(page.locator('body')).toContainText(/(entre 1 y 100|m[áa]ximo 100|valor descuento)/i, { timeout: 5_000 });
   });
 
   test('canjear: cupón vencido no se acepta (creamos uno con fechas pasadas vía formulario y dejamos que backend lo rechace)', async ({ page }) => {

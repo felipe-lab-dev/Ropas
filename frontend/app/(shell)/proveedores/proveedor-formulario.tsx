@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Save, Search, Loader2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { obtener, mensajeError } from '@/lib/api/client';
+import { FormField } from '@/components/ui/form-field';
+import { useValidacionForm } from '@/lib/use-validacion-form';
 import {
   CONDICION_LABEL,
   CONDICION_PAGO,
@@ -82,6 +84,24 @@ export function ProveedorFormulario({
   const [consultaMsg, setConsultaMsg] = React.useState<string | null>(null);
   const ultimoRucConsultadoRef = React.useRef<string>('');
 
+  // Validación universal (toast + scroll + focus al primer faltante).
+  const validacion = useValidacionForm<ProveedorFormValues>({
+    reglas: [
+      {
+        id: 'documento',
+        label: 'Documento',
+        validar: d => (d.documento.trim() ? null : 'El documento es obligatorio'),
+        selectorFoco: '[name="documento"]',
+      },
+      {
+        id: 'razonSocial',
+        label: 'Razón social',
+        validar: d => (d.razonSocial.trim() ? null : 'La razón social es obligatoria'),
+        selectorFoco: '[name="razonSocial"]',
+      },
+    ],
+  });
+
   React.useEffect(() => {
     if (inicial) setForm(prev => ({ ...prev, ...inicial }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,6 +110,7 @@ export function ProveedorFormulario({
   const set = <K extends keyof ProveedorFormValues>(k: K, v: ProveedorFormValues[K]) => {
     setForm(f => ({ ...f, [k]: v }));
     setErrores(e => (e[k] ? { ...e, [k]: undefined } : e));
+    validacion.limpiarError(k as string);
   };
 
   const cambiarCondicion = (c: ProveedorFormValues['condicionPago']) => {
@@ -159,6 +180,8 @@ export function ProveedorFormulario({
   }, [docLimpio, consulta]);
 
   const submit = () => {
+    const r = validacion.validar(form);
+    if (!r.valido) return;
     const parsed = proveedorSchema.safeParse(form);
     if (!parsed.success) {
       const nuevos: Errores = {};
@@ -204,9 +227,16 @@ export function ProveedorFormulario({
             ))}
           </Select>
         </Campo>
-        <Campo label="Documento *" error={errores.documento} className="md:col-span-2">
+        <FormField
+          label="Documento"
+          htmlFor="documento"
+          requerido
+          error={validacion.errores.documento ?? errores.documento}
+          className="md:col-span-2"
+        >
           <div className="flex gap-2 items-stretch">
             <Input
+              id="documento"
               name="documento"
               data-testid="input-documento-proveedor"
               value={form.documento}
@@ -258,11 +288,17 @@ export function ProveedorFormulario({
               {consultaMsg}
             </p>
           )}
-        </Campo>
+        </FormField>
       </div>
 
-      <Campo label="Razón social *" error={errores.razonSocial}>
+      <FormField
+        label="Razón social"
+        htmlFor="razonSocial"
+        requerido
+        error={validacion.errores.razonSocial ?? errores.razonSocial}
+      >
         <Input
+          id="razonSocial"
           name="razonSocial"
           data-testid="input-razon-social-proveedor"
           value={form.razonSocial}
@@ -270,7 +306,7 @@ export function ProveedorFormulario({
           placeholder="DISTRIBUIDORA TEXTIL SAC"
           maxLength={200}
         />
-      </Campo>
+      </FormField>
 
       <Campo label="Nombre comercial" error={errores.nombreComercial}>
         <Input

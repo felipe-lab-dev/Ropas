@@ -54,6 +54,10 @@ function crearTxMock() {
   };
   const stockSucursal = { findUnique: jest.fn(), upsert: jest.fn() };
   const movimientoStock = { create: jest.fn() };
+  // Snapshot de costo: crear() consulta el último costo de compra para variantes
+  // sin precioCompra; listar() consulta los ítems para el margen por página.
+  const compraItem: Mocked<{ findMany: unknown }> = { findMany: jest.fn().mockResolvedValue([]) };
+  const ventaItem: Mocked<{ findMany: unknown }> = { findMany: jest.fn().mockResolvedValue([]) };
   const $executeRaw = jest.fn();
 
   return {
@@ -66,6 +70,8 @@ function crearTxMock() {
     cuponUso,
     stockSucursal,
     movimientoStock,
+    compraItem,
+    ventaItem,
     $executeRaw,
   };
 }
@@ -466,6 +472,51 @@ describe('VentasService', () => {
     });
   });
 
+  // ---------- crear: costo congelado (snapshot rentabilidad) ----------
+
+  describe('crear (costo congelado)', () => {
+    it('congela costoUnitario desde producto.precioCompra', async () => {
+      mockHappyPath(tx);
+      tx.variante.findMany.mockResolvedValue([variante('v1', '10', { precioCompra: '6' })]);
+      await service.crear(
+        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      const itemsCreate = tx.venta.create.mock.calls[0][0].data.items.create;
+      expect(Number(itemsCreate[0].costoUnitario)).toBe(6);
+      // Con precioCompra disponible NO se consulta el último costo de compra.
+      expect(tx.compraItem.findMany).not.toHaveBeenCalled();
+    });
+
+    it('usa el último costo de compra cuando el producto no tiene precioCompra', async () => {
+      mockHappyPath(tx);
+      tx.variante.findMany.mockResolvedValue([variante('v1', '10', { precioCompra: null })]);
+      tx.compraItem.findMany.mockResolvedValue([
+        { varianteId: 'v1', costoUnitario: new Prisma.Decimal('4.5'), compra: { creadoEn: new Date() } },
+      ]);
+      await service.crear(
+        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      const itemsCreate = tx.venta.create.mock.calls[0][0].data.items.create;
+      expect(Number(itemsCreate[0].costoUnitario)).toBe(4.5);
+    });
+
+    it('costoUnitario queda null si no hay precioCompra ni compras', async () => {
+      mockHappyPath(tx); // compraItem.findMany → [] por defecto
+      tx.variante.findMany.mockResolvedValue([variante('v1', '10', { precioCompra: null })]);
+      await service.crear(
+        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        ctx,
+        'u1',
+      );
+      const itemsCreate = tx.venta.create.mock.calls[0][0].data.items.create;
+      expect(itemsCreate[0].costoUnitario).toBeNull();
+    });
+  });
+
   // ---------- crear: guard SUNAT (boleta > S/700 requiere DNI) ----------
 
   describe('crear (guard identificación boleta > S/700)', () => {
@@ -705,6 +756,22 @@ describe('VentasService', () => {
       expect(where.AND[0].OR[1]).toEqual({
         cliente: { nombre: { contains: 'V-001', mode: 'insensitive' } },
       });
+    });
+
+    it('adjunta rentabilidad por venta (margen calculado de los ítems)', async () => {
+      tx.venta.findMany.mockResolvedValue([
+        { id: 'v1', descuento: new Prisma.Decimal('0'), descuentoCupon: new Prisma.Decimal('0') },
+      ]);
+      tx.venta.count.mockResolvedValue(1);
+      tx.ventaItem.findMany.mockResolvedValue([
+        { ventaId: 'v1', cantidad: 1, subtotal: new Prisma.Decimal('10'), costoUnitario: new Prisma.Decimal('6') },
+      ]);
+      const res = (await service.listar({} as never, ctx)) as unknown as {
+        datos: Array<{ rentabilidad: { margenPct: number; nivel: string } }>;
+      };
+      const fila = res.datos[0]!;
+      expect(fila.rentabilidad.margenPct).toBe(40);
+      expect(fila.rentabilidad.nivel).toBe('saludable');
     });
   });
 
@@ -1096,7 +1163,7 @@ describe('VentasService', () => {
 function variante(
   id: string,
   precio: string,
-  producto?: { eliminadoEn?: Date | null },
+  producto?: { eliminadoEn?: Date | null; precioCompra?: string | null },
 ) {
   return {
     id,
@@ -1108,6 +1175,8 @@ function variante(
       id: 'prod-' + id,
       nombre: 'Producto ' + id,
       precioVenta: new Prisma.Decimal(precio),
+      precioCompra:
+        producto?.precioCompra != null ? new Prisma.Decimal(producto.precioCompra) : null,
       categoriaId: 'cat-1',
       eliminadoEn: producto?.eliminadoEn ?? null,
     },

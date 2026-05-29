@@ -105,6 +105,7 @@ export function SelectorUbigeo({
           type="button"
           disabled={disabled}
           role="combobox"
+          aria-label="Seleccionar ubigeo"
           aria-expanded={abierto}
           className={cn(
             'flex h-10 w-full items-center justify-between rounded-lg border border-[hsl(var(--border))]',

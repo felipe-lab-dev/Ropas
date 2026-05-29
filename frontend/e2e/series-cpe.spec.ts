@@ -84,9 +84,9 @@ test.describe('Series CPE', () => {
 
     // Viewport desktop (por defecto): tabla con rows
     // Verificar que existan las 3 series en la tabla (al menos sus series)
-    await expect(page.getByText('F001')).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByText('B001')).toBeVisible();
-    await expect(page.getByText('F002')).toBeVisible();
+    await expect(page.getByText('F001').first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('B001').first()).toBeVisible();
+    await expect(page.getByText('F002').first()).toBeVisible();
 
     // Botón "Nueva serie" visible
     await expect(page.getByTestId('btn-nueva-serie')).toBeVisible();
@@ -132,7 +132,7 @@ test.describe('Series CPE', () => {
     await page.getByTestId('btn-nueva-serie').click();
 
     // Modal visible
-    await expect(page.getByText('Nueva serie')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByRole('heading', { name: 'Nueva serie' })).toBeVisible({ timeout: 3_000 });
 
     // NO debe haber dropdown de sucursal en el modal
     await expect(page.getByTestId('select-sucursal')).not.toBeAttached();
@@ -152,7 +152,7 @@ test.describe('Series CPE', () => {
     await expect(page.getByText(/serie F001 creada/i)).toBeVisible({ timeout: 5_000 });
 
     // Modal cerrado
-    await expect(page.getByText('Nueva serie')).not.toBeVisible({ timeout: 3_000 });
+    await expect(page.getByRole('heading', { name: 'Nueva serie' })).not.toBeVisible({ timeout: 3_000 });
   });
 
   // ─── 3. Validación formato serie ──────────────────────────────────────────
@@ -165,7 +165,7 @@ test.describe('Series CPE', () => {
 
     // Abrir modal
     await page.getByTestId('btn-nueva-serie').click();
-    await expect(page.getByText('Nueva serie')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByRole('heading', { name: 'Nueva serie' })).toBeVisible({ timeout: 3_000 });
 
     // Ingresar formato inválido (5 chars — no matchea /^[A-Z]\d{3}$/)
     const inputSerie = page.getByTestId('input-serie');

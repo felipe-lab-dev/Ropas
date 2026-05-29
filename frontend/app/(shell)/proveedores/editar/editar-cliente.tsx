@@ -21,10 +21,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
+import { DeleteConfirmDialog } from '@/components/ui/delete-confirm-dialog';
 import {
   actualizar, eliminar, mensajeError, obtener,
 } from '@/lib/api/client';
@@ -380,28 +378,21 @@ export function EditarProveedorCliente(props: EditarProveedorClienteProps = {}) 
         )}
       </div>
 
-      <Dialog open={confirmarEliminar} onOpenChange={setConfirmarEliminar}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Eliminar proveedor</DialogTitle>
-            <DialogDescription>
-              Vas a eliminar <strong>{proveedor?.razonSocial}</strong>. Si el proveedor
-              tiene compras con saldo pendiente, el backend bloqueará el borrado.
-              Es un soft delete: el historial se conserva.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmarEliminar(false)}>Cancelar</Button>
-            <Button
-              variant="danger"
-              disabled={mutarEliminar.isPending}
-              onClick={() => mutarEliminar.mutate()}
-            >
-              {mutarEliminar.isPending ? 'Eliminando…' : 'Sí, eliminar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmDialog
+        abierto={confirmarEliminar}
+        onAbiertoChange={setConfirmarEliminar}
+        titulo="Eliminar proveedor"
+        nombreItem={proveedor?.razonSocial}
+        descripcion={
+          <>
+            Vas a eliminar <strong>{proveedor?.razonSocial}</strong>. Si el proveedor
+            tiene compras con saldo pendiente, el backend bloqueará el borrado.
+            Es un soft delete: el historial se conserva.
+          </>
+        }
+        onConfirmar={() => mutarEliminar.mutate()}
+        eliminando={mutarEliminar.isPending}
+      />
     </div>
   );
 }

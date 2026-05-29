@@ -1,6 +1,12 @@
 -- GENERADO AUTOMÁTICAMENTE — NO EDITAR A MANO.
 -- Regenerar con `pnpm schema:snapshot`.
--- Generado el: 2026-05-29T03:18:43.246Z
+-- Generado el: 2026-05-29T17:21:39.152Z
+
+-- CreateEnum
+DO $$ BEGIN
+  CREATE TYPE "severidad_error_sistema" AS ENUM ('warn', 'error', 'critical');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
 DO $$ BEGIN
@@ -175,6 +181,34 @@ DO $$ BEGIN
   CREATE TYPE "estado_sunat" AS ENUM ('pendiente', 'en_proceso', 'aceptado', 'aceptado_observado', 'rechazado', 'anulado', 'baja_pendiente');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- CreateTable
+CREATE TABLE IF NOT EXISTS "errores_sistema" (
+    "id" UUID NOT NULL,
+    "tenant_codigo" VARCHAR(64),
+    "mensaje" VARCHAR(2000) NOT NULL,
+    "tipo" VARCHAR(120),
+    "stack" TEXT,
+    "ruta" VARCHAR(500),
+    "metodo" VARCHAR(10),
+    "status_code" INTEGER,
+    "usuario_id" UUID,
+    "usuario_nombre" VARCHAR(200),
+    "sucursal_id" UUID,
+    "ip" VARCHAR(45),
+    "user_agent" VARCHAR(500),
+    "request_body" JSONB,
+    "request_query" JSONB,
+    "replica" VARCHAR(120),
+    "severidad" "severidad_error_sistema" NOT NULL DEFAULT 'error',
+    "resuelto" BOOLEAN NOT NULL DEFAULT false,
+    "resuelto_en" TIMESTAMP(3),
+    "resuelto_por" UUID,
+    "notas_resolucion" TEXT,
+    "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "errores_sistema_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE IF NOT EXISTS "usuarios" (
@@ -409,6 +443,7 @@ CREATE TABLE IF NOT EXISTS "venta_items" (
     "descripcion" VARCHAR(240) NOT NULL,
     "cantidad" INTEGER NOT NULL,
     "precio_unitario" DECIMAL(12,2) NOT NULL,
+    "costo_unitario" DECIMAL(14,4),
     "descuento" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "subtotal" DECIMAL(12,2) NOT NULL,
 
@@ -713,6 +748,8 @@ CREATE TABLE IF NOT EXISTS "cupones" (
     "diseno_color_secundario" VARCHAR(9) NOT NULL DEFAULT '#1e1b4b',
     "diseno_mensaje" VARCHAR(240),
     "diseno_emoji" VARCHAR(8),
+    "tema_estacional" VARCHAR(60),
+    "fondo_imagen_url" VARCHAR(500),
     "creado_por_id" UUID,
     "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "actualizado_en" TIMESTAMP(3) NOT NULL,
@@ -789,6 +826,15 @@ CREATE TABLE IF NOT EXISTS "configuracion_facturacion" (
 
     CONSTRAINT "configuracion_facturacion_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateIndex
+CREATE INDEX IF NOT EXISTS "errores_sistema_creado_en_idx" ON "errores_sistema"("creado_en" DESC);
+
+-- CreateIndex
+CREATE INDEX IF NOT EXISTS "errores_sistema_tenant_codigo_creado_en_idx" ON "errores_sistema"("tenant_codigo", "creado_en" DESC);
+
+-- CreateIndex
+CREATE INDEX IF NOT EXISTS "errores_sistema_resuelto_creado_en_idx" ON "errores_sistema"("resuelto", "creado_en" DESC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX IF NOT EXISTS "usuarios_email_key" ON "usuarios"("email");

@@ -30,6 +30,7 @@
     "migrar:clasificacion-clientes": "tsx scripts/aplicar-migracion-clasificacion-clientes.ts",
     "migrar:cupones": "tsx scripts/aplicar-migracion-cupones.ts",
     "migrar:cupones-temas": "tsx scripts/aplicar-migracion-cupones-temas.ts",
+    "migrar:venta-item-costo": "tsx scripts/aplicar-migracion-venta-item-costo.ts",
     "migrar:drop-opciones-retorno": "tsx scripts/aplicar-migracion-drop-opciones-retorno.ts",
     "setup:facturacion": "tsx scripts/setup-facturacion.ts",
     "facturacion:master-key": "tsx scripts/generar-master-key-facturacion.ts"

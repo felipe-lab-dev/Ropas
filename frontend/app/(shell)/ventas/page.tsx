@@ -25,6 +25,11 @@ import { Pagination } from '@/components/ui/pagination';
 import { FacetFilter } from '@/components/ui/facet-filter';
 import { EmptyState } from '@/components/ui/empty-state';
 import { IlustracionVentas } from '@/components/ui/empty-illustrations';
+import {
+  BadgeRentabilidad,
+  tooltipRentabilidad,
+  type RentabilidadVenta,
+} from '@/lib/rentabilidad-ui';
 import { VentaDetalle, type AccionVenta } from './venta-detalle';
 
 interface VentaLista {
@@ -40,6 +45,8 @@ interface VentaLista {
   _count: { items: number };
   /** URL del PDF del comprobante. Solo presente si el rol puede verlo (backend filtra). */
   pdfUrl?: string | null;
+  /** Rentabilidad por venta (margen + nivel). El backend la calcula por página. */
+  rentabilidad: RentabilidadVenta;
 }
 
 const estadoColor = {
@@ -58,7 +65,7 @@ const ESTADOS_FACET = [
   { valor: 'anulada', label: 'Anulada', color: 'hsl(355 75% 55%)' },
 ];
 
-const COLUMNAS = 9;
+const COLUMNAS = 10;
 
 export default function VentasPage() {
   return (
@@ -189,6 +196,7 @@ function VentasContenido() {
               <TableHead className="hidden xl:table-cell">Vendedor</TableHead>
               <TableHead className="hidden xl:table-cell">Sucursal</TableHead>
               <TableHead className="text-right hidden 2xl:table-cell">Items</TableHead>
+              <TableHead className="text-right hidden md:table-cell">Rentab.</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="w-24 text-right">Acciones</TableHead>
@@ -257,6 +265,15 @@ function VentasContenido() {
                     <TableCell className="hidden xl:table-cell">{v.vendedor.nombre}</TableCell>
                     <TableCell className="hidden xl:table-cell">{v.sucursal.nombre}</TableCell>
                     <TableCell className="text-right tabular-nums hidden 2xl:table-cell">{v._count.items}</TableCell>
+                    <TableCell className="text-right hidden md:table-cell">
+                      <div className="flex justify-end">
+                        <BadgeRentabilidad
+                          nivel={v.rentabilidad.nivel}
+                          margenPct={v.rentabilidad.margenPct}
+                          title={tooltipRentabilidad(v.rentabilidad)}
+                        />
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right font-bold tabular-nums">{formatearMoneda(v.total)}</TableCell>
                     <TableCell>
                       <Badge variant={estadoColor[v.estado]}>{v.estado}</Badge>

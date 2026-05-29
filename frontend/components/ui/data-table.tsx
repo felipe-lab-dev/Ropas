@@ -70,6 +70,8 @@ interface Props<T> {
   filaExpandidaKey?: string | null;
   /** Llamado al click en la fila para toggle. */
   onToggleFilaExpandida?: (key: string) => void;
+  /** Click en la fila cuando NO hay panel expandible (ej. navegar al detalle). */
+  onFilaClick?: (fila: T) => void;
 }
 
 // ─── Utilidades ───────────────────────────────────────────────────────────
@@ -357,7 +359,7 @@ function FiltroPopover<T>({
 export function DataTable<T>({
   columnas, filas, getRowKey, estado, onEstadoChange,
   rowClassName, renderRowAccent, vacioRender, cargando, cargandoFilas = 8,
-  renderFilaExpandida, filaExpandidaKey, onToggleFilaExpandida,
+  renderFilaExpandida, filaExpandidaKey, onToggleFilaExpandida, onFilaClick,
 }: Props<T>) {
   const [draggedId, setDraggedId] = React.useState<string | null>(null);
   const [hoverId, setHoverId] = React.useState<string | null>(null);
@@ -449,7 +451,8 @@ export function DataTable<T>({
               {filasProcesadas.flatMap((fila, idx) => {
                 const key = getRowKey(fila);
                 const expandida = renderFilaExpandida && filaExpandidaKey === key;
-                const clickeable = !!renderFilaExpandida && !!onToggleFilaExpandida;
+                const expandible = !!renderFilaExpandida && !!onToggleFilaExpandida;
+                const clickeable = expandible || !!onFilaClick;
                 const filaPrincipal = (
                   <motion.tr
                     key={key}
@@ -468,9 +471,10 @@ export function DataTable<T>({
                       clickeable
                         ? (e) => {
                             const target = e.target as HTMLElement;
-                            // No expandir si el click vino de un control interactivo
+                            // No accionar si el click vino de un control interactivo
                             if (target.closest('button, a, input, select, textarea, [role="button"]')) return;
-                            onToggleFilaExpandida!(key);
+                            if (expandible) onToggleFilaExpandida!(key);
+                            else onFilaClick?.(fila);
                           }
                         : undefined
                     }

@@ -14,13 +14,22 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
+import { FormField } from '@/components/ui/form-field';
+import { FormActions } from '@/components/ui/form-actions';
+import { DeleteConfirmDialog } from '@/components/ui/delete-confirm-dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { SelectIconos, type OpcionIcono } from '@/components/ui/select-iconos';
+import { ComboboxCreable } from '@/components/ui/combobox-creable';
+import { IconoCategoria } from '@/components/ui/icono-categoria';
+import { colorCategoria } from '@/lib/color-categoria';
+import { GENEROS, MATERIALES, ICONO_MATERIAL_FALLBACK } from '@/lib/catalogos-producto';
 import { obtener, postear, actualizar, eliminar, subirArchivos, mensajeError } from '@/lib/api/client';
 import { formatearMoneda, cn } from '@/lib/utils';
+import { useValidacionForm } from '@/lib/use-validacion-form';
 import {
   useUnidadesMedida,
   useTiposAfectacionIgv,
 } from '@/lib/api/hooks/use-catalogos-sunat';
-import { ChevronDown } from 'lucide-react';
 
 interface Categoria { id: string; nombre: string }
 interface Variante {
@@ -54,6 +63,14 @@ interface ProductoDetalle {
   tipoAfectacionIgv: string;
 }
 
+type TabId = 'general' | 'imagenes' | 'variantes' | 'sunat';
+
+interface FormStateValidacion {
+  nombre: string;
+  categoriaId: string;
+  precioVenta: string;
+}
+
 export function EditarProductoCliente({
   idForzado,
   modoModal = false,
@@ -63,6 +80,9 @@ export function EditarProductoCliente({
   const search = useSearchParams();
   const id = idForzado ?? search.get('id') ?? '';
   const qc = useQueryClient();
+
+  const [tab, setTab] = React.useState<TabId>('general');
+  const [confirmAbierto, setConfirmAbierto] = React.useState(false);
 
   const { data: producto, isLoading } = useQuery({
     queryKey: ['producto', id],
@@ -79,8 +99,6 @@ export function EditarProductoCliente({
   const { data: tiposAfectacion } = useTiposAfectacionIgv();
 
   const [form, setForm] = React.useState<Partial<ProductoDetalle>>({});
-  const [mostrarSunat, setMostrarSunat] = React.useState(false);
-  const [confirmarEliminar, setConfirmarEliminar] = React.useState(false);
   const [agregandoVariante, setAgregandoVariante] = React.useState(false);
   const [varianteEditandoId, setVarianteEditandoId] = React.useState<string | null>(null);
   const [confirmandoBorrarVarId, setConfirmandoBorrarVarId] = React.useState<string | null>(null);
@@ -104,6 +122,31 @@ export function EditarProductoCliente({
       });
     }
   }, [producto]);
+
+  const opcionesCategoria = React.useMemo<OpcionIcono[]>(
+    () => (categorias ?? []).map((c) => ({
+      valor: c.id,
+      label: c.nombre,
+      color: colorCategoria(c.nombre).base,
+      icono: <IconoCategoria nombre={c.nombre} className="size-full" />,
+    })),
+    [categorias],
+  );
+
+  const validacion = useValidacionForm<FormStateValidacion>({
+    reglas: [
+      { id: 'nombre', label: 'Nombre', tabId: 'general',
+        validar: d => d.nombre.trim() ? null : 'Ingresá un nombre',
+        selectorFoco: '#nombre' },
+      { id: 'categoriaId', label: 'Categoría', tabId: 'general',
+        validar: d => d.categoriaId ? null : 'Seleccioná una categoría',
+        selectorFoco: '#categoria' },
+      { id: 'precioVenta', label: 'Precio de venta', tabId: 'general',
+        validar: d => d.precioVenta && Number(d.precioVenta) > 0 ? null : 'Precio mayor a 0',
+        selectorFoco: '#precioVenta' },
+    ],
+    onAbrirTab: (t) => setTab(t as TabId),
+  });
 
   const guardar = useMutation({
     mutationFn: () =>
@@ -135,6 +178,7 @@ export function EditarProductoCliente({
     onSuccess: () => {
       toast.success('Producto eliminado');
       void qc.invalidateQueries({ queryKey: ['productos'] });
+      setConfirmAbierto(false);
       if (modoModal) onCerrar?.();
       else router.push('/productos');
     },
@@ -170,6 +214,16 @@ export function EditarProductoCliente({
     e.target.value = '';
   };
 
+  function onGuardar() {
+    const r = validacion.validar({
+      nombre: (form.nombre ?? '').toString(),
+      categoriaId: (form.categoriaId ?? '').toString(),
+      precioVenta: (form.precioVenta ?? '').toString(),
+    });
+    if (!r.valido) return;
+    guardar.mutate();
+  }
+
   if (!id) {
     return (
       <div className="p-8 space-y-2">
@@ -188,11 +242,10 @@ export function EditarProductoCliente({
     0,
   );
 
+  const erroresGeneral = ['nombre', 'categoriaId', 'precioVenta'].some(k => validacion.errores[k]);
+
   return (
-    <form
-      onSubmit={e => { e.preventDefault(); guardar.mutate(); }}
-      className={cn('space-y-6', !modoModal && 'max-w-5xl')}
-    >
+    <div className={cn('space-y-6', !modoModal && 'max-w-5xl')}>
       {!modoModal && (
         <PageHeader
           titulo={producto.nombre}
@@ -209,383 +262,337 @@ export function EditarProductoCliente({
               <Button asChild variant="outline" type="button">
                 <Link href={`/productos/kardex/?id=${id}`}><History className="size-4" /> Kardex</Link>
               </Button>
-              <Button type="submit" size="lg" disabled={guardar.isPending}>
-                {guardar.isPending ? 'Guardando…' : 'Guardar cambios'}
-              </Button>
             </>
           }
         />
       )}
-      {modoModal && (
-        <div className="flex items-center justify-end gap-2 sticky top-0 bg-[hsl(var(--surface))]/95 backdrop-blur z-10 -mx-6 px-6 -mt-6 pt-6 pb-3 border-b border-[hsl(var(--border))]">
-          <Button type="submit" size="sm" disabled={guardar.isPending}>
-            {guardar.isPending ? 'Guardando…' : 'Guardar cambios'}
-          </Button>
-        </div>
-      )}
 
-      <Card className="p-6 space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-          <div className="md:col-span-3 space-y-1.5">
-            <Label htmlFor="codigo">Código</Label>
-            <Input
-              id="codigo"
-              value={form.codigo ?? ''}
-              onChange={e => setForm(f => ({ ...f, codigo: e.target.value }))}
-            />
-          </div>
-          <div className="md:col-span-6 space-y-1.5">
-            <Label htmlFor="nombre">Nombre *</Label>
-            <Input
-              id="nombre"
-              value={form.nombre ?? ''}
-              onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-              required
-            />
-          </div>
-          <div className="md:col-span-3 space-y-1.5">
-            <Label htmlFor="categoria">Categoría</Label>
-            <Select
-              id="categoria"
-              value={form.categoriaId ?? ''}
-              onChange={e => setForm(f => ({ ...f, categoriaId: e.target.value }))}
-            >
-              {categorias?.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </Select>
-          </div>
-        </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)}>
+        <TabsList>
+          <TabsTrigger value="general" data-testid="tab-general" errorBadge={erroresGeneral}>
+            General
+          </TabsTrigger>
+          <TabsTrigger value="imagenes" data-testid="tab-imagenes">
+            Imágenes ({producto.imagenes?.length ?? 0})
+          </TabsTrigger>
+          <TabsTrigger value="variantes" data-testid="tab-variantes">
+            Variantes ({producto.variantes.length})
+          </TabsTrigger>
+          <TabsTrigger value="sunat" data-testid="tab-sunat">
+            SUNAT
+          </TabsTrigger>
+        </TabsList>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-          <div className="md:col-span-3 space-y-1.5">
-            <Label htmlFor="precioVenta">Precio venta (S/)</Label>
-            <Input
-              id="precioVenta"
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.precioVenta?.toString() ?? ''}
-              onChange={e => setForm(f => ({ ...f, precioVenta: e.target.value }))}
-            />
-          </div>
-          <div className="md:col-span-3 space-y-1.5">
-            <Label htmlFor="precioCompra">Costo (S/)</Label>
-            <Input
-              id="precioCompra"
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.precioCompra?.toString() ?? ''}
-              onChange={e => setForm(f => ({ ...f, precioCompra: e.target.value }))}
-            />
-          </div>
-          <div className="md:col-span-3 space-y-1.5">
-            <Label htmlFor="genero">Género</Label>
-            <Select
-              id="genero"
-              value={form.genero ?? 'unisex'}
-              onChange={e => setForm(f => ({ ...f, genero: e.target.value }))}
-            >
-              <option value="mujer">Mujer</option>
-              <option value="hombre">Hombre</option>
-              <option value="unisex">Unisex</option>
-              <option value="ninia">Niña</option>
-              <option value="ninio">Niño</option>
-            </Select>
-          </div>
-          <div className="md:col-span-3 space-y-1.5">
-            <Label htmlFor="material">Material</Label>
-            <Input
-              id="material"
-              value={form.material?.toString() ?? ''}
-              onChange={e => setForm(f => ({ ...f, material: e.target.value }))}
-            />
-          </div>
-        </div>
+        {/* ── General ─────────────────────────────────────────────────────── */}
+        <TabsContent value="general">
+          <Card className="p-6 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              <FormField label="Código" htmlFor="codigo" className="md:col-span-3">
+                <Input id="codigo" value={form.codigo ?? ''}
+                  onChange={e => setForm(f => ({ ...f, codigo: e.target.value }))} />
+              </FormField>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="descripcion">Descripción</Label>
-          <Textarea
-            id="descripcion"
-            value={form.descripcion?.toString() ?? ''}
-            onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-            rows={3}
-          />
-        </div>
+              <FormField label="Nombre" htmlFor="nombre" requerido
+                error={validacion.errores.nombre} className="md:col-span-6">
+                <Input id="nombre" value={form.nombre ?? ''}
+                  onChange={e => { setForm(f => ({ ...f, nombre: e.target.value })); validacion.limpiarError('nombre'); }} />
+              </FormField>
 
-        <div className="flex items-center gap-3 pt-2">
-          <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.activo ?? true}
-              onChange={e => setForm(f => ({ ...f, activo: e.target.checked }))}
-              className="size-4 rounded border-[hsl(var(--border))] accent-[hsl(var(--brand-primary))]"
-            />
-            Activo (visible en POS y catálogo)
-          </label>
-        </div>
-      </Card>
-
-      {/* Configuración SUNAT (plegable) */}
-      <Card className="p-0 overflow-hidden" data-testid="seccion-sunat">
-        <button
-          type="button"
-          onClick={() => setMostrarSunat(o => !o)}
-          className="w-full flex items-center justify-between p-4 hover:bg-[hsl(var(--surface-2))]/30 transition-colors"
-        >
-          <div className="text-left">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]">
-              Configuración SUNAT (avanzado)
-            </h2>
-            <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
-              Unidad de medida e IGV para facturación electrónica
-            </p>
-          </div>
-          <ChevronDown
-            className={cn(
-              'size-4 text-[hsl(var(--text-muted))] transition-transform',
-              mostrarSunat && 'rotate-180',
-            )}
-          />
-        </button>
-        {mostrarSunat && (
-          <div className="p-6 pt-0 space-y-5 border-t border-[hsl(var(--border))]">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-5">
-              <div className="space-y-1.5">
-                <Label htmlFor="unidadMedida">Unidad de medida (SUNAT Cat. 03)</Label>
-                <Select
-                  id="unidadMedida"
-                  value={form.unidadMedidaCodigo ?? 'NIU'}
-                  onChange={e => setForm(f => ({ ...f, unidadMedidaCodigo: e.target.value }))}
-                  data-testid="select-unidad-medida"
-                >
-                  {unidades?.map(u => (
-                    <option key={u.codigo} value={u.codigo}>
-                      {u.codigo} — {u.nombre}
-                    </option>
-                  ))}
-                </Select>
-                <p className="text-[10px] text-[hsl(var(--text-muted))]">
-                  Cómo se contabiliza la cantidad en la factura. Default: NIU (unidad).
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tipoAfectacion">Tipo de afectación IGV (SUNAT Cat. 07)</Label>
-                <Select
-                  id="tipoAfectacion"
-                  value={form.tipoAfectacionIgv ?? 'gravado_onerosa'}
-                  onChange={e => setForm(f => ({ ...f, tipoAfectacionIgv: e.target.value }))}
-                  data-testid="select-tipo-afectacion"
-                >
-                  {tiposAfectacion?.map(t => (
-                    <option key={t.codigo} value={t.codigo}>
-                      {t.sunatCodigo} — {t.nombre}
-                    </option>
-                  ))}
-                </Select>
-                <p className="text-[10px] text-[hsl(var(--text-muted))]">
-                  Define si el producto está gravado, exonerado o inafecto al IGV.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* Imágenes */}
-      <Card className="p-6 space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]">
-              Imágenes ({producto.imagenes?.length ?? 0})
-            </h2>
-            <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
-              JPG, PNG, WEBP o GIF — hasta 10 MB cada una. La primera se usa como portada.
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={subirImagenes.isPending}
-          >
-            {subirImagenes.isPending ? (
-              <><Loader2 className="size-4 animate-spin" /> Subiendo…</>
-            ) : (
-              <><ImagePlus className="size-4" /> Agregar imágenes</>
-            )}
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            multiple
-            onChange={onArchivosSeleccionados}
-            className="hidden"
-          />
-        </div>
-
-        {producto.imagenes && producto.imagenes.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {producto.imagenes.map((url, i) => (
-              <div
-                key={url}
-                className="relative group aspect-square rounded-lg overflow-hidden border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt={`Imagen ${i + 1}`} className="size-full object-cover" />
-                {i === 0 && (
-                  <span className="absolute top-1.5 left-1.5 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-[hsl(var(--brand-primary))] text-white">
-                    Portada
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => eliminarImagen.mutate(url)}
-                  disabled={eliminarImagen.isPending}
-                  className="absolute top-1.5 right-1.5 size-7 grid place-items-center rounded-md bg-black/60 text-white opacity-0 group-hover:opacity-100 hover:bg-[hsl(var(--brand-danger))] transition-all"
-                  title="Eliminar imagen"
-                >
-                  <X className="size-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full py-10 border-2 border-dashed border-[hsl(var(--border))] rounded-lg flex flex-col items-center justify-center gap-2 text-[hsl(var(--text-muted))] hover:border-[hsl(var(--brand-primary))]/40 hover:bg-[hsl(var(--brand-primary))]/5 transition-colors"
-          >
-            <ImagePlus className="size-8 opacity-50" />
-            <span className="text-sm font-medium">Sin imágenes — clic para agregar</span>
-          </button>
-        )}
-      </Card>
-
-      <Card className="p-6 space-y-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]">
-              Variantes ({producto.variantes.length})
-            </h2>
-            <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
-              Stock total: <span className="font-semibold">{stockTotal}</span>
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setAgregandoVariante(true)}
-            disabled={agregandoVariante}
-          >
-            <Plus className="size-3.5" /> Agregar variante
-          </Button>
-        </div>
-
-        <div className="border border-[hsl(var(--border))] rounded-lg overflow-x-auto">
-          <table className="w-full text-xs min-w-[640px]">
-            <thead className="bg-[hsl(var(--surface-2))]/40">
-              <tr>
-                <th className="text-left p-2 font-semibold">Variante</th>
-                <th className="text-left p-2 font-semibold">SKU</th>
-                <th className="text-left p-2 font-semibold">Código barras</th>
-                <th className="text-right p-2 font-semibold">Stock</th>
-                <th className="text-right p-2 font-semibold">Precio</th>
-                <th className="p-2 w-24"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {agregandoVariante && (
-                <FilaAgregarVariante
-                  productoId={id}
-                  precioBase={producto.precioVenta}
-                  onCancel={() => setAgregandoVariante(false)}
-                  onSaved={() => {
-                    setAgregandoVariante(false);
-                    void qc.invalidateQueries({ queryKey: ['producto', id] });
-                    void qc.invalidateQueries({ queryKey: ['productos'] });
-                  }}
+              <FormField label="Categoría" htmlFor="categoria" requerido
+                error={validacion.errores.categoriaId} className="md:col-span-3">
+                <SelectIconos
+                  id="categoria"
+                  data-testid="select-categoria"
+                  value={form.categoriaId ?? ''}
+                  onValueChange={v => { setForm(f => ({ ...f, categoriaId: v })); validacion.limpiarError('categoriaId'); }}
+                  opciones={opcionesCategoria}
+                  placeholder="Seleccioná…"
                 />
-              )}
-              {producto.variantes.map(v =>
-                varianteEditandoId === v.id ? (
-                  <FilaEditarVariante
-                    key={v.id}
-                    productoId={id}
-                    variante={v}
-                    precioBase={producto.precioVenta}
-                    onCancel={() => setVarianteEditandoId(null)}
-                    onSaved={() => {
-                      setVarianteEditandoId(null);
-                      void qc.invalidateQueries({ queryKey: ['producto', id] });
-                      void qc.invalidateQueries({ queryKey: ['productos'] });
-                    }}
-                  />
-                ) : (
-                  <FilaVariante
-                    key={v.id}
-                    productoId={id}
-                    variante={v}
-                    precioBase={producto.precioVenta}
-                    onEditar={() => setVarianteEditandoId(v.id)}
-                    confirmando={confirmandoBorrarVarId === v.id}
-                    onPedirConfirmacion={() => setConfirmandoBorrarVarId(v.id)}
-                    onCancelarConfirmacion={() => setConfirmandoBorrarVarId(null)}
-                    onBorrado={() => {
-                      setConfirmandoBorrarVarId(null);
-                      void qc.invalidateQueries({ queryKey: ['producto', id] });
-                      void qc.invalidateQueries({ queryKey: ['productos'] });
-                    }}
-                  />
-                ),
-              )}
-            </tbody>
-          </table>
-        </div>
-        <p className="text-[10px] text-[hsl(var(--text-muted))]">
-          El stock se ajusta desde Inventario. Para eliminar una variante con stock, primero ajusta a 0.
-        </p>
-      </Card>
+              </FormField>
+            </div>
 
-      <Card className="p-6 border-[hsl(var(--brand-danger))]/30 bg-[hsl(var(--brand-danger))]/5 space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold text-[hsl(var(--brand-danger))]">Eliminar producto</h2>
-          <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
-            Soft-delete. El producto y sus variantes dejan de aparecer en POS y catálogo, pero el historial se conserva.
-          </p>
-        </div>
-        {!confirmarEliminar ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setConfirmarEliminar(true)}
-            className="border-[hsl(var(--brand-danger))]/40 text-[hsl(var(--brand-danger))] hover:bg-[hsl(var(--brand-danger))]/10"
-          >
-            <Trash2 className="size-4" /> Eliminar producto
-          </Button>
-        ) : (
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirmarEliminar(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={() => borrar.mutate()}
-              disabled={borrar.isPending}
-              className="bg-[hsl(var(--brand-danger))] hover:bg-[hsl(var(--brand-danger))]/90"
-            >
-              <Trash2 className="size-4" />
-              {borrar.isPending ? 'Eliminando…' : 'Sí, eliminar definitivamente'}
-            </Button>
-          </div>
-        )}
-      </Card>
-    </form>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              <FormField label="Precio venta (S/)" htmlFor="precioVenta" requerido
+                error={validacion.errores.precioVenta} className="md:col-span-3">
+                <Input id="precioVenta" type="number" step="0.01" min="0"
+                  value={form.precioVenta?.toString() ?? ''}
+                  onChange={e => { setForm(f => ({ ...f, precioVenta: e.target.value })); validacion.limpiarError('precioVenta'); }} />
+              </FormField>
+
+              <FormField label="Costo (S/)" htmlFor="precioCompra" className="md:col-span-3">
+                <Input id="precioCompra" type="number" step="0.01" min="0"
+                  value={form.precioCompra?.toString() ?? ''}
+                  onChange={e => setForm(f => ({ ...f, precioCompra: e.target.value }))} />
+              </FormField>
+
+              <FormField label="Género" htmlFor="genero" className="md:col-span-3">
+                <SelectIconos
+                  id="genero"
+                  data-testid="select-genero"
+                  value={form.genero ?? 'unisex'}
+                  onValueChange={v => setForm(f => ({ ...f, genero: v }))}
+                  opciones={GENEROS}
+                />
+              </FormField>
+
+              <FormField label="Material" htmlFor="material" className="md:col-span-3">
+                <ComboboxCreable
+                  id="material"
+                  data-testid="combobox-material"
+                  value={form.material?.toString() ?? ''}
+                  onChange={v => setForm(f => ({ ...f, material: v }))}
+                  opciones={MATERIALES}
+                  iconoFallback={ICONO_MATERIAL_FALLBACK}
+                  placeholder="Seleccioná o escribí…"
+                  placeholderBuscar="Buscar o escribir material…"
+                />
+              </FormField>
+            </div>
+
+            <FormField label="Descripción" htmlFor="descripcion">
+              <Textarea id="descripcion" value={form.descripcion?.toString() ?? ''}
+                onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} rows={3} />
+            </FormField>
+
+            <div className="flex items-center gap-3 pt-2">
+              <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.activo ?? true}
+                  onChange={e => setForm(f => ({ ...f, activo: e.target.checked }))}
+                  className="size-4 rounded border-[hsl(var(--border))] accent-[hsl(var(--brand-primary))]"
+                />
+                Activo (visible en POS y catálogo)
+              </label>
+            </div>
+          </Card>
+        </TabsContent>
+
+        {/* ── Imágenes ───────────────────────────────────────────────────── */}
+        <TabsContent value="imagenes">
+          <Card className="p-6 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]">
+                  Imágenes ({producto.imagenes?.length ?? 0})
+                </h2>
+                <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
+                  JPG, PNG, WEBP o GIF — hasta 10 MB cada una. La primera se usa como portada.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={subirImagenes.isPending}
+              >
+                {subirImagenes.isPending ? (
+                  <><Loader2 className="size-4 animate-spin" /> Subiendo…</>
+                ) : (
+                  <><ImagePlus className="size-4" /> Agregar imágenes</>
+                )}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
+                onChange={onArchivosSeleccionados}
+                className="hidden"
+              />
+            </div>
+
+            {producto.imagenes && producto.imagenes.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                {producto.imagenes.map((url, i) => (
+                  <div
+                    key={url}
+                    className="relative group aspect-square rounded-lg overflow-hidden border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`Imagen ${i + 1}`} className="size-full object-cover" />
+                    {i === 0 && (
+                      <span className="absolute top-1.5 left-1.5 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-[hsl(var(--brand-primary))] text-white">
+                        Portada
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => eliminarImagen.mutate(url)}
+                      disabled={eliminarImagen.isPending}
+                      className="absolute top-1.5 right-1.5 size-7 grid place-items-center rounded-md bg-black/60 text-white opacity-0 group-hover:opacity-100 hover:bg-[hsl(var(--brand-danger))] transition-all"
+                      title="Eliminar imagen"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-10 border-2 border-dashed border-[hsl(var(--border))] rounded-lg flex flex-col items-center justify-center gap-2 text-[hsl(var(--text-muted))] hover:border-[hsl(var(--brand-primary))]/40 hover:bg-[hsl(var(--brand-primary))]/5 transition-colors"
+              >
+                <ImagePlus className="size-8 opacity-50" />
+                <span className="text-sm font-medium">Sin imágenes — clic para agregar</span>
+              </button>
+            )}
+          </Card>
+        </TabsContent>
+
+        {/* ── Variantes ──────────────────────────────────────────────────── */}
+        <TabsContent value="variantes">
+          <Card className="p-6 space-y-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]">
+                  Variantes ({producto.variantes.length})
+                </h2>
+                <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
+                  Stock total: <span className="font-semibold">{stockTotal}</span>
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAgregandoVariante(true)}
+                disabled={agregandoVariante}
+              >
+                <Plus className="size-3.5" /> Agregar variante
+              </Button>
+            </div>
+
+            <div className="border border-[hsl(var(--border))] rounded-lg overflow-x-auto">
+              <table className="w-full text-xs min-w-[640px]">
+                <thead className="bg-[hsl(var(--surface-2))]/40">
+                  <tr>
+                    <th className="text-left p-2 font-semibold">Variante</th>
+                    <th className="text-left p-2 font-semibold">SKU</th>
+                    <th className="text-left p-2 font-semibold">Código barras</th>
+                    <th className="text-right p-2 font-semibold">Stock</th>
+                    <th className="text-right p-2 font-semibold">Precio</th>
+                    <th className="p-2 w-24"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agregandoVariante && (
+                    <FilaAgregarVariante
+                      productoId={id}
+                      precioBase={producto.precioVenta}
+                      onCancel={() => setAgregandoVariante(false)}
+                      onSaved={() => {
+                        setAgregandoVariante(false);
+                        void qc.invalidateQueries({ queryKey: ['producto', id] });
+                        void qc.invalidateQueries({ queryKey: ['productos'] });
+                      }}
+                    />
+                  )}
+                  {producto.variantes.map(v =>
+                    varianteEditandoId === v.id ? (
+                      <FilaEditarVariante
+                        key={v.id}
+                        productoId={id}
+                        variante={v}
+                        precioBase={producto.precioVenta}
+                        onCancel={() => setVarianteEditandoId(null)}
+                        onSaved={() => {
+                          setVarianteEditandoId(null);
+                          void qc.invalidateQueries({ queryKey: ['producto', id] });
+                          void qc.invalidateQueries({ queryKey: ['productos'] });
+                        }}
+                      />
+                    ) : (
+                      <FilaVariante
+                        key={v.id}
+                        productoId={id}
+                        variante={v}
+                        precioBase={producto.precioVenta}
+                        onEditar={() => setVarianteEditandoId(v.id)}
+                        confirmando={confirmandoBorrarVarId === v.id}
+                        onPedirConfirmacion={() => setConfirmandoBorrarVarId(v.id)}
+                        onCancelarConfirmacion={() => setConfirmandoBorrarVarId(null)}
+                        onBorrado={() => {
+                          setConfirmandoBorrarVarId(null);
+                          void qc.invalidateQueries({ queryKey: ['producto', id] });
+                          void qc.invalidateQueries({ queryKey: ['productos'] });
+                        }}
+                      />
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10px] text-[hsl(var(--text-muted))]">
+              El stock se ajusta desde Inventario. Para eliminar una variante con stock, primero ajustá a 0.
+            </p>
+          </Card>
+        </TabsContent>
+
+        {/* ── SUNAT ──────────────────────────────────────────────────────── */}
+        <TabsContent value="sunat">
+          <Card className="p-6 space-y-5" data-testid="seccion-sunat">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]">
+                Configuración SUNAT
+              </h2>
+              <p className="text-xs text-[hsl(var(--text-muted))] mt-1">
+                Unidad de medida e IGV para facturación electrónica.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <FormField label="Unidad de medida (SUNAT Cat. 03)" htmlFor="unidadMedida"
+                hint="Cómo se contabiliza la cantidad en la factura. Default: NIU (unidad).">
+                <Select id="unidadMedida" value={form.unidadMedidaCodigo ?? 'NIU'}
+                  onChange={e => setForm(f => ({ ...f, unidadMedidaCodigo: e.target.value }))}
+                  data-testid="select-unidad-medida">
+                  {unidades?.map(u => (
+                    <option key={u.codigo} value={u.codigo}>{u.codigo} — {u.nombre}</option>
+                  ))}
+                </Select>
+              </FormField>
+
+              <FormField label="Tipo de afectación IGV (SUNAT Cat. 07)" htmlFor="tipoAfectacion"
+                hint="Define si el producto está gravado, exonerado o inafecto al IGV.">
+                <Select id="tipoAfectacion" value={form.tipoAfectacionIgv ?? 'gravado_onerosa'}
+                  onChange={e => setForm(f => ({ ...f, tipoAfectacionIgv: e.target.value }))}
+                  data-testid="select-tipo-afectacion">
+                  {tiposAfectacion?.map(t => (
+                    <option key={t.codigo} value={t.codigo}>{t.sunatCodigo} — {t.nombre}</option>
+                  ))}
+                </Select>
+              </FormField>
+            </div>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <FormActions
+        onGuardar={onGuardar}
+        guardando={guardar.isPending}
+        onEliminar={() => setConfirmAbierto(true)}
+        eliminando={borrar.isPending}
+        textoEliminar="Eliminar producto"
+        onCancelar={modoModal ? onCerrar : () => router.push('/productos')}
+        variante="sticky"
+      />
+
+      <DeleteConfirmDialog
+        abierto={confirmAbierto}
+        onAbiertoChange={setConfirmAbierto}
+        titulo="Eliminar producto"
+        nombreItem={producto.nombre}
+        descripcion={
+          <>
+            Soft-delete. El producto y sus variantes dejan de aparecer en POS y catálogo,
+            pero el historial se conserva. Se eliminará <strong>{producto.nombre}</strong>.
+          </>
+        }
+        onConfirmar={() => borrar.mutate()}
+        eliminando={borrar.isPending}
+      />
+    </div>
   );
 }
 

@@ -13,6 +13,9 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/ui/page-header';
+import { FormField } from '@/components/ui/form-field';
+import { FormActions } from '@/components/ui/form-actions';
+import { useValidacionForm } from '@/lib/use-validacion-form';
 import { postear, mensajeError } from '@/lib/api/client';
 import { SelectorUbigeo } from '@/components/sunat/selector-ubigeo';
 import { BotonConsultaDoc } from '@/components/sunat/boton-consulta-doc';
@@ -40,6 +43,25 @@ export default function NuevoClientePage() {
   const [fechaNacimiento, setFechaNacimiento] = React.useState('');
   const [notas, setNotas] = React.useState('');
 
+  interface FormCliente {
+    nombre: string;
+  }
+
+  const validacion = useValidacionForm<FormCliente>({
+    reglas: [
+      {
+        id: 'nombre',
+        label: 'Nombre completo',
+        validar: d => {
+          const v = d.nombre.trim();
+          if (!v) return 'Nombre requerido';
+          if (v.length < 2) return 'El nombre debe tener al menos 2 caracteres';
+          return null;
+        },
+      },
+    ],
+  });
+
   const crear = useMutation({
     mutationFn: async () => {
       const body = {
@@ -64,17 +86,15 @@ export default function NuevoClientePage() {
     onError: e => toast.error(mensajeError(e)),
   });
 
-  function validar(): string | null {
-    if (!nombre.trim()) return 'Nombre requerido';
-    if (nombre.trim().length < 2) return 'El nombre debe tener al menos 2 caracteres';
-    return null;
+  function onGuardar() {
+    const r = validacion.validar({ nombre });
+    if (!r.valido) return;
+    crear.mutate();
   }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const err = validar();
-    if (err) { toast.error(err); return; }
-    crear.mutate();
+    onGuardar();
   }
 
   return (
@@ -83,19 +103,9 @@ export default function NuevoClientePage() {
         titulo="Nuevo cliente"
         descripcion="Registra los datos del cliente para llevar el control de sus compras."
         acciones={
-          <>
-            <Button asChild variant="ghost" type="button">
-              <Link href="/clientes"><ArrowLeft className="size-4" /> Cancelar</Link>
-            </Button>
-            <Button
-              type="submit"
-              size="lg"
-              data-testid="btn-guardar-cliente"
-              disabled={crear.isPending}
-            >
-              {crear.isPending ? 'Guardando…' : 'Crear cliente'}
-            </Button>
-          </>
+          <Button asChild variant="ghost" type="button">
+            <Link href="/clientes"><ArrowLeft className="size-4" /> Volver</Link>
+          </Button>
         }
       />
 
@@ -156,18 +166,25 @@ export default function NuevoClientePage() {
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="nombre">Nombre completo *</Label>
+        <FormField
+          label="Nombre completo"
+          htmlFor="nombre"
+          requerido
+          error={validacion.errores.nombre}
+        >
           <Input
             id="nombre"
             data-testid="input-nombre-cliente"
             value={nombre}
-            onChange={e => setNombre(e.target.value)}
+            onChange={e => {
+              setNombre(e.target.value);
+              validacion.limpiarError('nombre');
+            }}
             placeholder="María García López"
             required
             autoFocus
           />
-        </div>
+        </FormField>
       </Card>
 
       {/* Contacto */}
@@ -247,6 +264,13 @@ export default function NuevoClientePage() {
           rows={3}
         />
       </Card>
+
+      <FormActions
+        onGuardar={onGuardar}
+        guardando={crear.isPending}
+        onCancelar={() => router.push('/clientes')}
+        textoGuardar="Crear cliente"
+      />
     </form>
   );
 }
