@@ -32,10 +32,6 @@ export class ConfiguracionFacturacionController {
           ubigeoFiscalCodigo: config.ubigeoFiscalCodigo,
           mifactBaseUrl: config.mifactBaseUrl,
           tokenConfigurado: !!config.mifactToken, // NUNCA exponer el token plano
-          enviarAutomaticoASunat: config.enviarAutomaticoASunat,
-          retornarPdf: config.retornarPdf,
-          retornarXmlEnvio: config.retornarXmlEnvio,
-          retornarXmlCdr: config.retornarXmlCdr,
           formatoImpresion: config.formatoImpresion,
         },
       };

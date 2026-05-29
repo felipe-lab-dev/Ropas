@@ -16,7 +16,13 @@ import { crearResultadoPaginado } from '../../core/responses/respuesta.intercept
 import { InventarioService } from '../inventario/inventario.service';
 import { MotorCuponesService, ItemCarrito } from '../cupones/motor-cupones.service';
 import { SerieCpeService } from '../facturacion-electronica/series-cpe/series-cpe.service';
-import { TipoCpe } from '../../core/sunat/codigos';
+import { ConfiguracionFacturacionService } from '../facturacion-electronica/configuracion/configuracion-facturacion.service';
+import {
+  TipoCpe,
+  UMBRAL_IDENTIFICACION_BOLETA,
+  boletaRequiereIdentificacion,
+  documentoIdentificaAdquiriente,
+} from '../../core/sunat/codigos';
 import { AppEventEmitter } from '../../core/events/app-event-emitter';
 import { CrearVentaDto } from './dto/crear-venta.dto';
 import {
@@ -56,6 +62,7 @@ export class VentasService {
     private readonly inventario: InventarioService,
     private readonly motorCupones: MotorCuponesService,
     private readonly serieCpeService: SerieCpeService,
+    private readonly configFacturacion: ConfiguracionFacturacionService,
     private readonly eventEmitter: AppEventEmitter,
   ) {}
 
@@ -203,6 +210,10 @@ export class VentasService {
     if (!dto.items || dto.items.length === 0) {
       throw new ErrorValidacion('La venta debe tener al menos un item');
     }
+    // ¿Esta venta emitirá un CPE a SUNAT? Solo entonces aplica el guard de
+    // identificación en boletas. Nota de venta interna y tenants sin facturación
+    // configurada quedan exentos.
+    const emiteCpe = !dto.esNotaDeVenta && (await this.configFacturacion.estaConfigurada(ctx));
     const cliente = this.prisma.forTenant(ctx);
 
     const resultado = await cliente.$transaction(async tx => {
@@ -221,6 +232,8 @@ export class VentasService {
       // ─── Cliente (opcional) ───────────────────────────────────────────
       let clienteRegistrado: {
         id: string;
+        tipoDocumento: string;
+        documento: string | null;
         clasificacion: 'AA' | 'A' | 'B' | 'C' | 'D' | null;
         totalCompras: Prisma.Decimal;
         ultimaCompraEn: Date | null;
@@ -228,7 +241,14 @@ export class VentasService {
       if (dto.clienteId) {
         const c = await tx.cliente.findFirst({
           where: { id: dto.clienteId, eliminadoEn: null },
-          select: { id: true, clasificacion: true, totalCompras: true, ultimaCompraEn: true },
+          select: {
+            id: true,
+            tipoDocumento: true,
+            documento: true,
+            clasificacion: true,
+            totalCompras: true,
+            ultimaCompraEn: true,
+          },
         });
         if (!c) throw new ErrorNoEncontrado('Cliente no encontrado');
         clienteRegistrado = c;
@@ -434,6 +454,25 @@ export class VentasService {
         throw new ErrorValidacion(
           'Los descuentos exceden el subtotal — revisa montos',
         );
+      }
+
+      // ─── Guard SUNAT: identificación obligatoria en boletas > umbral ──────
+      // Una boleta cuyo total supera S/ 700 DEBE identificar al adquiriente con
+      // su DNI; si no, SUNAT la rechaza. La bloqueamos en caja ANTES de cerrar
+      // la venta, para que el cajero agregue el DNI y no descubra el rechazo
+      // después (la emisión del CPE es asíncrona post-venta).
+      if (emiteCpe) {
+        const seraFactura = clienteRegistrado?.tipoDocumento === 'ruc';
+        if (
+          !seraFactura &&
+          boletaRequiereIdentificacion(total) &&
+          !documentoIdentificaAdquiriente(clienteRegistrado?.documento)
+        ) {
+          throw new ErrorValidacion(
+            `Las boletas mayores a S/ ${UMBRAL_IDENTIFICACION_BOLETA} requieren identificar ` +
+              `al cliente con su DNI (exigencia SUNAT). Agrega un cliente con DNI para continuar.`,
+          );
+        }
       }
 
       const totalPagado = (dto.pagos ?? []).reduce((s, p) => s + p.monto, 0);

@@ -49,6 +49,10 @@ import { ErrorNoEncontrado, ErrorConflicto, ErrorValidacion } from '../../../cor
 import {
   CODIGO_TIPO_CPE,
   CODIGO_TIPO_NOTA_CREDITO,
+  NUM_DOC_CONSUMIDOR_FINAL,
+  UMBRAL_IDENTIFICACION_BOLETA,
+  boletaRequiereIdentificacion,
+  documentoIdentificaAdquiriente,
 } from '../../../core/sunat/codigos';
 import type { TipoCpe, TipoAfectacionIgv, TipoNotaCredito } from '../../../core/sunat/codigos';
 import type { OrquestarCpeInput } from '../cpe-orquestador/types';
@@ -65,6 +69,20 @@ type DocumentoWhere = { ventaId: string } | { notaCreditoId: string };
 
 @Injectable()
 export class DocumentoElectronicoService {
+  /**
+   * Receptor genérico para boleta a "consumidor final" (cliente sin DNI).
+   * Según la documentación de Mifact (DocumentacionFV_BV_NC_ND_Json.xlsx):
+   * "para el caso de boletas si no tiene DNI colocar el código 0 / el número
+   * 00000000 / CLIENTE SIN NOMBRE / SIN DIRECCION". El tipo local 'otro' mapea
+   * a COD_TIP_NIF_RECP='0' (DOC.TRIB.NO.DOM.SIN.RUC) en CODIGO_TIPO_DOC_IDENTIDAD.
+   */
+  private static readonly RECEPTOR_CONSUMIDOR_FINAL = {
+    tipoDocumento: 'otro' as TipoDocumentoLocal,
+    numeroDocumento: NUM_DOC_CONSUMIDOR_FINAL,
+    razonSocial: 'CLIENTE SIN NOMBRE',
+    direccion: 'SIN DIRECCION',
+  };
+
   constructor(
     private readonly prismaTenancy: PrismaTenantService,
     private readonly configuracionService: ConfiguracionFacturacionService,
@@ -103,6 +121,9 @@ export class DocumentoElectronicoService {
       );
     }
     const tipoCpe = this.determinarTipoCpeVenta(venta);
+    // Guard SUNAT antes de consumir un correlativo: una boleta > umbral debe
+    // identificar al adquiriente con su DNI, o SUNAT la rechaza.
+    this.validarIdentificacionBoleta(tipoCpe, venta);
     const config = await this.configuracionService.obtenerConfiguracion(ctx);
     const serieAsignada = await this.serieCpeService.asignarProximoCorrelativo(
       ctx,
@@ -142,6 +163,7 @@ export class DocumentoElectronicoService {
     this.validarReintento(doc);
 
     const venta = await this.cargarVenta(prisma, ventaId);
+    this.validarIdentificacionBoleta(doc.tipoCpe as TipoCpe, venta);
     const config = await this.configuracionService.obtenerConfiguracion(ctx);
 
     const input = this.construirInputVenta({
@@ -480,19 +502,50 @@ export class DocumentoElectronicoService {
   // Helpers — Construcción del OrquestarCpeInput
   // ═══════════════════════════════════════════════════════════════════════════
 
-  private construirReceptor(cliente: VentaConRelaciones['cliente']): OrquestarCpeInput['receptor'] {
-    return cliente
-      ? {
-          tipoDocumento: cliente.tipoDocumento as TipoDocumentoLocal,
-          numeroDocumento: cliente.documento ?? '00000000',
-          razonSocial: cliente.nombre,
-          direccion: cliente.direccion ?? undefined,
-        }
-      : {
-          tipoDocumento: 'dni' as TipoDocumentoLocal,
-          numeroDocumento: '00000000',
-          razonSocial: 'VARIOS',
-        };
+  private construirReceptor(
+    cliente: VentaConRelaciones['cliente'],
+    exigeRuc: boolean,
+  ): OrquestarCpeInput['receptor'] {
+    // Cliente identificado con un documento real (no el placeholder de consumidor final).
+    if (cliente && documentoIdentificaAdquiriente(cliente.documento)) {
+      return {
+        tipoDocumento: cliente.tipoDocumento as TipoDocumentoLocal,
+        numeroDocumento: cliente.documento as string,
+        razonSocial: cliente.nombre,
+        direccion: cliente.direccion ?? undefined,
+      };
+    }
+    // Sin documento que identifique al adquiriente. Una factura SIEMPRE exige RUC
+    // válido: no se puede caer al placeholder '00000000' (SUNAT la rechaza).
+    if (exigeRuc) {
+      throw new ErrorValidacion(
+        'Una factura requiere un cliente con RUC válido (11 dígitos). ' +
+          'Selecciona un cliente con RUC o emite una boleta.',
+      );
+    }
+    // Boleta a consumidor final — catálogo 06 = '0' (doc Mifact). Conserva el
+    // nombre/dirección del cliente registrado si existe (campo de texto libre).
+    const base = DocumentoElectronicoService.RECEPTOR_CONSUMIDOR_FINAL;
+    return {
+      ...base,
+      razonSocial: cliente?.nombre ?? base.razonSocial,
+      direccion: cliente?.direccion ?? base.direccion,
+    };
+  }
+
+  /**
+   * Guard SUNAT: una boleta cuyo total supera el umbral DEBE identificar al
+   * adquiriente con su documento. Si no, SUNAT la rechaza — la bloqueamos antes
+   * de enviarla (y antes de consumir un correlativo).
+   */
+  private validarIdentificacionBoleta(tipoCpe: TipoCpe, venta: VentaConRelaciones): void {
+    if (tipoCpe !== 'boleta') return;
+    if (!boletaRequiereIdentificacion(Number(venta.total))) return;
+    if (venta.cliente && documentoIdentificaAdquiriente(venta.cliente.documento)) return;
+    throw new ErrorValidacion(
+      `Las boletas mayores a S/ ${UMBRAL_IDENTIFICACION_BOLETA} requieren identificar ` +
+        `al cliente con su DNI (exigencia SUNAT). Agrega un cliente con DNI antes de emitir.`,
+    );
   }
 
   private construirEmisor(config: ConfiguracionFacturacionResuelta): OrquestarCpeInput['emisor'] {
@@ -507,11 +560,12 @@ export class DocumentoElectronicoService {
   }
 
   private opcionesMifact(config: ConfiguracionFacturacionResuelta): OrquestarCpeInput['opciones'] {
+    // El envío a SUNAT es SIEMPRE síncrono (enviarASunat=true) y la emisión
+    // NUNCA pide PDF/XML/CDR (retornar*=false): esos documentos se obtienen
+    // on-demand vía GetInvoice cuando el usuario presiona el botón respectivo.
+    // Ambos comportamientos son los defaults del cpe-builder, así que aquí solo
+    // pasamos el formato de impresión configurado por el tenant.
     return {
-      enviarASunat: config.enviarAutomaticoASunat,
-      retornarPdf: config.retornarPdf,
-      retornarXmlEnvio: config.retornarXmlEnvio,
-      retornarXmlCdr: config.retornarXmlCdr,
       formatoImpresion: config.formatoImpresion,
     };
   }
@@ -527,7 +581,7 @@ export class DocumentoElectronicoService {
     return {
       token: config.mifactToken,
       emisor: this.construirEmisor(config),
-      receptor: this.construirReceptor(venta.cliente),
+      receptor: this.construirReceptor(venta.cliente, tipoCpe === 'factura'),
       venta: {
         tipoCpe,
         serie,
@@ -565,7 +619,9 @@ export class DocumentoElectronicoService {
     return {
       token: config.mifactToken,
       emisor: this.construirEmisor(config),
-      receptor: this.construirReceptor(nc.cliente),
+      // La NC hereda al receptor del CPE original; nunca exige RUC por sí misma
+      // (si el original fue factura, el cliente ya trae su RUC válido).
+      receptor: this.construirReceptor(nc.cliente, false),
       venta: {
         tipoCpe: 'nota_credito',
         serie,

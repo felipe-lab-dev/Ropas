@@ -49,3 +49,9 @@ export class ErrorPagoRequerido extends ErrorAplicacion {
     super(402, mensaje);
   }
 }
+
+export class ErrorServicioExterno extends ErrorAplicacion {
+  constructor(mensaje = 'Servicio externo no disponible') {
+    super(503, mensaje);
+  }
+}

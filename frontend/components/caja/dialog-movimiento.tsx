@@ -43,6 +43,7 @@ type Estado = {
   categoria: CategoriaMovimiento | null;
   subCategoria: string;
   medio: 'efectivo' | 'transferencia';
+  moneda: 'PEN' | 'USD';
   monto: string;
   motivo: string;
   comprobante: string;
@@ -53,6 +54,7 @@ const ESTADO_INICIAL = (tipo: 'ingreso' | 'egreso'): Estado => ({
   categoria: null,
   subCategoria: '',
   medio: 'efectivo',
+  moneda: 'PEN',
   monto: '',
   motivo: '',
   comprobante: '',
@@ -100,6 +102,7 @@ export function DialogMovimiento({
         categoria: estado.categoria,
         subCategoria: estado.subCategoria || undefined,
         medio: estado.medio === 'efectivo' ? 'efectivo' : 'transferencia',
+        moneda: estado.moneda,
         monto,
         motivo: estado.motivo || catActiva?.label || 'Movimiento',
         comprobante: estado.comprobante || undefined,
@@ -173,10 +176,29 @@ export function DialogMovimiento({
             {/* Monto + Medio de pago */}
             <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
               <div className="sm:col-span-2 space-y-2">
-                <Label htmlFor="mov-monto">Monto</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="mov-monto">Monto</Label>
+                  <div className="inline-flex rounded-md border border-[hsl(var(--border))] p-0.5">
+                    {(['PEN', 'USD'] as const).map(mon => (
+                      <button
+                        key={mon}
+                        type="button"
+                        onClick={() => set('moneda', mon)}
+                        className={cn(
+                          'px-2 h-6 rounded text-[10px] font-bold transition-all',
+                          estado.moneda === mon
+                            ? 'bg-[hsl(var(--brand-accent))]/15 text-[hsl(var(--brand-accent))]'
+                            : 'text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
+                        )}
+                      >
+                        {mon === 'PEN' ? 'S/ PEN' : 'US$ USD'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base font-bold text-[hsl(var(--brand-accent))] pointer-events-none">
-                    S/
+                    {estado.moneda === 'USD' ? 'US$' : 'S/'}
                   </span>
                   <Input
                     id="mov-monto"
@@ -186,7 +208,7 @@ export function DialogMovimiento({
                     placeholder="0.00"
                     value={estado.monto}
                     onChange={e => set('monto', e.target.value)}
-                    className="text-xl font-bold tabular-nums pl-9 h-12"
+                    className="text-xl font-bold tabular-nums pl-12 h-12"
                     autoFocus
                   />
                 </div>

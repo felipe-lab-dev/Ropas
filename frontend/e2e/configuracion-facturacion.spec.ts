@@ -27,10 +27,6 @@ const CONFIG_COMPLETA = {
   ubigeoFiscalCodigo: '080101',
   mifactBaseUrl: 'https://demo.mifact.net.pe/api',
   tokenConfigurado: true,
-  enviarAutomaticoASunat: true,
-  retornarPdf: true,
-  retornarXmlEnvio: false,
-  retornarXmlCdr: false,
   formatoImpresion: '001',
 };
 

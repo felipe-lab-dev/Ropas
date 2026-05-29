@@ -43,62 +43,10 @@ const schema = z.object({
     .regex(/^\d{6}$/, 'Selecciona un UBIGEO válido'),
   mifactToken: z.string().optional(),
   mifactBaseUrl: z.string().url('URL inválida').optional().or(z.literal('')),
-  enviarAutomaticoASunat: z.boolean(),
-  retornarPdf: z.boolean(),
-  retornarXmlEnvio: z.boolean(),
-  retornarXmlCdr: z.boolean(),
   formatoImpresion: z.enum(['001', '002', '004']),
 });
 
 type FormValues = z.infer<typeof schema>;
-
-// ─── Componente: Toggle de boolean ───────────────────────────────────────────
-
-function Toggle({
-  checked,
-  onChange,
-  label,
-  descripcion,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  descripcion?: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="flex items-start gap-3 w-full text-left group"
-    >
-      <div
-        className={cn(
-          'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
-          'transition-colors duration-200 ease-in-out focus:outline-none mt-0.5',
-          checked
-            ? 'bg-[hsl(var(--brand-primary))]'
-            : 'bg-[hsl(var(--border))]',
-        )}
-      >
-        <span
-          className={cn(
-            'pointer-events-none inline-block size-5 rounded-full bg-white shadow-md',
-            'transform transition duration-200 ease-in-out',
-            checked ? 'translate-x-5' : 'translate-x-0',
-          )}
-        />
-      </div>
-      <div className="flex-1">
-        <div className="text-sm font-medium text-[hsl(var(--text))]">{label}</div>
-        {descripcion && (
-          <div className="text-xs text-[hsl(var(--text-muted))] mt-0.5">{descripcion}</div>
-        )}
-      </div>
-    </button>
-  );
-}
 
 // ─── Componente: RadioFormato ─────────────────────────────────────────────────
 
@@ -286,7 +234,6 @@ export default function ConfiguracionFacturacionPage() {
     register,
     control,
     handleSubmit,
-    watch,
     reset,
     formState: { errors, isDirty },
   } = useForm<FormValues>({
@@ -299,10 +246,6 @@ export default function ConfiguracionFacturacionPage() {
       ubigeoFiscalCodigo: '',
       mifactToken: '',
       mifactBaseUrl: 'https://demo.mifact.net.pe/api',
-      enviarAutomaticoASunat: true,
-      retornarPdf: true,
-      retornarXmlEnvio: false,
-      retornarXmlCdr: false,
       formatoImpresion: '001',
     },
   });
@@ -318,10 +261,6 @@ export default function ConfiguracionFacturacionPage() {
         ubigeoFiscalCodigo: config.ubigeoFiscalCodigo,
         mifactToken: '',
         mifactBaseUrl: config.mifactBaseUrl,
-        enviarAutomaticoASunat: config.enviarAutomaticoASunat,
-        retornarPdf: config.retornarPdf,
-        retornarXmlEnvio: config.retornarXmlEnvio,
-        retornarXmlCdr: config.retornarXmlCdr,
         formatoImpresion: config.formatoImpresion as '001' | '002' | '004',
       });
     }
@@ -336,10 +275,6 @@ export default function ConfiguracionFacturacionPage() {
         direccionFiscal: valores.direccionFiscal,
         ubigeoFiscalCodigo: valores.ubigeoFiscalCodigo,
         mifactBaseUrl: valores.mifactBaseUrl || undefined,
-        enviarAutomaticoASunat: valores.enviarAutomaticoASunat,
-        retornarPdf: valores.retornarPdf,
-        retornarXmlEnvio: valores.retornarXmlEnvio,
-        retornarXmlCdr: valores.retornarXmlCdr,
         formatoImpresion: valores.formatoImpresion,
       };
       if (valores.mifactToken?.trim()) {
@@ -377,7 +312,7 @@ export default function ConfiguracionFacturacionPage() {
 
       <PageHeader
         titulo="Facturación Electrónica"
-        descripcion="Datos del emisor, conexión a Mifact OSE y opciones de comportamiento SUNAT."
+        descripcion="Datos del emisor, conexión a Mifact OSE y formato de impresión."
       />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -486,61 +421,14 @@ export default function ConfiguracionFacturacionPage() {
           </div>
         </Seccion>
 
-        {/* ── Comportamiento ───────────────────────────────────────── */}
-        <Seccion titulo="Comportamiento">
-          <div className="space-y-4">
-            <Controller
-              name="enviarAutomaticoASunat"
-              control={control}
-              render={({ field }) => (
-                <Toggle
-                  checked={field.value}
-                  onChange={field.onChange}
-                  label="Enviar a SUNAT en forma sincrónica"
-                  descripcion="El comprobante se envía a SUNAT en el mismo request. Si está desactivado, se encola."
-                />
-              )}
-            />
-            <Controller
-              name="retornarPdf"
-              control={control}
-              render={({ field }) => (
-                <Toggle
-                  checked={field.value}
-                  onChange={field.onChange}
-                  label="Retornar PDF"
-                  descripcion="Mifact devuelve la URL del PDF del comprobante."
-                />
-              )}
-            />
-            <Controller
-              name="retornarXmlEnvio"
-              control={control}
-              render={({ field }) => (
-                <Toggle
-                  checked={field.value}
-                  onChange={field.onChange}
-                  label="Retornar XML enviado"
-                  descripcion="Incluye la URL del XML que se envió a SUNAT."
-                />
-              )}
-            />
-            <Controller
-              name="retornarXmlCdr"
-              control={control}
-              render={({ field }) => (
-                <Toggle
-                  checked={field.value}
-                  onChange={field.onChange}
-                  label="Retornar CDR (XML de respuesta SUNAT)"
-                  descripcion="Incluye la URL del CDR (Constancia de Recepción) de SUNAT."
-                />
-              )}
-            />
-          </div>
-
+        {/* ── Formato de impresión ─────────────────────────────────── */}
+        <Seccion titulo="Formato de impresión">
           <div className="space-y-1.5">
-            <Label>Formato de impresión</Label>
+            <p className="text-xs text-[hsl(var(--text-muted))]">
+              Formato del PDF del comprobante. El envío a SUNAT es siempre
+              sincrónico; el PDF, XML y CDR se descargan a pedido desde el detalle
+              de la venta.
+            </p>
             <Controller
               name="formatoImpresion"
               control={control}

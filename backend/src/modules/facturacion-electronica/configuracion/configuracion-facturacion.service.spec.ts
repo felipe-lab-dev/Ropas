@@ -65,10 +65,6 @@ function filaConfig(overrides: Partial<{
   nombreComercial: string | null;
   direccionFiscal: string;
   ubigeoFiscalCodigo: string;
-  enviarAutomaticoASunat: boolean;
-  retornarPdf: boolean;
-  retornarXmlEnvio: boolean;
-  retornarXmlCdr: boolean;
   formatoImpresion: string;
 }> = {}) {
   return {
@@ -80,10 +76,6 @@ function filaConfig(overrides: Partial<{
     nombreComercial: 'Mi Tienda',
     direccionFiscal: 'Av. Principal 123, Cusco',
     ubigeoFiscalCodigo: '080101',
-    enviarAutomaticoASunat: true,
-    retornarPdf: true,
-    retornarXmlEnvio: false,
-    retornarXmlCdr: false,
     formatoImpresion: '001',
     creadoEn: new Date(),
     actualizadoEn: new Date(),
@@ -101,10 +93,6 @@ function filaExistente(overrides: object = {}) {
     nombreComercial: null,
     direccionFiscal: 'Av. Principal 123, Cusco',
     ubigeoFiscalCodigo: '080101',
-    enviarAutomaticoASunat: true,
-    retornarPdf: true,
-    retornarXmlEnvio: false,
-    retornarXmlCdr: false,
     formatoImpresion: '001',
     creadoEn: new Date(),
     actualizadoEn: new Date(),
@@ -153,10 +141,6 @@ describe('ConfiguracionFacturacionService', () => {
       expect(resultado.ruc).toBe('20123456789');
       expect(resultado.razonSocial).toBe('Mi Tienda S.A.C.');
       expect(resultado.mifactBaseUrl).toBe('https://demo.mifact.net.pe/api');
-      expect(resultado.enviarAutomaticoASunat).toBe(true);
-      expect(resultado.retornarPdf).toBe(true);
-      expect(resultado.retornarXmlEnvio).toBe(false);
-      expect(resultado.retornarXmlCdr).toBe(false);
       expect(resultado.formatoImpresion).toBe('001');
     });
 

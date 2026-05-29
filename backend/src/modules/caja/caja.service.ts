@@ -41,6 +41,8 @@ export interface CrearMovimientoDto {
   categoria: CategoriaMovimientoCaja;
   subCategoria?: string;
   medio?: MedioPago;
+  /** Moneda del movimiento. Default PEN. */
+  moneda?: string;
   monto: number;
   motivo: string;
   comprobante?: string;
@@ -48,6 +50,33 @@ export interface CrearMovimientoDto {
   contraparteTipo?: TipoContraparte;
   contraparteId?: string;
   contraparteDocumento?: string;
+}
+
+/** Saldo de arqueo de una moneda ADICIONAL a PEN (PEN vive en las columnas monto*). */
+export interface SaldoMonedaCaja {
+  moneda: string;
+  apertura: number;
+  cierre: number | null;
+  esperado: number | null;
+  diferencia: number | null;
+}
+
+const MONEDAS_CAJA = ['PEN', 'USD'] as const;
+
+function round2Caja(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function normalizarMonedaCaja(m?: string): string {
+  const x = (m ?? 'PEN').toUpperCase();
+  if (!MONEDAS_CAJA.includes(x as (typeof MONEDAS_CAJA)[number])) {
+    throw new ErrorValidacion(`Moneda no soportada en caja: ${x}. Use PEN o USD.`);
+  }
+  return x;
+}
+
+function leerSaldosMoneda(valor: unknown): SaldoMonedaCaja[] {
+  return Array.isArray(valor) ? (valor as SaldoMonedaCaja[]) : [];
 }
 
 const CATEGORIAS_INGRESO: CategoriaMovimientoCaja[] = [
@@ -86,18 +115,39 @@ export class CajaService {
   }
 
   async abrir(
-    data: { sucursalId: string; cajeroId: string; montoApertura: number; notas?: string },
+    data: {
+      sucursalId: string;
+      cajeroId: string;
+      montoApertura: number;
+      /** Aperturas en monedas adicionales a PEN (p.ej. [{ moneda:'USD', monto:50 }]). */
+      aperturasMoneda?: { moneda: string; monto: number }[];
+      notas?: string;
+    },
     ctx: TenantContext,
   ) {
     const existente = await this.prisma.forTenant(ctx).sesionCaja.findFirst({
       where: { sucursalId: data.sucursalId, cajeroId: data.cajeroId, estado: 'abierta' },
     });
     if (existente) throw new ErrorConflicto('Ya tienes una sesión de caja abierta');
+
+    // Solo monedas ≠ PEN con monto > 0 van a saldosMoneda; PEN es montoApertura.
+    const saldos: SaldoMonedaCaja[] = (data.aperturasMoneda ?? [])
+      .map(s => ({ moneda: normalizarMonedaCaja(s.moneda), monto: Number(s.monto) }))
+      .filter(s => s.moneda !== 'PEN' && s.monto > 0)
+      .map(s => ({
+        moneda: s.moneda,
+        apertura: round2Caja(s.monto),
+        cierre: null,
+        esperado: null,
+        diferencia: null,
+      }));
+
     return this.prisma.forTenant(ctx).sesionCaja.create({
       data: {
         sucursalId: data.sucursalId,
         cajeroId: data.cajeroId,
         montoApertura: data.montoApertura,
+        saldosMoneda: saldos.length ? (saldos as unknown as Prisma.InputJsonValue) : undefined,
         notasApertura: data.notas,
       },
     });
@@ -105,7 +155,12 @@ export class CajaService {
 
   async cerrar(
     id: string,
-    data: { montoCierre: number; notas?: string },
+    data: {
+      montoCierre: number;
+      /** Contado físico por moneda adicional a PEN (p.ej. [{ moneda:'USD', monto:20 }]). */
+      cierresMoneda?: { moneda: string; monto: number }[];
+      notas?: string;
+    },
     ctx: TenantContext,
   ) {
     const cliente = this.prisma.forTenant(ctx);
@@ -116,19 +171,43 @@ export class CajaService {
     if (!sesion) throw new ErrorNoEncontrado('Sesión no encontrada');
     if (sesion.estado !== 'abierta') throw new ErrorConflicto('La sesión ya está cerrada');
 
+    const movs = sesion.movimientos;
+    const efectivoDe = (filtro: (m: (typeof movs)[number]) => boolean): number =>
+      movs.filter(filtro).reduce((s, m) => s + Number(m.monto), 0);
+
+    // ── PEN (en las columnas monto* de la sesión, como siempre) ──
     const ingresoVentas = sesion.ventas
       .flatMap(v => v.pagos)
       .filter(p => p.medio === 'efectivo')
       .reduce((s, p) => s + Number(p.monto), 0);
-    const ingresosManual = sesion.movimientos
-      .filter(m => m.tipo === 'ingreso' && m.medio === 'efectivo')
-      .reduce((s, m) => s + Number(m.monto), 0);
-    const egresos = sesion.movimientos
-      .filter(m => (m.tipo === 'egreso' || m.tipo === 'retiro') && m.medio === 'efectivo')
-      .reduce((s, m) => s + Number(m.monto), 0);
+    const ingresosManualPen = efectivoDe(m => m.tipo === 'ingreso' && m.medio === 'efectivo' && m.moneda === 'PEN');
+    const egresosPen = efectivoDe(m => (m.tipo === 'egreso' || m.tipo === 'retiro') && m.medio === 'efectivo' && m.moneda === 'PEN');
+    const montoEsperado = round2Caja(Number(sesion.montoApertura) + ingresoVentas + ingresosManualPen - egresosPen);
+    const diferencia = round2Caja(data.montoCierre - montoEsperado);
 
-    const montoEsperado = Number(sesion.montoApertura) + ingresoVentas + ingresosManual - egresos;
-    const diferencia = data.montoCierre - montoEsperado;
+    // ── Monedas adicionales (USD…) → saldosMoneda ──
+    const aperturas = leerSaldosMoneda(sesion.saldosMoneda);
+    const contado = new Map<string, number>();
+    for (const c of data.cierresMoneda ?? []) contado.set(normalizarMonedaCaja(c.moneda), Number(c.monto));
+
+    const monedasExtra = new Set<string>();
+    aperturas.forEach(a => a.moneda !== 'PEN' && monedasExtra.add(a.moneda));
+    movs.forEach(m => m.moneda !== 'PEN' && monedasExtra.add(m.moneda));
+    contado.forEach((_v, k) => k !== 'PEN' && monedasExtra.add(k));
+
+    let descuadreExtra = false;
+    const saldosCierre: SaldoMonedaCaja[] = [...monedasExtra].map(mon => {
+      const apertura = aperturas.find(a => a.moneda === mon)?.apertura ?? 0;
+      const ing = efectivoDe(m => m.tipo === 'ingreso' && m.medio === 'efectivo' && m.moneda === mon);
+      const egr = efectivoDe(m => (m.tipo === 'egreso' || m.tipo === 'retiro') && m.medio === 'efectivo' && m.moneda === mon);
+      const esperado = round2Caja(apertura + ing - egr);
+      const cierre = contado.has(mon) ? round2Caja(contado.get(mon)!) : null;
+      const dif = cierre === null ? null : round2Caja(cierre - esperado);
+      if (dif !== null && Math.abs(dif) >= 0.01) descuadreExtra = true;
+      return { moneda: mon, apertura, cierre, esperado, diferencia: dif };
+    });
+
+    const conDiferencia = Math.abs(diferencia) >= 0.01 || descuadreExtra;
 
     return cliente.sesionCaja.update({
       where: { id },
@@ -136,8 +215,11 @@ export class CajaService {
         montoCierre: data.montoCierre,
         montoEsperado,
         diferencia,
+        saldosMoneda: saldosCierre.length
+          ? (saldosCierre as unknown as Prisma.InputJsonValue)
+          : undefined,
         notasCierre: data.notas,
-        estado: Math.abs(diferencia) < 0.01 ? 'cerrada' : 'con_diferencia',
+        estado: conDiferencia ? 'con_diferencia' : 'cerrada',
         cerradaEn: new Date(),
       },
     });
@@ -229,11 +311,33 @@ export class CajaService {
       }
     }
 
+    // El efectivo PEN esperado solo cuenta movimientos en PEN (los USD van aparte).
+    const movs = sesion.movimientos;
+    const efectivoManualPen = (filtro: (m: (typeof movs)[number]) => boolean) =>
+      movs
+        .filter(m => m.medio === 'efectivo' && m.moneda === 'PEN' && filtro(m))
+        .reduce((s, m) => s + Number(m.monto), 0);
     const efectivoEsperado =
       Number(sesion.montoApertura) +
       (ventasPorMedio['efectivo'] ?? 0) +
-      (ingresosManual['efectivo'] ?? 0) -
-      (egresosManual['efectivo'] ?? 0);
+      efectivoManualPen(m => m.tipo === 'ingreso') -
+      efectivoManualPen(m => m.tipo === 'egreso' || m.tipo === 'retiro');
+
+    // Arqueo de efectivo por moneda adicional a PEN (apertura + ingresos − egresos).
+    const aperturas = leerSaldosMoneda(sesion.saldosMoneda);
+    const monedasExtra = new Set<string>();
+    aperturas.forEach(a => a.moneda !== 'PEN' && monedasExtra.add(a.moneda));
+    movs.forEach(m => m.moneda && m.moneda !== 'PEN' && monedasExtra.add(m.moneda));
+    const porMoneda = [...monedasExtra].map(mon => {
+      const apertura = aperturas.find(a => a.moneda === mon)?.apertura ?? 0;
+      const ingresos = movs
+        .filter(m => m.tipo === 'ingreso' && m.medio === 'efectivo' && m.moneda === mon)
+        .reduce((s, m) => s + Number(m.monto), 0);
+      const egresos = movs
+        .filter(m => (m.tipo === 'egreso' || m.tipo === 'retiro') && m.medio === 'efectivo' && m.moneda === mon)
+        .reduce((s, m) => s + Number(m.monto), 0);
+      return { moneda: mon, apertura, ingresos, egresos, efectivoEsperado: round2Caja(apertura + ingresos - egresos) };
+    });
 
     return {
       sesionId: sesion.id,
@@ -243,6 +347,9 @@ export class CajaService {
       montoEsperado: sesion.montoEsperado ? Number(sesion.montoEsperado) : efectivoEsperado,
       diferencia: sesion.diferencia ? Number(sesion.diferencia) : null,
       efectivoEsperado,
+      // Arqueo de monedas extra: en vivo (porMoneda) y persistido al cerrar (saldosMoneda).
+      porMoneda,
+      saldosMoneda: aperturas,
       ventas: {
         cantidad: sesion.ventas.length,
         total: totalVentas,
@@ -303,6 +410,8 @@ export class CajaService {
     if (sesion.estado !== 'abierta')
       throw new ErrorConflicto('La sesión está cerrada, no se pueden registrar movimientos');
 
+    const moneda = normalizarMonedaCaja(dto.moneda);
+
     // Validar coherencia tipo ↔ categoría
     const catsValidas = dto.tipo === 'ingreso' ? CATEGORIAS_INGRESO : CATEGORIAS_EGRESO;
     if (dto.tipo === 'ingreso' || dto.tipo === 'egreso') {
@@ -335,6 +444,7 @@ export class CajaService {
         categoria: dto.categoria,
         subCategoria: dto.subCategoria,
         medio: dto.medio ?? 'efectivo',
+        moneda,
         monto: dto.monto,
         motivo: dto.motivo,
         comprobante: dto.comprobante,

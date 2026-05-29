@@ -31,10 +31,6 @@ const CONFIG_RESUELTA = {
   nombreComercial: 'Mi Tienda',
   direccionFiscal: 'Av. Principal 123, Cusco',
   ubigeoFiscalCodigo: '080101',
-  enviarAutomaticoASunat: true,
-  retornarPdf: true,
-  retornarXmlEnvio: false,
-  retornarXmlCdr: false,
   formatoImpresion: '001',
 };
 
@@ -116,10 +112,6 @@ describe('ConfiguracionFacturacionController', () => {
       direccionFiscal: 'Av. Principal 123, Cusco',
       ubigeoFiscalCodigo: '080101',
       mifactBaseUrl: 'https://demo.mifact.net.pe/api',
-      enviarAutomaticoASunat: true,
-      retornarPdf: true,
-      retornarXmlEnvio: false,
-      retornarXmlCdr: false,
       formatoImpresion: '001',
     };
     mockGuardar.mockResolvedValue(resultadoGuardado);
