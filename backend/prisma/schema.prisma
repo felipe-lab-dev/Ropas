@@ -481,6 +481,9 @@ model VentaItem {
   descripcion    String   @db.VarChar(240)
   cantidad       Int
   precioUnitario Decimal  @map("precio_unitario") @db.Decimal(12, 2)
+  /// Costo congelado al momento de la venta (snapshot). Null = sin costo conocido.
+  /// Cascada al vender: Producto.precioCompra → último CompraItem.costoUnitario → null.
+  costoUnitario  Decimal? @map("costo_unitario") @db.Decimal(14, 4)
   descuento      Decimal  @default(0) @db.Decimal(12, 2)
   subtotal       Decimal  @db.Decimal(12, 2)
 

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -14,6 +14,10 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/ui/page-header';
+import { FormField } from '@/components/ui/form-field';
+import { FormActions } from '@/components/ui/form-actions';
+import { DeleteConfirmDialog } from '@/components/ui/delete-confirm-dialog';
+import { useValidacionForm } from '@/lib/use-validacion-form';
 import { obtener, actualizar, eliminar as eliminarApi, mensajeError } from '@/lib/api/client';
 import { SelectorUbigeo } from '@/components/sunat/selector-ubigeo';
 
@@ -68,7 +72,17 @@ export function EditarClienteCliente() {
   const [ubigeoCodigo, setUbigeoCodigo] = React.useState<string | undefined>(undefined);
   const [fechaNacimiento, setFechaNacimiento] = React.useState('');
   const [notas, setNotas] = React.useState('');
-  const [confirmarEliminar, setConfirmarEliminar] = React.useState(false);
+  const [confirmAbierto, setConfirmAbierto] = React.useState(false);
+
+  const validacion = useValidacionForm<{ nombre: string }>({
+    reglas: [
+      {
+        id: 'nombre',
+        label: 'Nombre completo',
+        validar: d => d.nombre.trim() ? null : 'El nombre es obligatorio',
+      },
+    ],
+  });
 
   React.useEffect(() => {
     if (cliente) {
@@ -129,9 +143,15 @@ export function EditarClienteCliente() {
     );
   }
 
+  const onGuardar = () => {
+    const r = validacion.validar({ nombre });
+    if (!r.valido) return;
+    guardar.mutate();
+  };
+
   return (
     <form
-      onSubmit={e => { e.preventDefault(); guardar.mutate(); }}
+      onSubmit={e => { e.preventDefault(); onGuardar(); }}
       className="space-y-6 max-w-3xl"
     >
       <PageHeader
@@ -142,14 +162,9 @@ export function EditarClienteCliente() {
             : cliente.codigo ?? 'Sin documento registrado'
         }
         acciones={
-          <>
-            <Button asChild variant="ghost" type="button">
-              <Link href="/clientes"><ArrowLeft className="size-4" /> Volver</Link>
-            </Button>
-            <Button type="submit" size="lg" disabled={guardar.isPending}>
-              {guardar.isPending ? 'Guardando…' : 'Guardar cambios'}
-            </Button>
-          </>
+          <Button asChild variant="ghost" type="button">
+            <Link href="/clientes"><ArrowLeft className="size-4" /> Volver</Link>
+          </Button>
         }
       />
 
@@ -191,15 +206,19 @@ export function EditarClienteCliente() {
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="nombre">Nombre completo *</Label>
+        <FormField
+          label="Nombre completo"
+          htmlFor="nombre"
+          requerido
+          error={validacion.errores.nombre}
+        >
           <Input
             id="nombre"
             value={nombre}
-            onChange={e => setNombre(e.target.value)}
+            onChange={e => { setNombre(e.target.value); validacion.limpiarError('nombre'); }}
             required
           />
-        </div>
+        </FormField>
       </Card>
 
       <Card className="p-6 space-y-5">
@@ -271,39 +290,30 @@ export function EditarClienteCliente() {
         />
       </Card>
 
-      <Card className="p-6 border-[hsl(var(--brand-danger))]/30 bg-[hsl(var(--brand-danger))]/5 space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold text-[hsl(var(--brand-danger))]">Eliminar cliente</h2>
-          <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
+      <FormActions
+        onGuardar={onGuardar}
+        guardando={guardar.isPending}
+        onCancelar={() => router.push('/clientes')}
+        onEliminar={() => setConfirmAbierto(true)}
+        eliminando={borrar.isPending}
+        textoGuardar="Guardar cambios"
+        textoEliminar="Eliminar cliente"
+      />
+
+      <DeleteConfirmDialog
+        abierto={confirmAbierto}
+        onAbiertoChange={setConfirmAbierto}
+        titulo="Eliminar cliente"
+        nombreItem={cliente.nombre}
+        descripcion={
+          <>
             Soft-delete. El historial de compras se conserva.
-          </p>
-        </div>
-        {!confirmarEliminar ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setConfirmarEliminar(true)}
-            className="border-[hsl(var(--brand-danger))]/40 text-[hsl(var(--brand-danger))] hover:bg-[hsl(var(--brand-danger))]/10"
-          >
-            <Trash2 className="size-4" /> Eliminar cliente
-          </Button>
-        ) : (
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => setConfirmarEliminar(false)}>
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={() => borrar.mutate()}
-              disabled={borrar.isPending}
-              className="bg-[hsl(var(--brand-danger))] hover:bg-[hsl(var(--brand-danger))]/90"
-            >
-              <Trash2 className="size-4" />
-              {borrar.isPending ? 'Eliminando…' : 'Sí, eliminar'}
-            </Button>
-          </div>
-        )}
-      </Card>
+            {' '}Se eliminará <strong className="text-[hsl(var(--text))]">{cliente.nombre}</strong>.
+          </>
+        }
+        onConfirmar={() => borrar.mutate()}
+        eliminando={borrar.isPending}
+      />
     </form>
   );
 }

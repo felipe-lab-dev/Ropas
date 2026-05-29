@@ -28,7 +28,7 @@ test.describe('Cupones · plantillas destacadas + render PDF/PNG', () => {
     await expect(page.getByTestId('cupon-preview')).toContainText('⚡');
 
     // Guardar
-    await page.getByTestId('cupon-guardar').click();
+    await page.getByTestId('btn-guardar').click();
     await expect(page).toHaveURL(/\/cupones\/detalle\/?\?id=[a-f0-9-]{36}/, { timeout: 15_000 });
   });
 
@@ -38,7 +38,7 @@ test.describe('Cupones · plantillas destacadas + render PDF/PNG', () => {
     await fillEstable(page, 'input[name="codigo"]', `PDF-${Date.now().toString(36).toUpperCase()}`);
     await fillEstable(page, 'input[name="nombre"]', 'Cupón render PDF/PNG');
     await fillEstable(page, 'input[name="valorDescuento"]', '10');
-    await page.getByTestId('cupon-guardar').click();
+    await page.getByTestId('btn-guardar').click();
     await page.waitForURL(/\/cupones\/detalle\/?\?id=[a-f0-9-]{36}/);
 
     // Descargar PDF

@@ -122,13 +122,12 @@ test.describe('Campos SUNAT — Producto y Cliente (4.D)', () => {
     await gotoY(page, URL_NUEVO_PRODUCTO);
     await expect(page.getByText('Nuevo producto')).toBeVisible({ timeout: 10_000 });
 
-    // Llenar campos obligatorios
+    // Llenar campos obligatorios en tab General
     await page.locator('#nombre').fill('Calzado Test');
     await page.locator('#precioVenta').fill('150');
 
-    // Expandir sección SUNAT
-    const btnSunat = page.getByTestId('seccion-sunat').locator('button').first();
-    await btnSunat.click();
+    // Abrir la tab SUNAT (refactor 2026-05-28: era sección colapsable, ahora es tab)
+    await page.getByTestId('tab-sunat').click();
     await expect(page.getByTestId('select-unidad-medida')).toBeVisible({ timeout: 5_000 });
 
     // Seleccionar PAR
@@ -137,8 +136,8 @@ test.describe('Campos SUNAT — Producto y Cliente (4.D)', () => {
     // Seleccionar exonerado_onerosa
     await page.getByTestId('select-tipo-afectacion').selectOption('exonerado_onerosa');
 
-    // Submit
-    await page.getByRole('button', { name: /crear producto/i }).click();
+    // Submit vía FormActions (btn-guardar)
+    await page.getByTestId('btn-guardar').click();
 
     // Verificar payload — poll espera hasta que el POST sea interceptado
     await expect.poll(() => Object.keys(payloadCapturado).length, { timeout: 5_000 }).toBeGreaterThan(0);
@@ -175,8 +174,8 @@ test.describe('Campos SUNAT — Producto y Cliente (4.D)', () => {
     await page.locator('#nombre').fill('Vestido Básico');
     await page.locator('#precioVenta').fill('89');
 
-    // Submit sin expandir SUNAT
-    await page.getByRole('button', { name: /crear producto/i }).click();
+    // Submit sin visitar la tab SUNAT
+    await page.getByTestId('btn-guardar').click();
 
     await expect.poll(() => Object.keys(payloadCapturado).length, { timeout: 5_000 }).toBeGreaterThan(0);
 

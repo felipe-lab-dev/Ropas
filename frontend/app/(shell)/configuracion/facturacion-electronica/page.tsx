@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/ui/page-header';
+import { FormField } from '@/components/ui/form-field';
 import { SelectorUbigeo } from '@/components/sunat/selector-ubigeo';
 import {
   useConfiguracionFacturacion,
@@ -385,22 +386,34 @@ export default function ConfiguracionFacturacionPage() {
         {/* ── Datos del emisor ─────────────────────────────────────── */}
         <Seccion titulo="Datos del emisor">
           <div className="grid sm:grid-cols-2 gap-4">
-            <Campo label="RUC" error={errors.ruc?.message}>
+            <FormField
+              label="RUC"
+              htmlFor="ruc"
+              requerido
+              error={errors.ruc?.message}
+            >
               <Input
+                id="ruc"
                 {...register('ruc')}
                 placeholder="20100100100"
                 maxLength={11}
                 inputMode="numeric"
                 data-testid="input-ruc"
               />
-            </Campo>
-            <Campo label="Razón social" error={errors.razonSocial?.message}>
+            </FormField>
+            <FormField
+              label="Razón social"
+              htmlFor="razonSocial"
+              requerido
+              error={errors.razonSocial?.message}
+            >
               <Input
+                id="razonSocial"
                 {...register('razonSocial')}
                 placeholder="Mi Empresa S.A.C."
                 data-testid="input-razon-social"
               />
-            </Campo>
+            </FormField>
           </div>
           <Campo label="Nombre comercial" error={errors.nombreComercial?.message} opcional>
             <Input
@@ -412,14 +425,25 @@ export default function ConfiguracionFacturacionPage() {
 
         {/* ── Domicilio fiscal ─────────────────────────────────────── */}
         <Seccion titulo="Domicilio fiscal">
-          <Campo label="Dirección" error={errors.direccionFiscal?.message}>
+          <FormField
+            label="Dirección"
+            htmlFor="direccionFiscal"
+            requerido
+            error={errors.direccionFiscal?.message}
+          >
             <Input
+              id="direccionFiscal"
               {...register('direccionFiscal')}
               placeholder="Av. La Marina 123"
               data-testid="input-direccion"
             />
-          </Campo>
-          <Campo label="UBIGEO" error={errors.ubigeoFiscalCodigo?.message}>
+          </FormField>
+          <FormField
+            label="UBIGEO"
+            htmlFor="ubigeoFiscalCodigo"
+            requerido
+            error={errors.ubigeoFiscalCodigo?.message}
+          >
             <Controller
               name="ubigeoFiscalCodigo"
               control={control}
@@ -431,7 +455,7 @@ export default function ConfiguracionFacturacionPage() {
                 />
               )}
             />
-          </Campo>
+          </FormField>
         </Seccion>
         </div>
 

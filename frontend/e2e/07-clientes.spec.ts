@@ -29,7 +29,7 @@ test.describe('Clientes · CRUD', () => {
     await fillEstable(page, '[data-testid="input-nombre-cliente"]', nombre);
     await fillEstable(page, '[data-testid="input-email-cliente"]', email);
 
-    await page.locator('[data-testid="btn-guardar-cliente"]').click();
+    await page.locator('[data-testid="btn-guardar"]').click();
     await esperarToast(page, /creado/i);
     // El nuevo cliente redirige a la edición (ruta estática, export-safe): /clientes/editar/?id={uuid}
     await expect(page).toHaveURL(/\/clientes\/editar\/?\?id=[a-f0-9-]{36}/, { timeout: 12_000 });
@@ -55,10 +55,9 @@ test.describe('Clientes · CRUD', () => {
     await page.getByRole('button', { name: /guardar cambios/i }).click();
     await esperarToast(page, /actualizado/i);
 
-    // 4. Eliminar desde el detalle
-    await page.getByRole('button', { name: /eliminar cliente/i }).click();
-    // La confirmación expone dos botones — clickeamos el de confirmar
-    await page.getByRole('button', { name: /s[ií], eliminar/i }).click();
+    // 4. Eliminar desde el detalle (FormActions sticky → DeleteConfirmDialog)
+    await page.locator('[data-testid="btn-eliminar"]').click();
+    await page.locator('[data-testid="btn-confirmar-eliminar"]').click();
     await esperarToast(page, /eliminado/i);
 
     // Debe redirigir a la lista y el cliente no debe aparecer
@@ -74,10 +73,10 @@ test.describe('Clientes · CRUD', () => {
     // No tocamos el nombre — el resto sí (para forzar que el error sea por nombre)
     await page.locator('[data-testid="select-tipo-doc-cliente"]').selectOption('dni');
     await fillEstable(page, '[data-testid="input-documento-cliente"]', dniAleatorio());
-    await page.locator('[data-testid="btn-guardar-cliente"]').click();
+    await page.locator('[data-testid="btn-guardar"]').click();
 
-    // El validador del componente emite un toast.error('Nombre requerido')
-    await esperarToast(page, /nombre requerido/i);
+    // El validador universal emite un toast con "Faltan: Nombre..." o el legacy "Nombre requerido"
+    await esperarToast(page, /(faltan|nombre requerido)/i);
     // No navegó
     await expect(page).toHaveURL(/\/clientes\/nuevo/);
   });

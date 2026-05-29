@@ -21,7 +21,7 @@ test.describe('Cupones · CRUD básico', () => {
     // Vista previa en vivo debe reflejar el código
     await expect(page.getByTestId('cupon-preview')).toContainText(codigo);
 
-    await page.getByTestId('cupon-guardar').click();
+    await page.getByTestId('btn-guardar').click();
     await expect(page).toHaveURL(/\/cupones\/detalle\/?\?id=[a-f0-9-]{36}/, { timeout: 15_000 });
     await expect(page.locator('body')).toContainText(codigo);
 
@@ -37,7 +37,7 @@ test.describe('Cupones · CRUD básico', () => {
     await editarLink.click();
     await expect(page).toHaveURL(/\/cupones\/editar\/?\?id=/);
     await fillEstable(page, 'input[name="nombre"]', `${nombre} (editado)`);
-    await page.getByTestId('cupon-guardar').click();
+    await page.getByTestId('btn-guardar').click();
     await expect(page).toHaveURL(/\/cupones\/detalle\/?\?id=[a-f0-9-]{36}/, { timeout: 15_000 });
     await expect(page.locator('body')).toContainText(`${nombre} (editado)`);
 

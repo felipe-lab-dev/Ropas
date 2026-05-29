@@ -43,6 +43,16 @@ import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { tienePermiso } from '@/lib/store/sesion';
 import { useSesion } from '@/lib/store/sesion';
 import { SeccionCpe } from '@/components/facturacion-electronica/seccion-cpe';
+import { FormField } from '@/components/ui/form-field';
+import { FormActions } from '@/components/ui/form-actions';
+import { useValidacionForm } from '@/lib/use-validacion-form';
+import {
+  BadgeRentabilidad,
+  NIVEL_LABEL,
+  formatearMargen,
+  type RentabilidadItem,
+  type RentabilidadVenta,
+} from '@/lib/rentabilidad-ui';
 
 type EstadoVenta = 'borrador' | 'confirmada' | 'pagada' | 'parcial' | 'anulada';
 
@@ -78,6 +88,7 @@ interface VentaDetalle {
     cantidad: number;
     descripcion: string;
     precioUnitario: string;
+    costoUnitario: string | null;
     descuento: string;
     subtotal: string;
     variante: {
@@ -88,6 +99,7 @@ interface VentaDetalle {
       producto: { id: string; nombre: string };
     };
     notasCreditoItems?: Array<{ cantidad: number; notaCreditoId: string }>;
+    rentabilidad: RentabilidadItem;
   }>;
   pagos: Array<{
     id: string;
@@ -110,6 +122,7 @@ interface VentaDetalle {
     total: string;
     creadoEn: string;
   }>;
+  rentabilidad: RentabilidadVenta;
 }
 
 const ESTADO_BADGE = {
@@ -148,6 +161,49 @@ export function VentaDetalleCliente() {
   const [ncMotivo, setNcMotivo] = React.useState('');
   const [ncRestituyeStock, setNcRestituyeStock] = React.useState(true);
   const [ncCantidades, setNcCantidades] = React.useState<Record<string, number>>({});
+
+  const validacionPago = useValidacionForm<{ monto: string; pendiente: number }>({
+    reglas: [
+      {
+        id: 'pago-monto',
+        label: 'Monto',
+        validar: d => {
+          const valor = parseFloat(d.monto);
+          if (!d.monto || isNaN(valor) || valor <= 0) return 'Ingresa un monto mayor a 0';
+          if (valor > d.pendiente + 0.01) return 'El monto excede lo pendiente';
+          return null;
+        },
+      },
+    ],
+  });
+
+  const validacionNC = useValidacionForm<{ motivo: string; cantidades: Record<string, number> }>({
+    reglas: [
+      {
+        id: 'nc-motivo',
+        label: 'Motivo NC',
+        validar: d => (d.motivo.trim().length >= 3 ? null : 'Indica el motivo (mín. 3 caracteres)'),
+      },
+      {
+        id: 'nc-cantidades',
+        label: 'Cantidades a devolver',
+        validar: d =>
+          Object.values(d.cantidades).some(c => c && c > 0)
+            ? null
+            : 'Marca al menos un item a devolver',
+      },
+    ],
+  });
+
+  const validacionAnular = useValidacionForm<{ motivo: string }>({
+    reglas: [
+      {
+        id: 'motivo',
+        label: 'Motivo anulacion',
+        validar: d => (d.motivo.trim() ? null : 'Indica el motivo de la anulación'),
+      },
+    ],
+  });
 
   const { data: venta, isLoading, isError } = useQuery({
     queryKey: ['venta', id],
@@ -390,37 +446,57 @@ export function VentaDetalleCliente() {
             <div className="p-4 border-b border-[hsl(var(--border))]">
               <h2 className="font-semibold">Detalle de productos</h2>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Producto</TableHead>
-                  <TableHead className="w-20 text-right">Cant.</TableHead>
-                  <TableHead className="w-28 text-right">Precio</TableHead>
-                  <TableHead className="w-28 text-right">Desc.</TableHead>
-                  <TableHead className="w-32 text-right">Subtotal</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {venta.items.map(item => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <div className="font-medium">{item.variante.producto.nombre}</div>
-                      <div className="text-xs text-[hsl(var(--text-muted))] font-mono">
-                        {item.variante.sku} · {item.variante.talla} · {item.variante.color}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{item.cantidad}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatearMoneda(item.precioUnitario)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-[hsl(var(--text-muted))]">
-                      {parseFloat(item.descuento) > 0 ? `-${formatearMoneda(item.descuento)}` : '—'}
-                    </TableCell>
-                    <TableCell className="text-right font-bold tabular-nums">
-                      {formatearMoneda(item.subtotal)}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Producto</TableHead>
+                    <TableHead className="w-20 text-right">Cant.</TableHead>
+                    <TableHead className="w-28 text-right">Precio</TableHead>
+                    <TableHead className="w-28 text-right hidden md:table-cell">Costo</TableHead>
+                    <TableHead className="w-24 text-right hidden sm:table-cell">Desc.</TableHead>
+                    <TableHead className="w-28 text-right">Subtotal</TableHead>
+                    <TableHead className="w-24 text-right">Margen</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {venta.items.map(item => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <div className="font-medium">{item.variante.producto.nombre}</div>
+                        <div className="text-xs text-[hsl(var(--text-muted))] font-mono">
+                          {item.variante.sku} · {item.variante.talla} · {item.variante.color}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{item.cantidad}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatearMoneda(item.precioUnitario)}</TableCell>
+                      <TableCell className="text-right tabular-nums text-[hsl(var(--text-muted))] hidden md:table-cell">
+                        {item.costoUnitario != null ? formatearMoneda(item.costoUnitario) : '—'}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-[hsl(var(--text-muted))] hidden sm:table-cell">
+                        {parseFloat(item.descuento) > 0 ? `-${formatearMoneda(item.descuento)}` : '—'}
+                      </TableCell>
+                      <TableCell className="text-right font-bold tabular-nums">
+                        {formatearMoneda(item.subtotal)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end">
+                          <BadgeRentabilidad
+                            nivel={item.rentabilidad.nivel}
+                            margenPct={item.rentabilidad.margenPct}
+                            title={
+                              item.rentabilidad.nivel === 'sin_datos'
+                                ? 'Sin costo registrado para esta línea'
+                                : `Margen ${formatearMargen(item.rentabilidad.margenPct)} · Costo ${formatearMoneda(item.rentabilidad.costoTotal)} · Ganancia ${formatearMoneda(item.rentabilidad.ganancia ?? 0)}`
+                            }
+                          />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </Card>
 
           <Card className="overflow-hidden">
@@ -641,6 +717,8 @@ export function VentaDetalleCliente() {
             )}
           </Card>
 
+          <ResumenRentabilidad r={venta.rentabilidad} />
+
           <Card className="p-5 space-y-4 text-sm">
             <div className="flex items-start gap-3">
               <User className="size-4 mt-0.5 text-[hsl(var(--text-muted))]" />
@@ -720,8 +798,12 @@ export function VentaDetalleCliente() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="pago-monto">Monto</label>
+            <FormField
+              label="Monto"
+              htmlFor="pago-monto"
+              requerido
+              error={validacionPago.errores['pago-monto']}
+            >
               <Input
                 id="pago-monto"
                 type="number"
@@ -730,11 +812,14 @@ export function VentaDetalleCliente() {
                 min="0.01"
                 max={pendiente}
                 value={pagoMonto}
-                onChange={e => setPagoMonto(e.target.value)}
+                onChange={e => {
+                  setPagoMonto(e.target.value);
+                  validacionPago.limpiarError('pago-monto');
+                }}
                 className="text-right tabular-nums font-mono"
                 autoFocus
               />
-            </div>
+            </FormField>
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="pago-medio">Medio</label>
               <select
@@ -765,18 +850,16 @@ export function VentaDetalleCliente() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDialogoPago(false)}>Cancelar</Button>
-            <Button
-              disabled={
-                registrarPago.isPending ||
-                !pagoMonto ||
-                parseFloat(pagoMonto) <= 0 ||
-                parseFloat(pagoMonto) > pendiente + 0.01
-              }
-              onClick={() => registrarPago.mutate()}
-            >
-              {registrarPago.isPending ? 'Procesando…' : 'Confirmar pago'}
-            </Button>
+            <FormActions
+              onCancelar={() => setDialogoPago(false)}
+              onGuardar={() => {
+                const r = validacionPago.validar({ monto: pagoMonto, pendiente });
+                if (!r.valido) return;
+                registrarPago.mutate();
+              }}
+              guardando={registrarPago.isPending}
+              textoGuardar="Confirmar pago"
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -796,17 +879,24 @@ export function VentaDetalleCliente() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="nc-motivo">Motivo</label>
+            <FormField
+              label="Motivo"
+              htmlFor="nc-motivo"
+              requerido
+              error={validacionNC.errores['nc-motivo']}
+            >
               <Textarea
                 id="nc-motivo"
                 rows={2}
                 value={ncMotivo}
-                onChange={e => setNcMotivo(e.target.value)}
+                onChange={e => {
+                  setNcMotivo(e.target.value);
+                  validacionNC.limpiarError('nc-motivo');
+                }}
                 placeholder="Devolución por talla incorrecta, defecto…"
                 maxLength={500}
               />
-            </div>
+            </FormField>
             <div className="rounded-md border border-[hsl(var(--border))] overflow-hidden">
               <Table>
                 <TableHeader>
@@ -843,6 +933,7 @@ export function VentaDetalleCliente() {
                                 ...prev,
                                 [it.id]: isNaN(v) || v < 0 ? 0 : Math.min(v, disponible),
                               }));
+                              validacionNC.limpiarError('nc-cantidades');
                             }}
                             className="w-20 text-right tabular-nums ml-auto"
                           />
@@ -853,6 +944,11 @@ export function VentaDetalleCliente() {
                 </TableBody>
               </Table>
             </div>
+            {validacionNC.errores['nc-cantidades'] && (
+              <p className="text-xs text-[hsl(var(--brand-danger))]">
+                {validacionNC.errores['nc-cantidades']}
+              </p>
+            )}
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -863,21 +959,16 @@ export function VentaDetalleCliente() {
             </label>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDialogoNC(false)}>Cancelar</Button>
-            <Button
-              disabled={
-                emitirNC.isPending ||
-                ncMotivo.trim().length < 3 ||
-                Object.values(ncCantidades).every(c => !c || c <= 0)
-              }
-              onClick={() => emitirNC.mutate()}
-            >
-              {emitirNC.isPending
-                ? 'Procesando…'
-                : venta.esNotaDeVenta
-                ? 'Registrar devolución'
-                : 'Emitir nota de crédito'}
-            </Button>
+            <FormActions
+              onCancelar={() => setDialogoNC(false)}
+              onGuardar={() => {
+                const r = validacionNC.validar({ motivo: ncMotivo, cantidades: ncCantidades });
+                if (!r.valido) return;
+                emitirNC.mutate();
+              }}
+              guardando={emitirNC.isPending}
+              textoGuardar={venta.esNotaDeVenta ? 'Registrar devolución' : 'Emitir nota de crédito'}
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -890,31 +981,36 @@ export function VentaDetalleCliente() {
               Esta acción devuelve el stock a la sucursal y libera el cupón si lo tuviera. No se puede deshacer.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="motivo">
-              Motivo de la anulación
-            </label>
+          <FormField
+            label="Motivo de la anulación"
+            htmlFor="motivo"
+            requerido
+            error={validacionAnular.errores.motivo}
+          >
             <Textarea
               id="motivo"
               value={motivoAnulacion}
-              onChange={e => setMotivoAnulacion(e.target.value)}
+              onChange={e => {
+                setMotivoAnulacion(e.target.value);
+                validacionAnular.limpiarError('motivo');
+              }}
               placeholder="Ej: cliente devolvió la mercadería"
               rows={3}
               maxLength={500}
               autoFocus
             />
-          </div>
+          </FormField>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDialogoAnular(false)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="danger"
-              disabled={!motivoAnulacion.trim() || anular.isPending}
-              onClick={() => anular.mutate()}
-            >
-              {anular.isPending ? 'Anulando…' : 'Confirmar anulación'}
-            </Button>
+            <FormActions
+              onCancelar={() => setDialogoAnular(false)}
+              onGuardar={() => {
+                const r = validacionAnular.validar({ motivo: motivoAnulacion });
+                if (!r.valido) return;
+                anular.mutate();
+              }}
+              guardando={anular.isPending}
+              textoGuardar="Confirmar anulación"
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -946,5 +1042,65 @@ function Linea({
           : formatearMoneda(valor)}
       </span>
     </div>
+  );
+}
+
+/** Tarjeta resumen de rentabilidad de la venta (margen, markup, ganancia, cobertura). */
+function ResumenRentabilidad({ r }: { r: RentabilidadVenta }) {
+  const sinDatos = r.nivel === 'sin_datos';
+  const gananciaPositiva = r.ganancia >= 0;
+  return (
+    <Card className="p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Tag className="size-4 text-[hsl(var(--text-muted))]" />
+          <h2 className="font-semibold text-sm">Rentabilidad</h2>
+        </div>
+        <BadgeRentabilidad nivel={r.nivel} margenPct={r.margenPct} title={NIVEL_LABEL[r.nivel]} />
+      </div>
+
+      {sinDatos ? (
+        <p className="text-xs text-[hsl(var(--text-muted))]">
+          Sin costo registrado en los productos. Configura el <strong>precio de compra</strong> en
+          el catálogo para ver la rentabilidad de esta venta.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <Linea label="Ingreso neto" valor={r.ingresoNeto} dim />
+          <Linea label="Costo total" valor={r.costoTotal} dim />
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="font-semibold">Ganancia</span>
+            <span
+              className={`tabular-nums font-mono font-semibold ${
+                gananciaPositiva ? 'text-[hsl(150_60%_45%)]' : 'text-[hsl(355_75%_60%)]'
+              }`}
+            >
+              {formatearMoneda(r.ganancia)}
+            </span>
+          </div>
+          <Separator />
+          <div className="flex items-baseline justify-between text-xs">
+            <span className="text-[hsl(var(--text-muted))]">Margen</span>
+            <span className="tabular-nums font-semibold">{formatearMargen(r.margenPct)}</span>
+          </div>
+          {r.markupPct !== null && (
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="text-[hsl(var(--text-muted))]">Markup</span>
+              <span className="tabular-nums">{formatearMargen(r.markupPct)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between text-xs text-[hsl(var(--text-muted))]">
+            <span>Cobertura de costos</span>
+            <span className="tabular-nums">{r.itemsConCosto}/{r.itemsTotal} ítems</span>
+          </div>
+          {!r.confiable && (
+            <div className="flex items-start gap-1.5 text-[11px] text-[hsl(40_85%_45%)] dark:text-[hsl(45_90%_62%)]">
+              <AlertTriangle className="size-3 mt-0.5 shrink-0" />
+              <span>Margen parcial: faltan costos en algunos ítems, el cálculo es aproximado.</span>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }

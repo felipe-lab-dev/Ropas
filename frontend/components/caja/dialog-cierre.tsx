@@ -9,8 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { FormField } from '@/components/ui/form-field';
+import { useValidacionForm } from '@/lib/use-validacion-form';
 import { postear, mensajeError } from '@/lib/api/client';
 import { formatearMoneda } from '@/lib/utils';
+
+interface FormCierre {
+  monto: string;
+}
 
 interface Props {
   open: boolean;
@@ -26,6 +32,21 @@ export function DialogCierre({ open, onOpenChange, sesionId, efectivoEsperado }:
 
   const diferencia = monto ? parseFloat(monto) - efectivoEsperado : 0;
   const tieneDiferencia = Math.abs(diferencia) >= 0.01;
+
+  const validacion = useValidacionForm<FormCierre>({
+    reglas: [
+      {
+        id: 'cierre-monto',
+        label: 'Monto contado al cierre',
+        validar: d => {
+          if (!d.monto.trim()) return 'Ingresa el monto contado';
+          const n = parseFloat(d.monto);
+          if (Number.isNaN(n) || n < 0) return 'Monto inválido';
+          return null;
+        },
+      },
+    ],
+  });
 
   const cerrar = useMutation({
     mutationFn: () =>
@@ -45,6 +66,12 @@ export function DialogCierre({ open, onOpenChange, sesionId, efectivoEsperado }:
     onError: e => toast.error(mensajeError(e)),
   });
 
+  const onCerrar = () => {
+    const r = validacion.validar({ monto });
+    if (!r.valido) return;
+    cerrar.mutate();
+  };
+
   return (
     <DialogShell
       open={open}
@@ -60,8 +87,9 @@ export function DialogCierre({ open, onOpenChange, sesionId, efectivoEsperado }:
           </Button>
           <Button
             variant="danger"
-            onClick={() => cerrar.mutate()}
-            disabled={!monto || cerrar.isPending}
+            onClick={onCerrar}
+            disabled={cerrar.isPending}
+            data-testid="btn-cerrar-caja"
           >
             <Lock className="size-4" /> Cerrar caja
           </Button>
@@ -100,8 +128,12 @@ export function DialogCierre({ open, onOpenChange, sesionId, efectivoEsperado }:
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="cierre-monto">Monto contado al cierre</Label>
+        <FormField
+          label="Monto contado al cierre"
+          htmlFor="cierre-monto"
+          requerido
+          error={validacion.errores['cierre-monto']}
+        >
           <Input
             id="cierre-monto"
             type="number"
@@ -109,11 +141,14 @@ export function DialogCierre({ open, onOpenChange, sesionId, efectivoEsperado }:
             min="0"
             placeholder="0.00"
             value={monto}
-            onChange={e => setMonto(e.target.value)}
+            onChange={e => {
+              setMonto(e.target.value);
+              validacion.limpiarError('cierre-monto');
+            }}
             className="text-lg font-mono"
             autoFocus
           />
-        </div>
+        </FormField>
 
         <div className="space-y-2">
           <Label htmlFor="cierre-notas">Notas de cierre (opcional)</Label>

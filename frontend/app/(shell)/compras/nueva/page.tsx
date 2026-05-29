@@ -71,13 +71,27 @@ export default function NuevaCompraPage() {
   const { data: resultados } = useQuery({
     queryKey: ['variantes-busqueda', debounced],
     enabled: debounced.length >= 2,
-    queryFn: () =>
-      obtenerPaginado<VarianteBuscable>('/inventario/buscar-variantes', {
-        buscar: debounced, limite: 8,
-      }).catch(() =>
-        // Fallback: si el endpoint no existe, usar productos
-        obtenerPaginado<any>('/productos', { buscar: debounced, limite: 8 }) as any,
-      ),
+    queryFn: async () => {
+      try {
+        return await obtenerPaginado<VarianteBuscable>('/inventario/buscar-variantes', {
+          buscar: debounced, limite: 8,
+        });
+      } catch {
+        // Fallback: si el endpoint no existe, listar productos y aplanar a variantes
+        type ProductoListado = {
+          id: string; sku: string; nombre: string; precioCompra?: string | null;
+          variantes: Array<{ id: string; sku: string; talla: string; color: string }>;
+        };
+        const r = await obtenerPaginado<ProductoListado>('/productos', { buscar: debounced, limite: 8 });
+        const variantes: VarianteBuscable[] = r.datos.flatMap(p =>
+          (p.variantes ?? []).map(v => ({
+            id: v.id, sku: v.sku, talla: v.talla, color: v.color,
+            producto: { id: p.id, nombre: p.nombre, sku: p.sku, precioCompra: p.precioCompra ?? null },
+          })),
+        );
+        return { ...r, datos: variantes };
+      }
+    },
   });
 
   const agregarItem = (v: VarianteBuscable) => {

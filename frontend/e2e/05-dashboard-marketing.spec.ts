@@ -14,7 +14,7 @@ test.describe('Cupones · dashboard de marketing destacado', () => {
     await fillEstable(page, 'input[name="nombre"]', `Cupón KPIs ${codigo}`);
     await fillEstable(page, 'input[name="valorDescuento"]', '10');
     await fillEstable(page, 'input[name="usosMaximosTotal"]', '10');
-    await page.getByTestId('cupon-guardar').click();
+    await page.getByTestId('btn-guardar').click();
     await page.waitForURL(/\/cupones\/detalle\/?\?id=[a-f0-9-]{36}/);
 
     // Volver a lista, filtrar por código
@@ -33,7 +33,7 @@ test.describe('Cupones · dashboard de marketing destacado', () => {
     await fillEstable(page, 'input[name="codigo"]', codigo);
     await fillEstable(page, 'input[name="nombre"]', `Cupón detalle KPI ${codigo}`);
     await fillEstable(page, 'input[name="valorDescuento"]', '15');
-    await page.getByTestId('cupon-guardar').click();
+    await page.getByTestId('btn-guardar').click();
     await page.waitForURL(/\/cupones\/detalle\/?\?id=[a-f0-9-]{36}/);
 
     // Estamos en detalle: deben aparecer KPIs y la sección histórica

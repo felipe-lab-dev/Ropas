@@ -213,9 +213,10 @@ jobs:
           fi
 
       - name: 📤 Subir artefacto del build
-        # Solo subimos el artifact cuando va a deployarse (schedule o dispatch en main).
-        # En push/PR sin deploy no tiene sentido pegar al storage.
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        # Subimos el artifact cuando va a deployarse: push a main (deploy continuo),
+        # schedule (cron nocturno) o workflow_dispatch (manual). En PRs no hay deploy
+        # y no tiene sentido pegar al storage.
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-artifact@v4
         with:
           name: frontend-out
@@ -326,7 +327,7 @@ jobs:
   # workflow_dispatch siempre fuerza deploy (override manual).
   check-changes:
     name: 🔍 ¿Hubo cambios desde el último deploy?
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
@@ -338,6 +339,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # push a main siempre despliega (deploy continuo, decisión del 2026-05-29)
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "reason=push a main (deploy continuo)" >> "$GITHUB_OUTPUT"
+            echo "last_sha=" >> "$GITHUB_OUTPUT"
+            echo "🚀 push a main — deployando"
+            exit 0
+          fi
+
           # workflow_dispatch siempre fuerza deploy (override manual)
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
@@ -402,7 +412,7 @@ jobs:
     needs: [backend-test, frontend-build, security, check-changes]
     if: |
       github.ref == 'refs/heads/main'
-      && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
       && needs.check-changes.outputs.should_deploy == 'true'
       && vars.AZURE_CLIENT_ID != ''
     environment:
@@ -577,7 +587,7 @@ jobs:
     needs: [deploy-backend, check-changes]
     if: |
       github.ref == 'refs/heads/main'
-      && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
       && needs.check-changes.outputs.should_deploy == 'true'
     environment:
       name: production-frontend

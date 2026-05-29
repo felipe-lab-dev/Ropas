@@ -1,13 +1,15 @@
 'use client';
 
 import * as React from 'react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Save, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
+import { FormField } from '@/components/ui/form-field';
+import { FormActions } from '@/components/ui/form-actions';
+import { useValidacionForm } from '@/lib/use-validacion-form';
 import {
   APLICABLE_A,
   APLICABLE_LABEL,
@@ -56,7 +58,72 @@ export function CuponFormulario({
   tiendaNombre = 'Mi Tienda',
 }: Props) {
   const [form, setForm] = React.useState<CuponFormValues>({ ...CUPON_VACIO, ...inicial });
-  const [errores, setErrores] = React.useState<Errores>({});
+  const [erroresZod, setErroresZod] = React.useState<Errores>({});
+
+  const validacion = useValidacionForm<CuponFormValues>({
+    reglas: [
+      {
+        id: 'codigo',
+        label: 'Código',
+        validar: d => (d.codigo.trim() ? null : 'Ingresa el código'),
+      },
+      {
+        id: 'nombre',
+        label: 'Nombre',
+        validar: d => (d.nombre.trim() ? null : 'Ingresa el nombre'),
+      },
+      {
+        id: 'tipoDescuento',
+        label: 'Tipo',
+        validar: d => (d.tipoDescuento ? null : 'Selecciona un tipo'),
+      },
+      {
+        id: 'valorDescuento',
+        label: 'Valor descuento',
+        validar: d => {
+          if (!d.valorDescuento || d.valorDescuento <= 0) return 'Ingresa el valor del descuento';
+          if (d.tipoDescuento === 'porcentaje' && d.valorDescuento > 100) return 'Máximo 100%';
+          return null;
+        },
+      },
+      {
+        id: 'fechaInicio',
+        label: 'Desde',
+        validar: d => (d.fechaInicio ? null : 'Indica la fecha de inicio'),
+      },
+      {
+        id: 'fechaFin',
+        label: 'Hasta',
+        validar: d => (d.fechaFin ? null : 'Indica la fecha de fin'),
+      },
+      {
+        id: 'usosMaximosPorCliente',
+        label: 'Usos por cliente',
+        validar: d =>
+          d.usosMaximosPorCliente && d.usosMaximosPorCliente >= 1
+            ? null
+            : 'Mínimo 1 uso por cliente',
+      },
+      {
+        id: 'segmento',
+        label: 'Segmento objetivo',
+        validar: d => (d.segmento ? null : 'Selecciona un segmento'),
+      },
+      {
+        id: 'aplicableA',
+        label: 'Aplica a',
+        validar: d => (d.aplicableA ? null : 'Selecciona aplicabilidad'),
+      },
+    ],
+  });
+
+  // Combina errores de validación rápida + errores Zod (mensajes más específicos).
+  const errores: Errores = { ...erroresZod };
+  for (const [k, v] of Object.entries(validacion.errores)) {
+    if (v && !errores[k as keyof CuponFormValues]) {
+      errores[k as keyof CuponFormValues] = v;
+    }
+  }
 
   React.useEffect(() => {
     if (inicial) setForm(prev => ({ ...prev, ...inicial }));
@@ -65,7 +132,8 @@ export function CuponFormulario({
 
   const set = <K extends keyof CuponFormValues>(k: K, v: CuponFormValues[K]) => {
     setForm(f => ({ ...f, [k]: v }));
-    setErrores(e => (e[k] ? { ...e, [k]: undefined } : e));
+    setErroresZod(e => (e[k] ? { ...e, [k]: undefined } : e));
+    validacion.limpiarError(k as string);
   };
 
   const aplicarTema = (tema: TemaEstacional) => {
@@ -83,6 +151,11 @@ export function CuponFormulario({
   };
 
   const submit = () => {
+    // 1) Validación rápida con toast + scroll + focus.
+    const r = validacion.validar(form);
+    if (!r.valido) return;
+
+    // 2) Validación estricta vía Zod (preserva mensajes específicos del schema).
     const parsed = cuponSchema.safeParse(form);
     if (!parsed.success) {
       const nuevos: Errores = {};
@@ -90,7 +163,7 @@ export function CuponFormulario({
         const k = issue.path[0] as keyof CuponFormValues | undefined;
         if (k && !nuevos[k]) nuevos[k] = issue.message;
       }
-      setErrores(nuevos);
+      setErroresZod(nuevos);
       const primer = parsed.error.issues[0]?.path[0];
       if (primer) {
         const el = document.querySelector<HTMLElement>(`[name="${primer}"]`);
@@ -114,8 +187,16 @@ export function CuponFormulario({
         {/* IDENTIDAD */}
         <Seccion titulo="Identidad" descripcion="Cómo aparece el cupón al cliente y en el sistema.">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Campo label="Código *" error={errores.codigo} className="md:col-span-1">
+            <FormField
+              label="Código"
+              htmlFor="codigo"
+              requerido
+              error={errores.codigo}
+              className="md:col-span-1"
+              labelClassName="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]"
+            >
               <Input
+                id="codigo"
                 name="codigo"
                 value={form.codigo}
                 onChange={e => set('codigo', e.target.value.toUpperCase())}
@@ -125,16 +206,24 @@ export function CuponFormulario({
                 disabled={modoEdicion}
                 autoComplete="off"
               />
-            </Campo>
-            <Campo label="Nombre *" error={errores.nombre} className="md:col-span-2">
+            </FormField>
+            <FormField
+              label="Nombre"
+              htmlFor="nombre"
+              requerido
+              error={errores.nombre}
+              className="md:col-span-2"
+              labelClassName="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]"
+            >
               <Input
+                id="nombre"
                 name="nombre"
                 value={form.nombre}
                 onChange={e => set('nombre', e.target.value)}
                 placeholder="Verano 2026 — 25% en toda la tienda"
                 maxLength={160}
               />
-            </Campo>
+            </FormField>
           </div>
 
           <Campo label="Descripción interna" error={errores.descripcion}>
@@ -162,8 +251,15 @@ export function CuponFormulario({
         {/* DESCUENTO */}
         <Seccion titulo="Descuento" descripcion="Cuánto regalas y bajo qué condiciones.">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Campo label="Tipo *" error={errores.tipoDescuento}>
+            <FormField
+              label="Tipo"
+              htmlFor="tipoDescuento"
+              requerido
+              error={errores.tipoDescuento}
+              labelClassName="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]"
+            >
               <Select
+                id="tipoDescuento"
                 name="tipoDescuento"
                 value={form.tipoDescuento}
                 onChange={e => set('tipoDescuento', e.target.value as CuponFormValues['tipoDescuento'])}
@@ -172,9 +268,16 @@ export function CuponFormulario({
                   <option key={t} value={t}>{TIPO_LABEL[t]}</option>
                 ))}
               </Select>
-            </Campo>
-            <Campo label={form.tipoDescuento === 'porcentaje' ? 'Porcentaje *' : 'Monto S/ *'} error={errores.valorDescuento}>
+            </FormField>
+            <FormField
+              label={form.tipoDescuento === 'porcentaje' ? 'Porcentaje' : 'Monto S/'}
+              htmlFor="valorDescuento"
+              requerido
+              error={errores.valorDescuento}
+              labelClassName="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]"
+            >
               <Input
+                id="valorDescuento"
                 name="valorDescuento"
                 type="number"
                 min={0.01}
@@ -184,7 +287,7 @@ export function CuponFormulario({
                 onChange={e => set('valorDescuento', Number(e.target.value) || 0)}
                 inputMode="decimal"
               />
-            </Campo>
+            </FormField>
             <Campo label="Descuento máx. S/" error={errores.descuentoMaximo}>
               <Input
                 name="descuentoMaximo"
@@ -216,22 +319,36 @@ export function CuponFormulario({
         {/* VIGENCIA */}
         <Seccion titulo="Vigencia y límites" descripcion="Cuándo es válido y cuántas veces puede usarse.">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Campo label="Desde *" error={errores.fechaInicio}>
+            <FormField
+              label="Desde"
+              htmlFor="fechaInicio"
+              requerido
+              error={errores.fechaInicio}
+              labelClassName="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]"
+            >
               <Input
+                id="fechaInicio"
                 name="fechaInicio"
                 type="datetime-local"
                 value={form.fechaInicio}
                 onChange={e => set('fechaInicio', e.target.value)}
               />
-            </Campo>
-            <Campo label="Hasta *" error={errores.fechaFin}>
+            </FormField>
+            <FormField
+              label="Hasta"
+              htmlFor="fechaFin"
+              requerido
+              error={errores.fechaFin}
+              labelClassName="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]"
+            >
               <Input
+                id="fechaFin"
                 name="fechaFin"
                 type="datetime-local"
                 value={form.fechaFin}
                 onChange={e => set('fechaFin', e.target.value)}
               />
-            </Campo>
+            </FormField>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -248,8 +365,15 @@ export function CuponFormulario({
                 placeholder="Ilimitado"
               />
             </Campo>
-            <Campo label="Usos por cliente *" error={errores.usosMaximosPorCliente}>
+            <FormField
+              label="Usos por cliente"
+              htmlFor="usosMaximosPorCliente"
+              requerido
+              error={errores.usosMaximosPorCliente}
+              labelClassName="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]"
+            >
               <Input
+                id="usosMaximosPorCliente"
                 name="usosMaximosPorCliente"
                 type="number"
                 min={1}
@@ -258,14 +382,21 @@ export function CuponFormulario({
                 value={form.usosMaximosPorCliente}
                 onChange={e => set('usosMaximosPorCliente', Number(e.target.value) || 1)}
               />
-            </Campo>
+            </FormField>
           </div>
         </Seccion>
 
         {/* SEGMENTACIÓN */}
         <Seccion titulo="Segmento" descripcion="A qué clientes va dirigido.">
-          <Campo label="Segmento objetivo *" error={errores.segmento}>
+          <FormField
+            label="Segmento objetivo"
+            htmlFor="segmento"
+            requerido
+            error={errores.segmento}
+            labelClassName="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]"
+          >
             <Select
+              id="segmento"
               name="segmento"
               value={form.segmento}
               onChange={e => set('segmento', e.target.value as CuponFormValues['segmento'])}
@@ -274,7 +405,7 @@ export function CuponFormulario({
                 <option key={s} value={s}>{SEGMENTO_LABEL[s]}</option>
               ))}
             </Select>
-          </Campo>
+          </FormField>
           {form.segmento === 'lista_clientes' && (
             <div className="p-3 rounded-md bg-[hsl(var(--surface-2))] text-xs text-[hsl(var(--text-muted))]">
               💡 Lista específica: agrega cliente IDs en el detalle del cupón después de crearlo
@@ -285,8 +416,15 @@ export function CuponFormulario({
 
         {/* APLICABILIDAD */}
         <Seccion titulo="Aplicabilidad" descripcion="Sobre qué se aplica el descuento.">
-          <Campo label="Aplica a *" error={errores.aplicableA}>
+          <FormField
+            label="Aplica a"
+            htmlFor="aplicableA"
+            requerido
+            error={errores.aplicableA}
+            labelClassName="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-muted))]"
+          >
             <Select
+              id="aplicableA"
               name="aplicableA"
               value={form.aplicableA}
               onChange={e => set('aplicableA', e.target.value as CuponFormValues['aplicableA'])}
@@ -295,7 +433,7 @@ export function CuponFormulario({
                 <option key={a} value={a}>{APLICABLE_LABEL[a]}</option>
               ))}
             </Select>
-          </Campo>
+          </FormField>
           {(form.aplicableA === 'categorias' || form.aplicableA === 'productos') && (
             <div className="p-3 rounded-md bg-[hsl(var(--surface-2))] text-xs text-[hsl(var(--text-muted))]">
               💡 Selección de {form.aplicableA}: agrega los IDs en el detalle después de crear.
@@ -429,15 +567,25 @@ export function CuponFormulario({
           </div>
         )}
 
-        <div className="flex flex-wrap gap-3 justify-end pt-2">
-          {onCancelar && (
-            <Button variant="ghost" onClick={onCancelar} type="button" disabled={guardando}>
-              Cancelar
-            </Button>
-          )}
-          <Button size="lg" type="button" disabled={guardando} onClick={submit} data-testid="cupon-guardar">
-            <Save className="size-4" /> {guardando ? 'Guardando…' : ctaLabel}
-          </Button>
+        <div className="pt-2" data-testid="cupon-guardar-wrapper">
+          <FormActions
+            onGuardar={submit}
+            guardando={guardando}
+            onCancelar={onCancelar}
+            textoGuardar={ctaLabel}
+          />
+          {/* Compat con E2E previos que buscan data-testid="cupon-guardar". */}
+          <button
+            type="button"
+            data-testid="cupon-guardar"
+            onClick={submit}
+            disabled={guardando}
+            className="sr-only"
+            aria-hidden="true"
+            tabIndex={-1}
+          >
+            {ctaLabel}
+          </button>
         </div>
       </Card>
 

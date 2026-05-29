@@ -19,6 +19,10 @@ import { SerieCpeService } from '../facturacion-electronica/series-cpe/series-cp
 import { TipoCpe } from '../../core/sunat/codigos';
 import { AppEventEmitter } from '../../core/events/app-event-emitter';
 import { CrearVentaDto } from './dto/crear-venta.dto';
+import {
+  calcularRentabilidadVenta,
+  calcularRentabilidadItem,
+} from './rentabilidad';
 
 // Advisory-lock key (estable por tenant) para serializar generación del número de venta.
 const LOCK_KEY_NUMERO_VENTA = 8_372_481_002;
@@ -113,12 +117,37 @@ export class VentasService {
           cliente: { select: { id: true, nombre: true } },
           vendedor: { select: { id: true, nombre: true } },
           sucursal: { select: { id: true, nombre: true } },
+          documentoElectronico: { select: { pdfUrl: true, estadoSunat: true } },
           _count: { select: { items: true } },
         },
       }),
       cliente.venta.count({ where }),
     ]);
-    return crearResultadoPaginado(datos, total, { pagina, limite });
+
+    // Rentabilidad por venta: una sola query de ítems para toda la página (evita N+1).
+    const ventaIds = datos.map(v => v.id);
+    const items = ventaIds.length
+      ? await cliente.ventaItem.findMany({
+          where: { ventaId: { in: ventaIds } },
+          select: { ventaId: true, cantidad: true, subtotal: true, costoUnitario: true },
+        })
+      : [];
+    const itemsPorVenta = new Map<string, typeof items>();
+    for (const it of items) {
+      const lista = itemsPorVenta.get(it.ventaId);
+      if (lista) lista.push(it);
+      else itemsPorVenta.set(it.ventaId, [it]);
+    }
+    const datosConRentabilidad = datos.map(v => ({
+      ...v,
+      rentabilidad: calcularRentabilidadVenta({
+        items: itemsPorVenta.get(v.id) ?? [],
+        descuento: v.descuento,
+        descuentoCupon: v.descuentoCupon,
+      }),
+    }));
+
+    return crearResultadoPaginado(datosConRentabilidad, total, { pagina, limite });
   }
 
   async obtener(id: string, ctx: TenantContext) {
@@ -152,7 +181,22 @@ export class VentasService {
       },
     });
     if (!venta) throw new ErrorNoEncontrado('Venta no encontrada');
-    return venta;
+
+    // Rentabilidad: agregado de la venta + por línea (con costo congelado snapshot).
+    const items = venta.items ?? [];
+    const rentabilidad = calcularRentabilidadVenta({
+      items,
+      descuento: venta.descuento,
+      descuentoCupon: venta.descuentoCupon,
+    });
+    return {
+      ...venta,
+      rentabilidad,
+      items: items.map(it => ({
+        ...it,
+        rentabilidad: calcularRentabilidadItem(it),
+      })),
+    };
   }
 
   async crear(dto: CrearVentaDto, ctx: TenantContext, vendedorId: string) {
@@ -220,7 +264,7 @@ export class VentasService {
       }
       const variantes = await tx.variante.findMany({
         where: { id: { in: varianteIds }, eliminadoEn: null },
-        include: { producto: { select: { id: true, nombre: true, precioVenta: true, categoriaId: true, eliminadoEn: true } } },
+        include: { producto: { select: { id: true, nombre: true, precioVenta: true, precioCompra: true, categoriaId: true, eliminadoEn: true } } },
       });
       if (variantes.length !== dto.items.length) {
         throw new ErrorValidacion('Una o más variantes no existen o fueron eliminadas');
@@ -230,6 +274,35 @@ export class VentasService {
         throw new ErrorValidacion(
           'Una o más variantes pertenecen a productos eliminados',
         );
+      }
+
+      // ─── Costo congelado por ítem (snapshot de rentabilidad) ──────────────
+      // Cascada: Producto.precioCompra → último CompraItem.costoUnitario → null.
+      // El "último costo de compra" se resuelve con UNA sola query previa, solo
+      // para las variantes sin precioCompra, para evitar N+1 en la transacción.
+      const variantesSinPrecioCompra = variantes
+        .filter(v => v.producto.precioCompra == null)
+        .map(v => v.id);
+      const ultimoCostoCompra = new Map<string, Prisma.Decimal>();
+      if (variantesSinPrecioCompra.length > 0) {
+        const compraItems = await tx.compraItem.findMany({
+          where: {
+            varianteId: { in: variantesSinPrecioCompra },
+            compra: { eliminadoEn: null },
+          },
+          select: {
+            varianteId: true,
+            costoUnitario: true,
+            compra: { select: { creadoEn: true } },
+          },
+          orderBy: { compra: { creadoEn: 'desc' } },
+        });
+        // findMany viene ordenado desc; el primer registro por variante es el más reciente.
+        for (const ci of compraItems) {
+          if (!ultimoCostoCompra.has(ci.varianteId)) {
+            ultimoCostoCompra.set(ci.varianteId, ci.costoUnitario);
+          }
+        }
       }
 
       const itemsConPrecio = dto.items.map(item => {
@@ -252,11 +325,15 @@ export class VentasService {
           );
         }
         const subtotal = bruto - descuentoItem;
+        // Costo congelado: precioCompra del catálogo, o último costo de compra, o null.
+        const costoUnitario =
+          v.producto.precioCompra ?? ultimoCostoCompra.get(v.id) ?? null;
         return {
           varianteId: v.id,
           descripcion: `${v.producto.nombre} · ${v.talla}/${v.color}`,
           cantidad: item.cantidad,
           precioUnitario: precio,
+          costoUnitario,
           descuento: descuentoItem,
           subtotal,
           productoId: v.productoId,

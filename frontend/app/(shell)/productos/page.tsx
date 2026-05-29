@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Plus, Search, Edit2, Trash2, History, Zap, FileSpreadsheet } from 'lucide-react';
@@ -27,6 +27,7 @@ import { EditarProductoCliente } from './editar/editar-cliente';
 import { KardexCliente } from './kardex/kardex-cliente';
 import { PanelInsightsProducto } from './panel-insights-producto';
 import { ImportarExportarModal } from './importar-exportar-modal';
+import { NuevoProductoCliente } from './nuevo/nuevo-producto-cliente';
 
 interface Categoria { id: string; nombre: string }
 
@@ -73,17 +74,68 @@ const ESTADO_DEFAULT: TableState = {
   sort: { campo: 'nombre', dir: 'asc' },
 };
 
+type ModalProductos =
+  | { tipo: 'nuevo' }
+  | { tipo: 'editar'; id: string }
+  | { tipo: 'kardex'; id: string }
+  | null;
+
 export default function ProductosPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <ProductosPageContenido />
+    </React.Suspense>
+  );
+}
+
+function ProductosPageContenido() {
   const [buscar, setBuscar] = React.useState('');
   const [pagina, setPagina] = React.useState(1);
   const [debouncedBuscar, setDebouncedBuscar] = React.useState('');
   const [categoriaIdFiltro, setCategoriaIdFiltro] = React.useState('');
   const [confirmandoId, setConfirmandoId] = React.useState<string | null>(null);
   const [motorAbierto, setMotorAbierto] = React.useState(false);
-  const [modal, setModal] = React.useState<{ tipo: 'editar' | 'kardex'; id: string } | null>(null);
   const [importarAbierto, setImportarAbierto] = React.useState(false);
   const [filaExpandidaId, setFilaExpandidaId] = React.useState<string | null>(null);
   const qc = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Estado del modal de alta/edición/kardex — soporta deep-link vía
+  // ?nuevo=1, ?editar=<id> o ?kardex=<id> (patrón canónico, ver proveedores).
+  const modal: ModalProductos = React.useMemo(() => {
+    if (searchParams.get('nuevo') === '1') return { tipo: 'nuevo' };
+    const editarId = searchParams.get('editar');
+    if (editarId) return { tipo: 'editar', id: editarId };
+    const kardexId = searchParams.get('kardex');
+    if (kardexId) return { tipo: 'kardex', id: kardexId };
+    return null;
+  }, [searchParams]);
+
+  const abrirNuevo = React.useCallback(() => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('editar'); sp.delete('kardex'); sp.set('nuevo', '1');
+    router.replace(`/productos?${sp.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  const abrirEditar = React.useCallback((id: string) => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('nuevo'); sp.delete('kardex'); sp.set('editar', id);
+    router.replace(`/productos?${sp.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  const abrirKardex = React.useCallback((id: string) => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('nuevo'); sp.delete('editar'); sp.set('kardex', id);
+    router.replace(`/productos?${sp.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  const cerrarModal = React.useCallback(() => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('nuevo'); sp.delete('editar'); sp.delete('kardex');
+    const qs = sp.toString();
+    router.replace(`/productos${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [router, searchParams]);
 
   const [estadoTabla, setEstadoTabla] = usePreferencias<TableState>('productos', ESTADO_DEFAULT);
 
@@ -385,13 +437,13 @@ export default function ProductosPage() {
           <Button
             variant="ghost" size="icon-sm" title="Ver Kardex"
             className="bg-gradient-to-br from-[#fbbf24] to-[#d97706] text-white shadow-[0_2px_8px_rgba(217,119,6,0.35)] hover:from-[#fcd34d] hover:to-[#f59e0b] border border-amber-600/20"
-            onClick={() => setModal({ tipo: 'kardex', id: p.id })}
+            onClick={() => abrirKardex(p.id)}
           >
             <History className="size-3.5" />
           </Button>
           <Button
             variant="ghost" size="icon-sm" title="Editar"
-            onClick={() => setModal({ tipo: 'editar', id: p.id })}
+            onClick={() => abrirEditar(p.id)}
           >
             <Edit2 className="size-3.5" />
           </Button>
@@ -405,7 +457,7 @@ export default function ProductosPage() {
         </div>
       ),
     },
-  ], [confirmandoId, borrar, opcionesCategoria]);
+  ], [confirmandoId, borrar, opcionesCategoria, abrirEditar, abrirKardex]);
 
   const filas = data?.datos ?? [];
   const filtrosActivos = Object.keys(estadoTabla.filtros ?? {}).length;
@@ -435,8 +487,8 @@ export default function ProductosPage() {
               <Zap className="size-4 text-[hsl(var(--brand-primary))]" />
               Motor Logístico
             </Button>
-            <Button asChild size="lg">
-              <Link href="/productos/nuevo"><Plus className="size-4" /> Nuevo producto</Link>
+            <Button size="lg" onClick={abrirNuevo} data-testid="btn-abrir-nuevo-producto">
+              <Plus className="size-4" /> Nuevo producto
             </Button>
           </>
         }
@@ -444,7 +496,27 @@ export default function ProductosPage() {
       <MotorLogisticoModal abierto={motorAbierto} onAbiertoChange={setMotorAbierto} />
       <ImportarExportarModal abierto={importarAbierto} onAbiertoChange={setImportarAbierto} />
 
-      <Dialog open={modal?.tipo === 'editar'} onOpenChange={a => !a && setModal(null)}>
+      {/* Modal "Nuevo producto" — tras crear pasa a "editar" para sumar imágenes */}
+      <Dialog open={modal?.tipo === 'nuevo'} onOpenChange={a => !a && cerrarModal()}>
+        <DialogContent
+          className="max-w-5xl w-[min(95vw,72rem)] max-h-[92vh] overflow-y-auto p-6"
+          data-testid="modal-nuevo-producto"
+        >
+          <DialogTitle>Nuevo producto</DialogTitle>
+          <DialogDescription className="sr-only">
+            Datos esenciales del producto. Las variantes y las imágenes son opcionales.
+          </DialogDescription>
+          {modal?.tipo === 'nuevo' && (
+            <NuevoProductoCliente
+              modoModal
+              onCerrar={cerrarModal}
+              onCreado={(id) => abrirEditar(id)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={modal?.tipo === 'editar'} onOpenChange={a => !a && cerrarModal()}>
         <DialogContent className="max-w-5xl w-[min(95vw,72rem)] max-h-[92vh] overflow-y-auto p-6">
           <DialogTitle className="sr-only">Editar producto</DialogTitle>
           <DialogDescription className="sr-only">Formulario para editar datos, variantes e imágenes del producto.</DialogDescription>
@@ -452,13 +524,13 @@ export default function ProductosPage() {
             <EditarProductoCliente
               idForzado={modal.id}
               modoModal
-              onCerrar={() => setModal(null)}
+              onCerrar={cerrarModal}
             />
           )}
         </DialogContent>
       </Dialog>
 
-      <Dialog open={modal?.tipo === 'kardex'} onOpenChange={a => !a && setModal(null)}>
+      <Dialog open={modal?.tipo === 'kardex'} onOpenChange={a => !a && cerrarModal()}>
         <DialogContent className="max-w-6xl w-[min(95vw,80rem)] max-h-[92vh] overflow-y-auto p-6">
           <DialogTitle className="sr-only">Kardex del producto</DialogTitle>
           <DialogDescription className="sr-only">Historial de movimientos de stock del producto.</DialogDescription>
@@ -549,7 +621,7 @@ export default function ProductosPage() {
                 descripcion={debouncedBuscar
                   ? 'Prueba con otra búsqueda o limpia los filtros.'
                   : 'Crea tu primer producto con variantes de talla y color.'}
-                accion={debouncedBuscar ? undefined : { label: '＋ Nuevo producto', href: '/productos/nuevo' }}
+                accion={debouncedBuscar ? undefined : { label: '＋ Nuevo producto', onClick: abrirNuevo }}
               />
             }
           />
