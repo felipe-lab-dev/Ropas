@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -27,6 +27,13 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { DataTable, type ColumnaTabla, type TableState } from '@/components/ui/data-table';
 import { usePreferencias } from '@/lib/use-preferencias';
 import { LinkWhatsApp } from '@/components/ui/link-whatsapp';
+import { NuevoProveedorContenido } from './nuevo/page';
+import { EditarProveedorCliente } from './editar/editar-cliente';
+
+type ModalProveedores =
+  | { tipo: 'nuevo' }
+  | { tipo: 'editar'; id: string }
+  | null;
 
 interface Proveedor {
   id: string;
@@ -128,12 +135,49 @@ function DetalleProveedor({ p }: { p: Proveedor }) {
 }
 
 export default function ProveedoresPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <ProveedoresPageContenido />
+    </React.Suspense>
+  );
+}
+
+function ProveedoresPageContenido() {
   const [buscar, setBuscar] = React.useState('');
   const [pagina, setPagina] = React.useState(1);
   const [debounced, setDebounced] = React.useState('');
   const [aEliminar, setAEliminar] = React.useState<Proveedor | null>(null);
   const [filaExpandida, setFilaExpandida] = React.useState<string | null>(null);
   const qc = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Estado del modal de alta/edición — soporta deep-link vía ?nuevo=1 o ?editar=<id>.
+  const modal: ModalProveedores = React.useMemo(() => {
+    if (searchParams.get('nuevo') === '1') return { tipo: 'nuevo' };
+    const editarId = searchParams.get('editar');
+    if (editarId) return { tipo: 'editar', id: editarId };
+    return null;
+  }, [searchParams]);
+
+  const abrirNuevo = React.useCallback(() => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('editar'); sp.set('nuevo', '1');
+    router.replace(`/proveedores?${sp.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  const abrirEditar = React.useCallback((id: string) => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('nuevo'); sp.set('editar', id);
+    router.replace(`/proveedores?${sp.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  const cerrarModal = React.useCallback(() => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('nuevo'); sp.delete('editar');
+    const qs = sp.toString();
+    router.replace(`/proveedores${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [router, searchParams]);
 
   const [estadoTabla, setEstadoTabla] = usePreferencias<TableState>('proveedores', ESTADO_DEFAULT);
 
@@ -327,8 +371,13 @@ export default function ProveedoresPage() {
       cellClassName: 'pr-4',
       render: p => (
         <div className="flex items-center justify-end gap-1">
-          <Button asChild variant="ghost" size="icon-sm" aria-label={`Editar ${p.razonSocial}`}>
-            <Link href={`/proveedores/editar/?id=${p.id}`}><Edit2 className="size-3.5" /></Link>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Editar ${p.razonSocial}`}
+            onClick={() => abrirEditar(p.id)}
+          >
+            <Edit2 className="size-3.5" />
           </Button>
           <Button
             variant="ghost"
@@ -342,7 +391,7 @@ export default function ProveedoresPage() {
         </div>
       ),
     },
-  ], [pagina, opcionesCiudad]);
+  ], [pagina, opcionesCiudad, abrirEditar]);
 
   const filtrosActivos = Object.keys(estadoTabla.filtros ?? {}).length;
 
@@ -352,8 +401,8 @@ export default function ProveedoresPage() {
         titulo="Proveedores"
         descripcion="Quiénes te abastecen, sus condiciones de pago y deuda pendiente."
         acciones={
-          <Button asChild size="lg">
-            <Link href="/proveedores/nuevo"><Plus className="size-4" /> Nuevo proveedor</Link>
+          <Button size="lg" onClick={abrirNuevo} data-testid="btn-abrir-nuevo-proveedor">
+            <Plus className="size-4" /> Nuevo proveedor
           </Button>
         }
       />
@@ -429,7 +478,7 @@ export default function ProveedoresPage() {
                 accion={
                   debounced
                     ? undefined
-                    : { label: '＋ Nuevo proveedor', href: '/proveedores/nuevo' }
+                    : { label: '＋ Nuevo proveedor', onClick: abrirNuevo }
                 }
               />
             }
@@ -466,6 +515,44 @@ export default function ProveedoresPage() {
               {mutarEliminar.isPending ? 'Eliminando…' : 'Sí, eliminar'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal "Nuevo proveedor" */}
+      <Dialog open={modal?.tipo === 'nuevo'} onOpenChange={a => !a && cerrarModal()}>
+        <DialogContent
+          className="max-w-3xl w-[min(95vw,48rem)] max-h-[92vh] overflow-y-auto p-6"
+          data-testid="modal-nuevo-proveedor"
+        >
+          <DialogHeader>
+            <DialogTitle>Nuevo proveedor</DialogTitle>
+            <DialogDescription>
+              Registra los datos fiscales y de contacto. Se valida el formato del RUC/DNI/email antes de guardar.
+            </DialogDescription>
+          </DialogHeader>
+          {modal?.tipo === 'nuevo' && (
+            <NuevoProveedorContenido modoModal onCerrar={cerrarModal} />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal "Editar proveedor" */}
+      <Dialog open={modal?.tipo === 'editar'} onOpenChange={a => !a && cerrarModal()}>
+        <DialogContent
+          className="max-w-5xl w-[min(95vw,72rem)] max-h-[92vh] overflow-y-auto p-6"
+          data-testid="modal-editar-proveedor"
+        >
+          <DialogTitle className="sr-only">Editar proveedor</DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulario para editar datos del proveedor, ver historial de compras y stats.
+          </DialogDescription>
+          {modal?.tipo === 'editar' && (
+            <EditarProveedorCliente
+              idForzado={modal.id}
+              modoModal
+              onCerrar={cerrarModal}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

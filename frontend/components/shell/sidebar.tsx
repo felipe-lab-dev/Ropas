@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Boxes, Wallet,
   Users, BarChart3, Settings, Building2, ChevronLeft, Sparkles,
   Receipt, Home, History, Truck, PackageCheck, BookOpen, Tag, RotateCcw,
-  UserCog, ShieldCheck,
+  UserCog, ShieldCheck, ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useConfigSaas } from '@/lib/store/config-saas';
@@ -81,6 +81,7 @@ const SECCIONES: NavSection[] = [
       { label: 'Sucursales', href: '/sucursales', icon: Building2 },
       { label: 'Usuarios', href: '/usuarios', icon: UserCog, permiso: 'usuarios:leer' },
       { label: 'Accesos', href: '/accesos', icon: ShieldCheck, permiso: 'roles:leer' },
+      { label: 'Logs de Sistema', href: '/configuracion/logs-sistema', icon: ShieldAlert, permiso: 'logs-sistema:acceso' },
     ],
   },
 ];

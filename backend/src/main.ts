@@ -4,7 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { AppExceptionFilter } from './core/errors/app-exception.filter';
+// AppExceptionFilter ahora se registra como APP_FILTER en LogsSistemaModule
+// para poder inyectar LogsSistemaService y persistir errores en BD.
 import { RespuestaInterceptor } from './core/responses/respuesta.interceptor';
 
 async function bootstrap() {
@@ -43,7 +44,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.useGlobalFilters(new AppExceptionFilter());
+  // El AppExceptionFilter se registra via APP_FILTER en LogsSistemaModule.
   app.useGlobalInterceptors(new RespuestaInterceptor());
 
   const port = config.get<number>('PORT', 3001);

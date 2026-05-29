@@ -28,6 +28,8 @@ interface Props {
   onGuardar: (valores: ProveedorFormValues) => void;
   onCancelar?: () => void;
   modoEdicion?: boolean;
+  /** Cuando true se omite el `<Card>` wrapper (el modal aporta el contenedor). */
+  enModal?: boolean;
 }
 
 type Errores = Partial<Record<keyof ProveedorFormValues, string>>;
@@ -69,6 +71,7 @@ export function ProveedorFormulario({
   onGuardar,
   onCancelar,
   modoEdicion = false,
+  enModal = false,
 }: Props) {
   const [form, setForm] = React.useState<ProveedorFormValues>({
     ...PROVEEDOR_VACIO,
@@ -183,8 +186,11 @@ export function ProveedorFormulario({
 
   const esLibre = form.condicionPago === 'credito_otro';
 
-  return (
-    <Card className="p-6 space-y-5 max-w-3xl" onKeyDown={onKeyDown}>
+  // En modal omitimos el `<Card>` (el DialogShell ya provee el contenedor visual).
+  const wrapperClass = enModal ? 'space-y-5' : 'p-6 space-y-5 max-w-3xl';
+
+  const contenido = (
+    <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Campo label="Tipo doc." error={errores.tipoDocumento}>
           <Select
@@ -421,6 +427,16 @@ export function ProveedorFormulario({
           <kbd className="px-1 py-0.5 rounded bg-[hsl(var(--surface-2))] text-[10px]">Enter</kbd> guarda.
         </p>
       )}
+    </>
+  );
+
+  return enModal ? (
+    <div className={wrapperClass} onKeyDown={onKeyDown}>
+      {contenido}
+    </div>
+  ) : (
+    <Card className={wrapperClass} onKeyDown={onKeyDown}>
+      {contenido}
     </Card>
   );
 }

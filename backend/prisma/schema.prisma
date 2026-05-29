@@ -65,6 +65,47 @@ model TenantAudit {
   @@map("tenant_audit")
 }
 
+// Logs de Sistema — errores de produccion capturados por AppExceptionFilter.
+// Vive en schema `public` (cross-tenant) para tambien atrapar errores de
+// requests sin tenant resuelto. Cada tenant ve los suyos + los huerfanos.
+enum SeveridadErrorSistema {
+  warn
+  error
+  critical
+
+  @@map("severidad_error_sistema")
+}
+
+model ErrorSistema {
+  id              String                @id @default(uuid()) @db.Uuid
+  tenantCodigo    String?               @map("tenant_codigo") @db.VarChar(64)
+  mensaje         String                @db.VarChar(2000)
+  tipo            String?               @db.VarChar(120)
+  stack           String?
+  ruta            String?               @db.VarChar(500)
+  metodo          String?               @db.VarChar(10)
+  statusCode      Int?                  @map("status_code")
+  usuarioId       String?               @map("usuario_id") @db.Uuid
+  usuarioNombre   String?               @map("usuario_nombre") @db.VarChar(200)
+  sucursalId      String?               @map("sucursal_id") @db.Uuid
+  ip              String?               @db.VarChar(45)
+  userAgent       String?               @map("user_agent") @db.VarChar(500)
+  requestBody     Json?                 @map("request_body")
+  requestQuery    Json?                 @map("request_query")
+  replica         String?               @db.VarChar(120)
+  severidad       SeveridadErrorSistema @default(error)
+  resuelto        Boolean               @default(false)
+  resueltoEn      DateTime?             @map("resuelto_en")
+  resueltoPor     String?               @map("resuelto_por") @db.Uuid
+  notasResolucion String?               @map("notas_resolucion")
+  creadoEn        DateTime              @default(now()) @map("creado_en")
+
+  @@index([creadoEn(sort: Desc)])
+  @@index([tenantCodigo, creadoEn(sort: Desc)])
+  @@index([resuelto, creadoEn(sort: Desc)])
+  @@map("errores_sistema")
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // DATOS POR TENANT — viven en schema `tenant_<code>`
 // El cliente Prisma del tenant ejecuta queries sin prefijo;

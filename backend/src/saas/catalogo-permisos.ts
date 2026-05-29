@@ -166,6 +166,15 @@ export const CATALOGO_PERMISOS: ModuloPermiso[] = [
       { codigo: 'roles:eliminar', label: 'Eliminar rol' },
     ],
   },
+  {
+    modulo: 'logs-sistema',
+    label: 'Logs de Sistema',
+    acciones: [
+      { codigo: 'logs-sistema:acceso', label: 'Ver logs de sistema' },
+      { codigo: 'logs-sistema:resolver', label: 'Marcar logs como resueltos' },
+      { codigo: 'logs-sistema:purgar', label: 'Eliminar logs antiguos' },
+    ],
+  },
 ];
 
 /** Lista plana de todos los códigos de permiso válidos. */
