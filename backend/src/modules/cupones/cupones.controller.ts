@@ -130,6 +130,7 @@ export class CuponesController {
   @Get(':id/pdf') @RequierePermiso('cupones:leer')
   async pdf(
     @Param('id') id: string,
+    @Query('tienda') tiendaOverride: string | undefined,
     @Tenant() ctx: TenantContext,
     @Res() res: Response,
   ) {
@@ -147,7 +148,7 @@ export class CuponesController {
       disenoColorSecundario: cupon.disenoColorSecundario,
       disenoMensaje: cupon.disenoMensaje,
       disenoEmoji: cupon.disenoEmoji,
-      tienda: ctx.nombre,
+      tienda: tiendaOverride?.trim() || ctx.nombre,
     });
     res
       .setHeader('Content-Type', 'application/pdf')
@@ -159,6 +160,7 @@ export class CuponesController {
   @Get(':id/imagen') @RequierePermiso('cupones:leer')
   async imagen(
     @Param('id') id: string,
+    @Query('tienda') tiendaOverride: string | undefined,
     @Tenant() ctx: TenantContext,
     @Res() res: Response,
   ) {
@@ -176,7 +178,7 @@ export class CuponesController {
       disenoColorSecundario: cupon.disenoColorSecundario,
       disenoMensaje: cupon.disenoMensaje,
       disenoEmoji: cupon.disenoEmoji,
-      tienda: ctx.nombre,
+      tienda: tiendaOverride?.trim() || ctx.nombre,
     });
     res
       .setHeader('Content-Type', 'image/png')

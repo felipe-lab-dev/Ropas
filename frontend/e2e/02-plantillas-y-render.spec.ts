@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { gotoY, login } from './helpers';
+import { fillEstable, gotoY, login } from './helpers';
 
 test.describe('Cupones · plantillas brutales + render PDF/PNG', () => {
   test.beforeEach(async ({ page }) => {
@@ -29,17 +29,17 @@ test.describe('Cupones · plantillas brutales + render PDF/PNG', () => {
 
     // Guardar
     await page.getByTestId('cupon-guardar').click();
-    await expect(page).toHaveURL(/\/cupones\/[a-f0-9-]{36}\/?$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/cupones\/detalle\/?\?id=[a-f0-9-]{36}/, { timeout: 15_000 });
   });
 
   test('descarga PDF y PNG de un cupón', async ({ page }) => {
     // Crear primero un cupón sencillo
     await gotoY(page,'/cupones/nuevo');
-    await page.locator('input[name="codigo"]').fill(`PDF-${Date.now().toString(36).toUpperCase()}`);
-    await page.locator('input[name="nombre"]').fill('Cupón render PDF/PNG');
-    await page.locator('input[name="valorDescuento"]').fill('10');
+    await fillEstable(page, 'input[name="codigo"]', `PDF-${Date.now().toString(36).toUpperCase()}`);
+    await fillEstable(page, 'input[name="nombre"]', 'Cupón render PDF/PNG');
+    await fillEstable(page, 'input[name="valorDescuento"]', '10');
     await page.getByTestId('cupon-guardar').click();
-    await page.waitForURL(/\/cupones\/[a-f0-9-]{36}\/?$/);
+    await page.waitForURL(/\/cupones\/detalle\/?\?id=[a-f0-9-]{36}/);
 
     // Descargar PDF
     const [pdfDownload] = await Promise.all([

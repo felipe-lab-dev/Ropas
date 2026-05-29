@@ -303,7 +303,7 @@ export default function CuponesPage() {
                     <TableCell className="text-right pr-4">
                       <div className="flex items-center justify-end gap-1">
                         <Button asChild variant="ghost" size="icon-sm" aria-label={`Ver ${c.codigo}`}>
-                          <Link href={`/cupones/${c.id}`}><Eye className="size-3.5" /></Link>
+                          <Link href={`/cupones/detalle?id=${c.id}`}><Eye className="size-3.5" /></Link>
                         </Button>
                         <Button asChild variant="ghost" size="icon-sm" aria-label={`Editar ${c.codigo}`}>
                           <Link href={`/cupones/editar?id=${c.id}`}><Edit2 className="size-3.5" /></Link>

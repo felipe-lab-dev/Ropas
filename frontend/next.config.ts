@@ -5,12 +5,11 @@ import type { NextConfig } from 'next';
 const E2E = process.env.NEXT_E2E === '1';
 
 const config: NextConfig = {
-  // En modo E2E desactivamos StrictMode (double-mount de dev rompe
-  // los fills consecutivos de Playwright) y desactivamos `output: export`
-  // (que requiere generateStaticParams para CADA ID dinámico, incompatible
-  // con rutas creadas en runtime). Producción no se ve afectada.
+  // StrictMode causa double-mount en dev y rompe los fills consecutivos
+  // de Playwright. En modo E2E (NEXT_E2E=1) se desactiva. Producción no
+  // se ve afectada (StrictMode no aplica en build de producción).
   reactStrictMode: !E2E,
-  ...(E2E ? {} : { output: 'export' as const }),
+  output: 'export',
   trailingSlash: true,
   images: { unoptimized: true },
   experimental: {

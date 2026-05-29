@@ -426,6 +426,13 @@ export class VentasService {
       }
 
       return venta;
+    }, {
+      // La transacción hace muchos pasos (lock + checks + crear venta + items
+      // + pagos + cupón uso + ajuste inventario por item + update cliente).
+      // Default de Prisma (5s) es insuficiente contra Azure prod, sobre todo
+      // con varios items. 30s da margen sin tapar problemas reales.
+      timeout: 30_000,
+      maxWait: 10_000,
     });
   }
 
@@ -507,7 +514,7 @@ export class VentasService {
           motivoAnulacion: motivoLimpio,
         },
       });
-    });
+    }, { timeout: 30_000, maxWait: 10_000 });
   }
 
   private async siguienteNumero(tx: Prisma.TransactionClient): Promise<string> {

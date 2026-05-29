@@ -65,9 +65,34 @@ pnpm dev                    # Next.js en :3000
 pnpm lint
 pnpm build
 
+# E2E (Playwright)
+cd frontend
+NEXT_E2E=1 pnpm dev         # Frontend en modo E2E (StrictMode off para Playwright)
+E2E_ADMIN_PASSWORD=... pnpm e2e   # Suite completa (necesita backend + frontend arriba)
+
 # Tenant nuevo (script local)
 pnpm --dir backend tenant:crear -- --code mi-tienda --nombre "Mi Tienda"
 ```
+
+---
+
+## QA y tests (REGLA INVIOLABLE)
+
+**Antes de dar por terminada cualquier tarea, los tests existentes deben pasar:**
+
+- `pnpm --dir backend test` → Jest debe estar en verde (107+ tests actuales)
+- `pnpm e2e` (frontend) → Playwright debe estar en verde (13+ specs actuales)
+
+**Si un cambio rompe un test existente:**
+1. **Primero entendé por qué** rompió — puede ser un bug genuino que el test detectó
+2. **Arreglá el bug real**, no el test, salvo que el test esté efectivamente desactualizado
+3. **Si el comportamiento cambió a propósito**, actualizá el test para reflejar el nuevo contrato — y dejá nota del porqué en el commit
+
+**Al agregar funcionalidad nueva:**
+- Backend → escribir tests Jest del service y motor (mock de Prisma siguiendo el patrón de `proveedores.service.spec.ts`)
+- Frontend → escribir specs Playwright que recorran el flujo desde la UI usando los helpers de `frontend/e2e/helpers.ts` (`login`, `gotoY`, `fillEstable`)
+
+No reportar una tarea como "completa" sin haber corrido las dos suites y verlas verdes. Si una suite no se puede correr por bloqueo externo (Turbopack panic, server caído, falta de credenciales), declararlo explícitamente — nunca asumir que pasa.
 
 ---
 

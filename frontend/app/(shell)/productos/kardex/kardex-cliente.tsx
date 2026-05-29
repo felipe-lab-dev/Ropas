@@ -50,9 +50,9 @@ const ETIQUETAS_TIPO: Record<string, string> = {
   traslado_salida: 'Traslado sale',
 };
 
-export function KardexCliente() {
+export function KardexCliente({ idForzado, modoModal = false }: { idForzado?: string; modoModal?: boolean } = {}) {
   const search = useSearchParams();
-  const id = search.get('id') ?? '';
+  const id = idForzado ?? search.get('id') ?? '';
 
   const hoy = new Date();
   const haceUnMes = new Date();
@@ -97,19 +97,21 @@ export function KardexCliente() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        titulo="Kardex"
-        descripcion={
-          producto
-            ? `${producto.nombre} · ${producto.codigo ?? producto.sku}`
-            : 'Cargando…'
-        }
-        acciones={
-          <Button asChild variant="ghost">
-            <Link href={`/productos/editar/?id=${id}`}><ArrowLeft className="size-4" /> Volver al producto</Link>
-          </Button>
-        }
-      />
+      {!modoModal && (
+        <PageHeader
+          titulo="Kardex"
+          descripcion={
+            producto
+              ? `${producto.nombre} · ${producto.codigo ?? producto.sku}`
+              : 'Cargando…'
+          }
+          acciones={
+            <Button asChild variant="ghost">
+              <Link href={`/productos/editar/?id=${id}`}><ArrowLeft className="size-4" /> Volver al producto</Link>
+            </Button>
+          }
+        />
+      )}
 
       {/* KPIs página actual */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

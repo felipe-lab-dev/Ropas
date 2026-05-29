@@ -47,10 +47,14 @@ interface ProductoDetalle {
   variantes: Variante[];
 }
 
-export function EditarProductoCliente() {
+export function EditarProductoCliente({
+  idForzado,
+  modoModal = false,
+  onCerrar,
+}: { idForzado?: string; modoModal?: boolean; onCerrar?: () => void } = {}) {
   const router = useRouter();
   const search = useSearchParams();
-  const id = search.get('id') ?? '';
+  const id = idForzado ?? search.get('id') ?? '';
   const qc = useQueryClient();
 
   const { data: producto, isLoading } = useQuery({
@@ -116,7 +120,8 @@ export function EditarProductoCliente() {
     onSuccess: () => {
       toast.success('Producto eliminado');
       void qc.invalidateQueries({ queryKey: ['productos'] });
-      router.push('/productos');
+      if (modoModal) onCerrar?.();
+      else router.push('/productos');
     },
     onError: e => toast.error(mensajeError(e)),
   });
@@ -171,29 +176,38 @@ export function EditarProductoCliente() {
   return (
     <form
       onSubmit={e => { e.preventDefault(); guardar.mutate(); }}
-      className="space-y-6 max-w-5xl"
+      className={cn('space-y-6', !modoModal && 'max-w-5xl')}
     >
-      <PageHeader
-        titulo={producto.nombre}
-        descripcion={
-          producto.codigo
-            ? `Código ${producto.codigo} · SKU ${producto.sku}`
-            : `SKU ${producto.sku}`
-        }
-        acciones={
-          <>
-            <Button asChild variant="ghost" type="button">
-              <Link href="/productos"><ArrowLeft className="size-4" /> Volver</Link>
-            </Button>
-            <Button asChild variant="outline" type="button">
-              <Link href={`/productos/kardex/?id=${id}`}><History className="size-4" /> Kardex</Link>
-            </Button>
-            <Button type="submit" size="lg" disabled={guardar.isPending}>
-              {guardar.isPending ? 'Guardando…' : 'Guardar cambios'}
-            </Button>
-          </>
-        }
-      />
+      {!modoModal && (
+        <PageHeader
+          titulo={producto.nombre}
+          descripcion={
+            producto.codigo
+              ? `Código ${producto.codigo} · SKU ${producto.sku}`
+              : `SKU ${producto.sku}`
+          }
+          acciones={
+            <>
+              <Button asChild variant="ghost" type="button">
+                <Link href="/productos"><ArrowLeft className="size-4" /> Volver</Link>
+              </Button>
+              <Button asChild variant="outline" type="button">
+                <Link href={`/productos/kardex/?id=${id}`}><History className="size-4" /> Kardex</Link>
+              </Button>
+              <Button type="submit" size="lg" disabled={guardar.isPending}>
+                {guardar.isPending ? 'Guardando…' : 'Guardar cambios'}
+              </Button>
+            </>
+          }
+        />
+      )}
+      {modoModal && (
+        <div className="flex items-center justify-end gap-2 sticky top-0 bg-[hsl(var(--surface))]/95 backdrop-blur z-10 -mx-6 px-6 -mt-6 pt-6 pb-3 border-b border-[hsl(var(--border))]">
+          <Button type="submit" size="sm" disabled={guardar.isPending}>
+            {guardar.isPending ? 'Guardando…' : 'Guardar cambios'}
+          </Button>
+        </div>
+      )}
 
       <Card className="p-6 space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">

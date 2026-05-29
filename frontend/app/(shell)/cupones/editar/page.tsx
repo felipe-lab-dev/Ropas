@@ -11,6 +11,8 @@ import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { actualizar, mensajeError, obtener } from '@/lib/api/client';
+import { useApariencia } from '@/lib/store/apariencia';
+import { useConfigSaas } from '@/lib/store/config-saas';
 import { CuponFormulario } from '../cupon-formulario';
 import { aPayloadApi, type CuponFormValues, CUPON_VACIO } from '../cupon-schema';
 
@@ -49,6 +51,9 @@ export default function EditarCuponPage() {
   const router = useRouter();
   const id = useSearchParams().get('id') ?? '';
   const qc = useQueryClient();
+  const nombreLocal = useApariencia(s => s.nombreApp);
+  const nombreTenant = useConfigSaas(s => s.config?.tenant.nombre);
+  const tiendaNombre = (nombreLocal?.trim() || nombreTenant || 'Mi Tienda');
   const [error, setError] = React.useState<string | null>(null);
 
   const { data, isLoading, isError, error: queryError } = useQuery({
@@ -67,7 +72,7 @@ export default function EditarCuponPage() {
       toast.success('Cupón actualizado');
       qc.invalidateQueries({ queryKey: ['cupones'] });
       qc.invalidateQueries({ queryKey: ['cupon', id] });
-      router.push(`/cupones/${id}`);
+      router.push(`/cupones/detalle?id=${id}`);
     },
     onError: e => setError(mensajeError(e)),
   });
@@ -115,7 +120,7 @@ export default function EditarCuponPage() {
         descripcion="El código no se puede cambiar para no romper referencias en ventas históricas."
         acciones={
           <Button variant="ghost" asChild>
-            <Link href={`/cupones/${id}`}><ArrowLeft className="size-4" /> Volver al detalle</Link>
+            <Link href={`/cupones/detalle?id=${id}`}><ArrowLeft className="size-4" /> Volver al detalle</Link>
           </Button>
         }
       />
@@ -131,8 +136,9 @@ export default function EditarCuponPage() {
           ctaLabel="Guardar cambios"
           errorServidor={error}
           modoEdicion
+          tiendaNombre={tiendaNombre}
           onGuardar={v => { setError(null); mutar.mutate(v); }}
-          onCancelar={() => router.push(`/cupones/${id}`)}
+          onCancelar={() => router.push(`/cupones/detalle?id=${id}`)}
         />
       )}
     </div>

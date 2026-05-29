@@ -7,6 +7,7 @@ import { Header } from '@/components/shell/header';
 import { OnboardingModal } from '@/components/shell/onboarding-modal';
 import { MobileNav } from '@/components/shell/mobile-nav';
 import { MobileDrawer } from '@/components/shell/mobile-drawer';
+import { InstallPwaBanner } from '@/components/pwa/install-banner';
 import { useSesion, useSesionHidratada } from '@/lib/store/sesion';
 import { useConfigSaas } from '@/lib/store/config-saas';
 import { motion } from 'framer-motion';
@@ -75,6 +76,7 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
       <MobileNav onOpenMenu={() => setDrawerOpen(true)} />
       <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
       <OnboardingModal />
+      <InstallPwaBanner />
     </div>
   );
 }

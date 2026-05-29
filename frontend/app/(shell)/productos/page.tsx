@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { obtener, obtenerPaginado, eliminar as eliminarApi, mensajeError } from '@/lib/api/client';
 import { formatearMoneda, formatearNumero } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
@@ -22,6 +23,8 @@ import { DataTable, type ColumnaTabla, type TableState } from '@/components/ui/d
 import { colorCategoria } from '@/lib/color-categoria';
 import { usePreferencias } from '@/lib/use-preferencias';
 import { MotorLogisticoModal } from './motor-logistico-modal';
+import { EditarProductoCliente } from './editar/editar-cliente';
+import { KardexCliente } from './kardex/kardex-cliente';
 
 interface Categoria { id: string; nombre: string }
 
@@ -75,6 +78,7 @@ export default function ProductosPage() {
   const [categoriaIdFiltro, setCategoriaIdFiltro] = React.useState('');
   const [confirmandoId, setConfirmandoId] = React.useState<string | null>(null);
   const [motorAbierto, setMotorAbierto] = React.useState(false);
+  const [modal, setModal] = React.useState<{ tipo: 'editar' | 'kardex'; id: string } | null>(null);
   const qc = useQueryClient();
 
   const [estadoTabla, setEstadoTabla] = usePreferencias<TableState>('productos', ESTADO_DEFAULT);
@@ -122,13 +126,13 @@ export default function ProductosPage() {
     {
       id: 'imagen',
       titulo: '',
-      width: 64,
-      minWidth: 56,
+      width: 48,
+      minWidth: 44,
       render: (p) => {
         const cat = colorCategoria(p.categoria.slug ?? p.categoria.nombre);
         return (
           <div
-            className="size-10 rounded-md grid place-items-center overflow-hidden border"
+            className="size-9 xl:size-10 rounded-md grid place-items-center overflow-hidden border"
             style={{ borderColor: `${cat.base}40`, background: cat.suave }}
           >
             {p.imagenes[0] ? (
@@ -138,7 +142,7 @@ export default function ProductosPage() {
               <IconoCategoria
                 slug={p.categoria.slug}
                 nombre={p.categoria.nombre}
-                className="size-5"
+                className="size-4 xl:size-5"
                 style={{ color: cat.base }}
               />
             )}
@@ -149,7 +153,7 @@ export default function ProductosPage() {
     {
       id: 'nombre',
       titulo: 'Producto',
-      width: 220,
+      width: 180,
       sortValor: p => p.nombre,
       filter: { tipo: 'texto', getValor: p => p.nombre },
       render: p => (
@@ -164,7 +168,7 @@ export default function ProductosPage() {
     {
       id: 'codigo',
       titulo: 'Código',
-      width: 110,
+      width: 90,
       sortValor: p => p.codigo ?? '',
       filter: { tipo: 'texto', getValor: p => p.codigo },
       render: p => p.codigo
@@ -174,7 +178,8 @@ export default function ProductosPage() {
     {
       id: 'sku',
       titulo: 'SKU',
-      width: 110,
+      width: 90,
+      colClassName: 'hidden xl:table-cell',
       sortValor: p => p.sku,
       filter: { tipo: 'texto', getValor: p => p.sku },
       render: p => <span className="font-mono text-[10px] text-[hsl(var(--text-muted))]">{p.sku}</span>,
@@ -182,7 +187,7 @@ export default function ProductosPage() {
     {
       id: 'categoria',
       titulo: 'Categoría',
-      width: 140,
+      width: 110,
       sortValor: p => p.categoria.nombre,
       filter: { tipo: 'select', getValor: p => p.categoria.nombre, opciones: opcionesCategoria },
       render: p => {
@@ -201,8 +206,9 @@ export default function ProductosPage() {
     {
       id: 'clasificacion',
       titulo: 'Clase',
-      width: 90,
+      width: 70,
       align: 'center',
+      colClassName: 'hidden xl:table-cell',
       sortValor: p => {
         const ord: Record<string, number> = { AA: 5, A: 4, B: 3, C: 2, D: 1 };
         return ord[p.clasificacion ?? ''] ?? 0;
@@ -237,7 +243,7 @@ export default function ProductosPage() {
     {
       id: 'diasEstancado',
       titulo: 'Estancado',
-      width: 110,
+      width: 90,
       align: 'right',
       sortValor: p => p.diasEstancado,
       filter: { tipo: 'rango', getValor: p => p.diasEstancado },
@@ -260,7 +266,7 @@ export default function ProductosPage() {
     {
       id: 'variantes',
       titulo: 'Variantes',
-      width: 140,
+      width: 110,
       sortValor: p => p.cantidadVariantes,
       render: p => (
         <div>
@@ -286,7 +292,7 @@ export default function ProductosPage() {
     {
       id: 'cantidadVentas',
       titulo: 'C. Ventas',
-      width: 110,
+      width: 90,
       align: 'right',
       sortValor: p => p.cantidadVentas,
       filter: { tipo: 'rango', getValor: p => p.cantidadVentas },
@@ -308,7 +314,7 @@ export default function ProductosPage() {
     {
       id: 'stockTotal',
       titulo: 'Stock',
-      width: 90,
+      width: 70,
       align: 'right',
       sortValor: p => p.stockTotal,
       filter: { tipo: 'rango', getValor: p => p.stockTotal },
@@ -323,7 +329,7 @@ export default function ProductosPage() {
     {
       id: 'precioVenta',
       titulo: 'Precio',
-      width: 110,
+      width: 90,
       align: 'right',
       sortValor: p => Number(p.precioVenta),
       filter: { tipo: 'rango', getValor: p => Number(p.precioVenta) },
@@ -332,7 +338,7 @@ export default function ProductosPage() {
     {
       id: 'estado',
       titulo: 'Estado',
-      width: 100,
+      width: 80,
       sortValor: p => (p.activo ? 1 : 0),
       filter: {
         tipo: 'select',
@@ -349,10 +355,10 @@ export default function ProductosPage() {
     {
       id: 'acciones',
       titulo: 'Acciones',
-      width: 150,
+      width: 120,
       align: 'right',
       movible: false,
-      cellClassName: 'pr-4',
+      cellClassName: 'pr-3',
       render: (p) => confirmandoId === p.id ? (
         <div className="flex items-center justify-end gap-1.5">
           <span className="text-[10px] text-[hsl(var(--text-muted))] mr-1">¿Eliminar?</span>
@@ -369,13 +375,17 @@ export default function ProductosPage() {
       ) : (
         <div className="flex items-center justify-end gap-1">
           <Button
-            asChild variant="ghost" size="icon-sm" title="Ver Kardex"
+            variant="ghost" size="icon-sm" title="Ver Kardex"
             className="bg-gradient-to-br from-[#fbbf24] to-[#d97706] text-white shadow-[0_2px_8px_rgba(217,119,6,0.35)] hover:from-[#fcd34d] hover:to-[#f59e0b] border border-amber-600/20"
+            onClick={() => setModal({ tipo: 'kardex', id: p.id })}
           >
-            <Link href={`/productos/kardex/?id=${p.id}`}><History className="size-3.5" /></Link>
+            <History className="size-3.5" />
           </Button>
-          <Button asChild variant="ghost" size="icon-sm" title="Editar">
-            <Link href={`/productos/editar/?id=${p.id}`}><Edit2 className="size-3.5" /></Link>
+          <Button
+            variant="ghost" size="icon-sm" title="Editar"
+            onClick={() => setModal({ tipo: 'editar', id: p.id })}
+          >
+            <Edit2 className="size-3.5" />
           </Button>
           <Button
             variant="ghost" size="icon-sm" title="Eliminar"
@@ -415,6 +425,30 @@ export default function ProductosPage() {
         }
       />
       <MotorLogisticoModal abierto={motorAbierto} onAbiertoChange={setMotorAbierto} />
+
+      <Dialog open={modal?.tipo === 'editar'} onOpenChange={a => !a && setModal(null)}>
+        <DialogContent className="max-w-5xl w-[min(95vw,72rem)] max-h-[92vh] overflow-y-auto p-6">
+          <DialogTitle className="sr-only">Editar producto</DialogTitle>
+          <DialogDescription className="sr-only">Formulario para editar datos, variantes e imágenes del producto.</DialogDescription>
+          {modal?.tipo === 'editar' && (
+            <EditarProductoCliente
+              idForzado={modal.id}
+              modoModal
+              onCerrar={() => setModal(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={modal?.tipo === 'kardex'} onOpenChange={a => !a && setModal(null)}>
+        <DialogContent className="max-w-6xl w-[min(95vw,80rem)] max-h-[92vh] overflow-y-auto p-6">
+          <DialogTitle className="sr-only">Kardex del producto</DialogTitle>
+          <DialogDescription className="sr-only">Historial de movimientos de stock del producto.</DialogDescription>
+          {modal?.tipo === 'kardex' && (
+            <KardexCliente idForzado={modal.id} modoModal />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative max-w-md flex-1 min-w-[220px]">

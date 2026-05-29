@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUpDown, ArrowUp, ArrowDown, Filter, GripVertical, X } from 'lucide-react';
+import { Filter, GripVertical, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────
@@ -32,6 +32,8 @@ export interface ColumnaTabla<T> {
   movible?: boolean;
   /** Clase extra para la celda. */
   cellClassName?: string;
+  /** Clase extra aplicada a header y celdas (útil para `hidden xl:table-cell`). */
+  colClassName?: string;
 }
 
 export type FilterDef<T> =
@@ -133,7 +135,6 @@ function HeaderCelda<T>({
   col, estado, onEstadoChange,
   onDragStart, onDragOver, onDrop, draggedId, hoverId,
 }: HeaderProps<T>) {
-  const sortActivo = estado.sort?.campo === col.id ? estado.sort.dir : null;
   const filtroActivo = estado.filtros?.[col.id];
   const [filtroAbierto, setFiltroAbierto] = React.useState(false);
   const filtroRef = React.useRef<HTMLDivElement>(null);
@@ -148,16 +149,6 @@ function HeaderCelda<T>({
     document.addEventListener('mousedown', cerrar);
     return () => document.removeEventListener('mousedown', cerrar);
   }, [filtroAbierto]);
-
-  const toggleSort = () => {
-    if (!col.sortValor) return;
-    onEstadoChange(p => {
-      const actual = p.sort?.campo === col.id ? p.sort.dir : null;
-      const siguiente: SortDir = actual === null ? 'asc' : actual === 'asc' ? 'desc' : null;
-      if (siguiente === null) return { ...p, sort: undefined };
-      return { ...p, sort: { campo: col.id, dir: siguiente } };
-    });
-  };
 
   const startResize = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -189,11 +180,13 @@ function HeaderCelda<T>({
       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
       style={{ width: ancho, minWidth: col.minWidth ?? 60 }}
       className={cn(
-        'relative px-3 py-2.5 text-[10px] uppercase tracking-wider font-semibold text-[hsl(var(--text-muted))] bg-[hsl(var(--surface-2))]/30 border-b border-[hsl(var(--border))] select-none',
+        'relative px-2 py-2 xl:px-3 xl:py-2.5 text-[10px] uppercase tracking-wider font-semibold text-[hsl(var(--text-muted))] bg-[hsl(var(--surface-2))]/30 border-b border-[hsl(var(--border))] select-none',
+        arrastrable && 'border-r border-[hsl(var(--border))]/60',
         col.align === 'right' && 'text-right',
         col.align === 'center' && 'text-center',
         esArrastrada && 'opacity-40 scale-95',
         esDropTarget && 'bg-[hsl(var(--brand-primary))]/15',
+        col.colClassName,
       )}
       draggable={arrastrable}
       onDragStart={() => arrastrable && onDragStart(col.id)}
@@ -201,42 +194,37 @@ function HeaderCelda<T>({
       onDrop={() => arrastrable && onDrop(col.id)}
     >
       <div className={cn(
-        'flex items-center gap-1.5',
+        'flex items-center gap-1 min-w-0',
         col.align === 'right' && 'justify-end',
         col.align === 'center' && 'justify-center',
       )}>
         {arrastrable && (
-          <GripVertical className="size-3 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing transition-opacity hover:!opacity-100" />
+          <GripVertical className="size-3 shrink-0 opacity-0 group-hover:opacity-30 cursor-grab active:cursor-grabbing transition-opacity hover:!opacity-70" />
         )}
-        {col.sortValor ? (
-          <button
-            type="button"
-            onClick={toggleSort}
-            className={cn(
-              'inline-flex items-center gap-1 hover:text-[hsl(var(--brand-primary))] transition-colors',
-              sortActivo && 'text-[hsl(var(--brand-primary))]',
-            )}
-          >
-            {col.renderHeader ? col.renderHeader() : col.titulo}
-            {sortActivo === 'asc' && <ArrowUp className="size-3" />}
-            {sortActivo === 'desc' && <ArrowDown className="size-3" />}
-            {sortActivo === null && <ArrowUpDown className="size-3 opacity-30" />}
-          </button>
-        ) : (
-          <span>{col.renderHeader ? col.renderHeader() : col.titulo}</span>
-        )}
+        <span
+          className={cn(
+            'truncate',
+            col.align === 'left' || !col.align ? 'flex-1' : '',
+          )}
+          title={col.titulo}
+        >
+          {col.renderHeader ? col.renderHeader() : col.titulo}
+        </span>
         {col.filter && (
-          <div className="relative" ref={filtroRef}>
+          <div className="relative shrink-0" ref={filtroRef}>
             <button
               type="button"
               onClick={() => setFiltroAbierto(o => !o)}
               className={cn(
-                'size-5 grid place-items-center rounded hover:bg-[hsl(var(--brand-primary))]/10 transition-colors',
-                filtroActivo && 'text-[hsl(var(--brand-primary))]',
+                'size-4 grid place-items-center rounded transition-colors',
+                filtroActivo
+                  ? 'text-[hsl(var(--brand-primary))] bg-[hsl(var(--brand-primary))]/15'
+                  : 'text-[hsl(var(--text-muted))]/50 hover:text-[hsl(var(--text-muted))] hover:bg-[hsl(var(--surface-2))]',
               )}
-              title="Filtrar columna"
+              aria-label={`Filtrar ${col.titulo ?? col.id}`}
+              title={`Filtrar ${col.titulo ?? col.id}`}
             >
-              <Filter className={cn('size-3', filtroActivo ? 'fill-current' : '')} />
+              <Filter className={cn('size-2.5', filtroActivo && 'fill-current')} />
             </button>
             <AnimatePresence>
               {filtroAbierto && (
@@ -254,8 +242,11 @@ function HeaderCelda<T>({
       {arrastrable && (
         <div
           onMouseDown={startResize}
-          className="absolute top-0 right-0 h-full w-1 cursor-col-resize hover:bg-[hsl(var(--brand-primary))]/40 active:bg-[hsl(var(--brand-primary))]/70 transition-colors"
-        />
+          aria-label={`Redimensionar columna ${col.titulo ?? col.id}`}
+          className="group/resize absolute top-0 -right-[3px] h-full w-1.5 cursor-col-resize z-10"
+        >
+          <span className="absolute top-0 right-[3px] h-full w-px bg-[hsl(var(--border))]/70 group-hover/resize:right-[2px] group-hover/resize:w-[3px] group-hover/resize:bg-[hsl(var(--brand-primary))] group-active/resize:bg-[hsl(var(--brand-primary))] transition-all" />
+        </div>
       )}
     </motion.th>
   );
@@ -402,7 +393,7 @@ export function DataTable<T>({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm table-fixed" style={{ minWidth: '100%' }}>
+      <table className="w-full text-xs xl:text-sm table-fixed" style={{ minWidth: '100%' }}>
         <thead className="group">
           <tr>
             {renderRowAccent && <th className="w-1 p-0" />}
@@ -427,7 +418,7 @@ export function DataTable<T>({
               <tr key={i} className="border-b border-[hsl(var(--border))]">
                 {renderRowAccent && <td className="w-1 p-0" />}
                 {columnasOrdenadas.map(c => (
-                  <td key={c.id} className="px-3 py-2.5">
+                  <td key={c.id} className={cn('px-2 py-1.5 xl:px-3 xl:py-2.5', c.colClassName)}>
                     <div className="h-4 rounded bg-[hsl(var(--surface-2))] animate-pulse" />
                   </td>
                 ))}
@@ -473,10 +464,11 @@ export function DataTable<T>({
                       layoutId={`td-${getRowKey(fila)}-${col.id}`}
                       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                       className={cn(
-                        'px-3 py-2.5 truncate',
+                        'px-2 py-1.5 xl:px-3 xl:py-2.5 truncate',
                         col.align === 'right' && 'text-right',
                         col.align === 'center' && 'text-center',
                         col.cellClassName,
+                        col.colClassName,
                       )}
                     >
                       {col.render(fila, idx)}

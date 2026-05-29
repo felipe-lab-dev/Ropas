@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { mensajeError, obtener, postear } from '@/lib/api/client';
+import { useApariencia } from '@/lib/store/apariencia';
+import { useConfigSaas } from '@/lib/store/config-saas';
 import { CuponFormulario } from '../cupon-formulario';
 import { CuponPreview } from '../cupon-preview';
 import { aPayloadApi, type CuponFormValues } from '../cupon-schema';
@@ -50,6 +52,9 @@ export default function NuevoCuponPage() {
   const [inicial, setInicial] = React.useState<Partial<CuponFormValues> | undefined>();
   const [error, setError] = React.useState<string | null>(null);
   const qc = useQueryClient();
+  const nombreLocal = useApariencia(s => s.nombreApp);
+  const nombreTenant = useConfigSaas(s => s.config?.tenant.nombre);
+  const tiendaNombre = (nombreLocal?.trim() || nombreTenant || 'Mi Tienda');
 
   const { data: plantillas } = useQuery({
     queryKey: ['cupones-plantillas'],
@@ -63,7 +68,7 @@ export default function NuevoCuponPage() {
     onSuccess: data => {
       toast.success(`Cupón "${data?.codigo ?? ''}" creado`);
       qc.invalidateQueries({ queryKey: ['cupones'] });
-      router.push(`/cupones/${data.id}`);
+      router.push(`/cupones/detalle?id=${data.id}`);
     },
     onError: e => setError(mensajeError(e)),
   });
@@ -210,6 +215,7 @@ export default function NuevoCuponPage() {
           guardando={mutar.isPending}
           ctaLabel="Crear cupón"
           errorServidor={error}
+          tiendaNombre={tiendaNombre}
           onGuardar={v => { setError(null); mutar.mutate(v); }}
           onCancelar={() => router.push('/cupones')}
         />

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -30,6 +30,7 @@ import {
 import { api, mensajeError, obtener } from '@/lib/api/client';
 import { formatearMoneda } from '@/lib/utils';
 import { useConfigSaas } from '@/lib/store/config-saas';
+import { useApariencia } from '@/lib/store/apariencia';
 import { CuponPreview } from '../cupon-preview';
 import { ESTADO_LABEL, SEGMENTO_LABEL } from '../cupon-schema';
 
@@ -77,9 +78,25 @@ interface CuponUso {
   venta: { id: string; numero: string; total: string };
 }
 
-export function CuponDetalleCliente() {
-  const id = (useParams().id as string) ?? '';
-  const tienda = useConfigSaas(s => s.config?.tenant.nombre ?? 'Mi Tienda');
+export default function CuponDetallePage() {
+  const id = useSearchParams().get('id') ?? '';
+
+  if (!id) {
+    return (
+      <Card className="p-6">
+        Falta el parámetro <code>id</code> en la URL.
+      </Card>
+    );
+  }
+
+  return <CuponDetalleContenido id={id} />;
+}
+
+function CuponDetalleContenido({ id }: { id: string }) {
+  // Prioridad: nombre custom de Configuración (local) > nombre del tenant en backend > fallback
+  const nombreLocal = useApariencia(s => s.nombreApp);
+  const nombreTenant = useConfigSaas(s => s.config?.tenant.nombre);
+  const tienda = (nombreLocal?.trim() || nombreTenant || 'Mi Tienda');
 
   const { data: cupon, isLoading: cargandoCupon } = useQuery({
     queryKey: ['cupon', id],
@@ -101,7 +118,10 @@ export function CuponDetalleCliente() {
 
   const descargar = async (formato: 'pdf' | 'imagen', extension: string) => {
     try {
-      const res = await api.get<Blob>(`/cupones/${id}/${formato}`, { responseType: 'blob' });
+      const res = await api.get<Blob>(`/cupones/${id}/${formato}`, {
+        responseType: 'blob',
+        params: { tienda },
+      });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;

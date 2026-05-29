@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Check, RotateCcw, Sparkles, Upload, Loader2, Cloud } from 'lucide-react';
+import { Check, RotateCcw, Sparkles, Upload, Loader2, Cloud, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApariencia, PALETAS, type Paleta } from '@/lib/store/apariencia';
 import { DEFAULT_LOGO_SVG } from '@/lib/default-logo-svg';
@@ -43,6 +43,17 @@ export default function ConfiguracionPage() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => { setSvgBorrador(logoSvg); }, [logoSvg]);
+
+  // Toast de "Guardado" con debounce — se dispara cuando cambian preferencias.
+  // Ignoramos el primer render para no toastear al cargar la página.
+  const primerRender = React.useRef(true);
+  React.useEffect(() => {
+    if (primerRender.current) { primerRender.current = false; return; }
+    const t = setTimeout(() => {
+      toast.success('Preferencias guardadas', { duration: 1400, id: 'config-saved' });
+    }, 350);
+    return () => clearTimeout(t);
+  }, [tema, paleta, fontSize, familia, nombreApp, subtituloApp, logoSvg]);
 
   const subirLogo = useMutation({
     mutationFn: async (file: File) => {
@@ -84,6 +95,23 @@ export default function ConfiguracionPage() {
         titulo="Configuración"
         descripcion="Personalizá la apariencia y los datos del negocio."
       />
+
+      <motion.div
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-start gap-3 rounded-xl border border-[hsl(var(--brand-primary))]/25 bg-[hsl(var(--brand-primary))]/8 px-4 py-3"
+      >
+        <div className="size-8 rounded-lg bg-[hsl(var(--brand-primary))]/15 text-[hsl(var(--brand-primary))] grid place-items-center shrink-0">
+          <Zap className="size-4" />
+        </div>
+        <div className="text-sm">
+          <div className="font-semibold">Tus cambios se guardan al instante</div>
+          <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
+            No hay botón <strong>Guardar</strong>: cada ajuste se aplica y persiste en este navegador automáticamente.
+            Vas a ver un aviso cuando se guarde.
+          </p>
+        </div>
+      </motion.div>
 
       <Card>
         <CardHeader>
@@ -169,7 +197,8 @@ export default function ConfiguracionPage() {
             Identidad de la tienda
           </CardTitle>
           <p className="text-xs text-[hsl(var(--text-muted))]">
-            Estos datos aparecen en la pantalla de Inicio y en el login.
+            Estos datos aparecen en la pantalla de Inicio, en el login, en el header
+            y en los cupones (PDF/PNG generados).
           </p>
         </CardHeader>
         <CardContent className="space-y-5">

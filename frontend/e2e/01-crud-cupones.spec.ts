@@ -22,7 +22,7 @@ test.describe('Cupones · CRUD básico', () => {
     await expect(page.getByTestId('cupon-preview')).toContainText(codigo);
 
     await page.getByTestId('cupon-guardar').click();
-    await expect(page).toHaveURL(/\/cupones\/[a-f0-9-]{36}\/?$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/cupones\/detalle\/?\?id=[a-f0-9-]{36}/, { timeout: 15_000 });
     await expect(page.locator('body')).toContainText(codigo);
 
     // 2. Volver a la lista y buscar (por código, único)
@@ -38,14 +38,15 @@ test.describe('Cupones · CRUD básico', () => {
     await expect(page).toHaveURL(/\/cupones\/editar\/?\?id=/);
     await fillEstable(page, 'input[name="nombre"]', `${nombre} (editado)`);
     await page.getByTestId('cupon-guardar').click();
-    await expect(page).toHaveURL(/\/cupones\/[a-f0-9-]{36}\/?$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/cupones\/detalle\/?\?id=[a-f0-9-]{36}/, { timeout: 15_000 });
     await expect(page.locator('body')).toContainText(`${nombre} (editado)`);
 
     // 4. Pausar desde la lista
     await gotoY(page,'/cupones');
     await page.getByPlaceholder(/c[oó]digo, nombre/i).fill(codigo);
     await page.getByRole('button', { name: new RegExp(`pausar ${codigo}`, 'i') }).click();
-    await expect(page.getByText(/Pausado/i).first()).toBeVisible({ timeout: 5_000 });
+    // Badge "Pausado" en la fila del cupón (no la <option> del filtro)
+    await expect(page.locator('table').getByText('Pausado', { exact: true })).toBeVisible({ timeout: 5_000 });
 
     // 5. Eliminar
     await page.getByRole('button', { name: new RegExp(`eliminar ${codigo}`, 'i') }).click();

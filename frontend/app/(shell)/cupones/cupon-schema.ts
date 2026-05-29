@@ -141,6 +141,16 @@ export const cuponSchema = z
 
 export type CuponFormValues = z.infer<typeof cuponSchema>;
 
+/**
+ * Formatea Date a `YYYY-MM-DDTHH:mm` en HORA LOCAL (lo que espera
+ * `<input type="datetime-local">`). Usar `toISOString().slice(0,16)`
+ * da UTC y se interpretaría 5h en el futuro en Lima al guardar.
+ */
+function aDatetimeLocal(d: Date): string {
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+}
+
 export const CUPON_VACIO: CuponFormValues = {
   codigo: '',
   nombre: '',
@@ -149,8 +159,8 @@ export const CUPON_VACIO: CuponFormValues = {
   valorDescuento: 20,
   montoMinimoCompra: null,
   descuentoMaximo: null,
-  fechaInicio: new Date().toISOString().slice(0, 16),
-  fechaFin: new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 16),
+  fechaInicio: aDatetimeLocal(new Date()),
+  fechaFin: aDatetimeLocal(new Date(Date.now() + 7 * 86400_000)),
   usosMaximosTotal: null,
   usosMaximosPorCliente: 1,
   segmento: 'todos',
