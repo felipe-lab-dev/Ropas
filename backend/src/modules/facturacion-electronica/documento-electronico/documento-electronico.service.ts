@@ -507,11 +507,12 @@ export class DocumentoElectronicoService {
   }
 
   private opcionesMifact(config: ConfiguracionFacturacionResuelta): OrquestarCpeInput['opciones'] {
+    // El envío a SUNAT es SIEMPRE síncrono (enviarASunat=true) y la emisión
+    // NUNCA pide PDF/XML/CDR (retornar*=false): esos documentos se obtienen
+    // on-demand vía GetInvoice cuando el usuario presiona el botón respectivo.
+    // Ambos comportamientos son los defaults del cpe-builder, así que aquí solo
+    // pasamos el formato de impresión configurado por el tenant.
     return {
-      enviarASunat: config.enviarAutomaticoASunat,
-      retornarPdf: config.retornarPdf,
-      retornarXmlEnvio: config.retornarXmlEnvio,
-      retornarXmlCdr: config.retornarXmlCdr,
       formatoImpresion: config.formatoImpresion,
     };
   }

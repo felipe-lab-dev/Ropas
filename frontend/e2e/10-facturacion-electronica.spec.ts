@@ -1,4 +1,4 @@
-import { type APIRequestContext, type Page, test, expect } from '@playwright/test';
+import { type APIRequestContext, test, expect } from '@playwright/test';
 import {
   apiContext,
   esperarToast,
@@ -26,10 +26,6 @@ interface ConfigFE {
   ubigeoFiscalCodigo: string;
   mifactBaseUrl: string;
   tokenConfigurado: boolean;
-  enviarAutomaticoASunat: boolean;
-  retornarPdf: boolean;
-  retornarXmlEnvio: boolean;
-  retornarXmlCdr: boolean;
   formatoImpresion: '001' | '002' | '004';
 }
 
@@ -40,20 +36,6 @@ async function leerConfig(api: APIRequestContext): Promise<ConfigFE | null> {
   if (!res.ok()) return null;
   const datos = (await res.json()).datos;
   return datos as ConfigFE | null;
-}
-
-/**
- * Mini-helper: asegura que un switch ARIA quede en el estado deseado.
- * Idempotente — si ya está en el estado correcto, no hace nada.
- */
-async function asegurarSwitch(page: Page, name: RegExp, deseado: boolean): Promise<void> {
-  const sw = page.getByRole('switch', { name }).first();
-  await sw.waitFor({ state: 'visible', timeout: 8_000 });
-  const actual = await sw.getAttribute('aria-checked');
-  if (actual !== String(deseado)) {
-    await sw.click();
-    await expect(sw).toHaveAttribute('aria-checked', String(deseado), { timeout: 3_000 });
-  }
 }
 
 test.describe('Configuración · Facturación Electrónica (Modo A — sin tocar SUNAT)', () => {
@@ -72,10 +54,6 @@ test.describe('Configuración · Facturación Electrónica (Modo A — sin tocar
       direccionFiscal: snapshot.direccionFiscal,
       ubigeoFiscalCodigo: snapshot.ubigeoFiscalCodigo,
       mifactBaseUrl: snapshot.mifactBaseUrl,
-      enviarAutomaticoASunat: snapshot.enviarAutomaticoASunat,
-      retornarPdf: snapshot.retornarPdf,
-      retornarXmlEnvio: snapshot.retornarXmlEnvio,
-      retornarXmlCdr: snapshot.retornarXmlCdr,
       formatoImpresion: snapshot.formatoImpresion,
       // mifactToken NO se envía: el backend mantiene el actual.
     });
@@ -86,7 +64,7 @@ test.describe('Configuración · Facturación Electrónica (Modo A — sin tocar
     await login(page);
   });
 
-  test('persiste config completa: RUC + razón social + dirección + ubigeo + 4 toggles ON + formato Ticket', async ({
+  test('persiste config completa: RUC + razón social + dirección + ubigeo + formato Ticket', async ({
     page,
   }) => {
     await gotoY(page, '/configuracion/facturacion-electronica');
@@ -110,20 +88,14 @@ test.describe('Configuración · Facturación Electrónica (Modo A — sin tocar
     // El CommandItem renderiza el código como texto — clickeamos el primero
     await page.getByText('150101').first().click();
 
-    // 3. Toggles de comportamiento — los 4 ON
-    await asegurarSwitch(page, /enviar a sunat en forma sincr[oó]nica/i, true);
-    await asegurarSwitch(page, /retornar pdf/i, true);
-    await asegurarSwitch(page, /retornar xml enviado/i, true);
-    await asegurarSwitch(page, /retornar cdr/i, true);
-
-    // 4. Formato Ticket 80mm
+    // 3. Formato Ticket 80mm
     await page.getByRole('button', { name: /ticket 80mm/i }).click();
 
-    // 5. Guardar
+    // 4. Guardar
     await page.getByRole('button', { name: /guardar configuraci[oó]n/i }).click();
     await esperarToast(page, /configuraci[oó]n guardada/i);
 
-    // 6. Verificar persistencia vía API (sin depender del estado visual post-save)
+    // 5. Verificar persistencia vía API (sin depender del estado visual post-save)
     const api = await apiContext();
     const guardado = await leerConfig(api);
     await api.dispose();
@@ -133,13 +105,9 @@ test.describe('Configuración · Facturación Electrónica (Modo A — sin tocar
     expect(guardado!.razonSocial).toBe('TIENDA E2E PRUEBA SAC');
     expect(guardado!.direccionFiscal).toBe('Av. La Marina 123');
     expect(guardado!.ubigeoFiscalCodigo).toBe('150101');
-    expect(guardado!.enviarAutomaticoASunat).toBe(true);
-    expect(guardado!.retornarPdf).toBe(true);
-    expect(guardado!.retornarXmlEnvio).toBe(true);
-    expect(guardado!.retornarXmlCdr).toBe(true);
     expect(guardado!.formatoImpresion).toBe('004'); // Ticket 80mm
 
-    // 7. Reload completo y verificar que la UI refleja lo guardado
+    // 6. Reload completo y verificar que la UI refleja lo guardado
     await page.reload();
     await expect(page.locator('[data-testid="input-ruc"]')).toHaveValue('20100100100', {
       timeout: 10_000,
@@ -221,15 +189,13 @@ test.describe('Facturación Electrónica (Modo B — emisión real a SUNAT vía 
     await login(page);
   });
 
-  test('venta con cliente RUC → CPE emitido → PDF/XML/CDR devueltos', async ({ page }) => {
+  test('venta con cliente RUC → CPE emitido y aceptado por SUNAT', async ({ page }) => {
     const api = await apiContext();
 
-    // 1. Asegurar config FE con todos los flags de retorno activos
+    // 1. Asegurar config FE (formato A4 para sandbox). El envío a SUNAT es
+    //    siempre síncrono; la emisión NO solicita PDF/XML/CDR — esos documentos
+    //    se descargan on-demand (flujo de botón, pendiente de implementar).
     await setConfiguracionFE(api, {
-      enviarAutomaticoASunat: true,
-      retornarPdf: true,
-      retornarXmlEnvio: true,
-      retornarXmlCdr: true,
       formatoImpresion: '001', // A4 para sandbox
     });
 
@@ -266,20 +232,22 @@ test.describe('Facturación Electrónica (Modo B — emisión real a SUNAT vía 
     await expect(toast).toBeVisible({ timeout: 15_000 });
 
     // 4. Obtener la venta más reciente y verificar que el documento electrónico
-    //    tiene los URLs solicitados (PDF, XML envío, CDR)
+    //    quedó EMITIDO y ACEPTADO por SUNAT. Las URLs de PDF/XML/CDR ya NO se
+    //    devuelven en la emisión — se obtienen on-demand (flujo futuro).
     const api2 = await apiContext();
     const ventas = await api2.get('/api/v1/ventas?limite=1&orderBy=-createdAt');
     expect(ventas.ok()).toBe(true);
     const ventaId = ((await ventas.json()).datos?.[0]?.id) as string | undefined;
     expect(ventaId, 'No se encontró la venta recién creada').toBeTruthy();
 
-    // Polling: el listener de emisión es async — esperamos hasta 30s al CDR
-    let documento: { pdfUrl?: string; xmlEnvioUrl?: string; cdrUrl?: string } | null = null;
+    // Polling: el listener de emisión es async — esperamos hasta 30s al estado SUNAT.
+    const ACEPTADO = new Set(['aceptado', 'aceptado_observado']);
+    let documento: { estadoSunat?: string } | null = null;
     for (let i = 0; i < 15; i++) {
       const docRes = await api2.get(`/api/v1/ventas/${ventaId}/documento-electronico`);
       if (docRes.ok()) {
         const datos = (await docRes.json()).datos;
-        if (datos?.pdfUrl) {
+        if (datos?.estadoSunat && ACEPTADO.has(datos.estadoSunat)) {
           documento = datos;
           break;
         }
@@ -288,9 +256,7 @@ test.describe('Facturación Electrónica (Modo B — emisión real a SUNAT vía 
     }
     await api2.dispose();
 
-    expect(documento, 'CPE no se emitió o no devolvió URLs en 30s').not.toBeNull();
-    expect(documento!.pdfUrl).toBeTruthy();
-    expect(documento!.xmlEnvioUrl).toBeTruthy();
-    expect(documento!.cdrUrl).toBeTruthy();
+    expect(documento, 'CPE no fue aceptado por SUNAT en 30s').not.toBeNull();
+    expect(ACEPTADO.has(documento!.estadoSunat as string)).toBe(true);
   });
 });

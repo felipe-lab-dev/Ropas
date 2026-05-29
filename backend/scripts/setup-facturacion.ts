@@ -258,10 +258,6 @@ async function main() {
         direccionFiscal,
         ubigeoFiscalCodigo:      ubigeo,
         formatoImpresion:        '001',
-        enviarAutomaticoASunat:  true,
-        retornarPdf:             true,
-        retornarXmlEnvio:        false,
-        retornarXmlCdr:          false,
       };
 
       let cfg: { id: string };

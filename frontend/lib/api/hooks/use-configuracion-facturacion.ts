@@ -22,10 +22,6 @@ export interface ConfiguracionFacturacion {
   mifactBaseUrl: string;
   /** El token NUNCA viene en plano del backend — solo este booleano */
   tokenConfigurado: boolean;
-  enviarAutomaticoASunat: boolean;
-  retornarPdf: boolean;
-  retornarXmlEnvio: boolean;
-  retornarXmlCdr: boolean;
   formatoImpresion: string;
 }
 
@@ -38,10 +34,6 @@ export interface GuardarConfiguracionFacturacionInput {
   /** Omitir o dejar vacío para mantener el token existente */
   mifactToken?: string;
   mifactBaseUrl?: string;
-  enviarAutomaticoASunat?: boolean;
-  retornarPdf?: boolean;
-  retornarXmlEnvio?: boolean;
-  retornarXmlCdr?: boolean;
   formatoImpresion?: string;
 }
 

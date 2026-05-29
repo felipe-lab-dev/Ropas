@@ -1175,11 +1175,12 @@ model ConfiguracionFacturacion {
   direccionFiscal    String  @map("direccion_fiscal") @db.VarChar(240)
   ubigeoFiscalCodigo String  @map("ubigeo_fiscal_codigo") @db.VarChar(6)
 
-  enviarAutomaticoASunat Boolean @default(true) @map("enviar_automatico_a_sunat")
-  retornarPdf            Boolean @default(true) @map("retornar_pdf")
-  retornarXmlEnvio       Boolean @default(false) @map("retornar_xml_envio")
-  retornarXmlCdr         Boolean @default(false) @map("retornar_xml_cdr")
-  formatoImpresion       String  @default("001") @map("formato_impresion") @db.VarChar(3)
+  // Formato de impresión del PDF que se solicita on-demand a Mifact (GetInvoice):
+  // '001'=A4, '002'=A5, '004'=Ticket 80mm. La emisión NUNCA pide PDF/XML/CDR ni
+  // controla el modo de envío: el envío a SUNAT es siempre síncrono y los
+  // documentos (PDF/XML/CDR) se obtienen a pedido cuando el usuario presiona el
+  // botón respectivo. Por eso no hay flags enviar/retornar* persistidos.
+  formatoImpresion String @default("001") @map("formato_impresion") @db.VarChar(3)
 
   creadoEn      DateTime @default(now()) @map("creado_en")
   actualizadoEn DateTime @updatedAt @map("actualizado_en")

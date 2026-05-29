@@ -1,5 +1,4 @@
 import {
-  IsBoolean,
   IsOptional,
   IsString,
   Matches,
@@ -57,22 +56,6 @@ export class GuardarConfiguracionFacturacionDto {
   @Transform(trim)
   @IsUrl({}, { message: 'URL de Mifact inválida' })
   mifactBaseUrl?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  enviarAutomaticoASunat?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  retornarPdf?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  retornarXmlEnvio?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  retornarXmlCdr?: boolean;
 
   @IsOptional()
   @Transform(trim)

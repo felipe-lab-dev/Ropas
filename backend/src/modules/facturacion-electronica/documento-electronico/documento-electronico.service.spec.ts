@@ -53,10 +53,6 @@ function crearMockConfiguracion() {
       nombreComercial: 'Test Store',
       direccionFiscal: 'Av. Test 123',
       ubigeoFiscalCodigo: '150101',
-      enviarAutomaticoASunat: true,
-      retornarPdf: true,
-      retornarXmlEnvio: false,
-      retornarXmlCdr: false,
       formatoImpresion: '001',
     }),
   };
