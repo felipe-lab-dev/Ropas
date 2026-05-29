@@ -53,9 +53,6 @@ export function Logo3D({ className = '' }: { className?: string }) {
     const colorAccent = hslToHex('--brand-accent');
     const colorMuted = tema === 'dark' ? 0xf1f3f5 : 0x222033;
 
-    let scene: THREE.Scene | undefined;
-    let camera: THREE.PerspectiveCamera | undefined;
-    let renderer: THREE.WebGLRenderer | undefined;
     let logoGroup: THREE.Group | undefined;
     let logoSize: THREE.Vector3 | undefined;
     let mats: THREE.MeshStandardMaterial[] = [];
@@ -65,11 +62,11 @@ export function Logo3D({ className = '' }: { className?: string }) {
 
     const { clientWidth: w0, clientHeight: h0 } = host;
 
-    scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(35, Math.max(w0, 1) / Math.max(h0, 1), 0.1, 2000);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, Math.max(w0, 1) / Math.max(h0, 1), 0.1, 2000);
     camera.position.set(0, 0, 520);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(w0, h0);
     renderer.setClearColor(0x000000, 0);

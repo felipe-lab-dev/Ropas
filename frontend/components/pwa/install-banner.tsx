@@ -151,7 +151,7 @@ export function InstallPwaBanner() {
               <p className="text-sm font-semibold">Agregar a la pantalla de inicio</p>
               <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
                 Toca <Share className="inline size-3.5 align-text-bottom mx-0.5 text-[hsl(var(--brand-primary))]" />
-                en la barra y luego <span className="font-semibold">"Agregar a inicio"</span>
+                en la barra y luego <span className="font-semibold">&quot;Agregar a inicio&quot;</span>
                 <Plus className="inline size-3.5 align-text-bottom ml-0.5" />.
               </p>
             </>

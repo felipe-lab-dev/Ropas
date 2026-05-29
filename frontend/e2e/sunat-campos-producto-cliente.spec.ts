@@ -102,7 +102,6 @@ test.describe('Campos SUNAT — Producto y Cliente (4.D)', () => {
   test('producto crear: expandir sección SUNAT, seleccionar PAR + exonerado_onerosa, payload correcto', async ({ page }) => {
     await mockCatalogos(page);
 
-    // eslint-disable-next-line prefer-const
     let payloadCapturado: Record<string, unknown> = {};
     const productoCreado = { id: 'prod-001', sku: 'P-00001', nombre: 'Test Producto' };
 
@@ -150,7 +149,6 @@ test.describe('Campos SUNAT — Producto y Cliente (4.D)', () => {
   test('producto crear: sin tocar sección SUNAT el submit incluye defaults NIU/gravado_onerosa', async ({ page }) => {
     await mockCatalogos(page);
 
-    // eslint-disable-next-line prefer-const
     let payloadCapturado: Record<string, unknown> = {};
     const productoCreado = { id: 'prod-002', sku: 'P-00002', nombre: 'Otro Producto' };
 

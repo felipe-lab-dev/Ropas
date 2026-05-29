@@ -127,7 +127,6 @@ export function CuponFormulario({
 
   React.useEffect(() => {
     if (inicial) setForm(prev => ({ ...prev, ...inicial }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inicial]);
 
   const set = <K extends keyof CuponFormValues>(k: K, v: CuponFormValues[K]) => {
