@@ -68,7 +68,9 @@ test.describe('Ventas · rentabilidad', () => {
     const venta = await seedVenta(api, { sucursalId, varianteId: producto.varianteId });
     await api.dispose();
 
-    await gotoY(page, `/ventas/${venta.id}`);
+    // El detalle vive en un drawer lateral (la ruta /ventas/[id] fue reemplazada);
+    // se abre con el query param ?ver=<id>.
+    await gotoY(page, `/ventas?ver=${venta.id}`);
 
     // Tarjeta resumen de rentabilidad
     await expect(page.getByRole('heading', { name: 'Rentabilidad' })).toBeVisible({ timeout: 8_000 });

@@ -17,6 +17,7 @@ import { InventarioService } from '../inventario/inventario.service';
 import { MotorCuponesService, ItemCarrito } from '../cupones/motor-cupones.service';
 import { SerieCpeService } from '../facturacion-electronica/series-cpe/series-cpe.service';
 import { ConfiguracionFacturacionService } from '../facturacion-electronica/configuracion/configuracion-facturacion.service';
+import { filtrarDocumentoSegunPermisos } from '../facturacion-electronica/emision-cpe/filtrar-documento-segun-permisos';
 import {
   TipoCpe,
   UMBRAL_IDENTIFICACION_BOLETA,
@@ -66,7 +67,7 @@ export class VentasService {
     private readonly eventEmitter: AppEventEmitter,
   ) {}
 
-  async listar(query: ListarVentasQuery, ctx: TenantContext) {
+  async listar(query: ListarVentasQuery, ctx: TenantContext, permisos: string[] = []) {
     const { pagina, limite, skip, take } = obtenerPaginacion(query);
     const where: Prisma.VentaWhereInput = { eliminadoEn: null };
 
@@ -124,8 +125,8 @@ export class VentasService {
           cliente: { select: { id: true, nombre: true } },
           vendedor: { select: { id: true, nombre: true } },
           sucursal: { select: { id: true, nombre: true } },
-          documentoElectronico: { select: { pdfUrl: true, estadoSunat: true } },
           _count: { select: { items: true } },
+          documentoElectronico: true,
         },
       }),
       cliente.venta.count({ where }),
@@ -145,8 +146,13 @@ export class VentasService {
       if (lista) lista.push(it);
       else itemsPorVenta.set(it.ventaId, [it]);
     }
-    const datosConRentabilidad = datos.map(v => ({
+
+    // Adjunta el pdfUrl del comprobante filtrado por rol (contabilidad lo ve
+    // siempre; el resto solo si el CPE está aceptado). El resto del documento
+    // NO se expone en la lista. Además calcula rentabilidad por venta.
+    const datosLimpios = datos.map(({ documentoElectronico, ...v }) => ({
       ...v,
+      pdfUrl: filtrarDocumentoSegunPermisos(documentoElectronico, permisos)?.pdfUrl ?? null,
       rentabilidad: calcularRentabilidadVenta({
         items: itemsPorVenta.get(v.id) ?? [],
         descuento: v.descuento,
@@ -154,7 +160,7 @@ export class VentasService {
       }),
     }));
 
-    return crearResultadoPaginado(datosConRentabilidad, total, { pagina, limite });
+    return crearResultadoPaginado(datosLimpios, total, { pagina, limite });
   }
 
   async obtener(id: string, ctx: TenantContext) {

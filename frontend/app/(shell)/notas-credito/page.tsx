@@ -162,7 +162,7 @@ export default function NotasCreditoPage() {
                   </TableCell>
                   <TableCell className="font-mono text-xs hidden lg:table-cell">
                     <Link
-                      href={`/ventas/${nc.venta.id}`}
+                      href={`/ventas?ver=${nc.venta.id}`}
                       onClick={e => e.stopPropagation()}
                       className="hover:underline"
                     >

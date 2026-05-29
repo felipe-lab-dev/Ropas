@@ -19,7 +19,9 @@ import { login, gotoY, esperarToast } from './helpers';
 // En CI se necesitaría una venta real seeded; aquí mockeamos todas las
 // llamadas relevantes para que los tests sean herméticos.
 const VENTA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-const VENTA_URL = `/ventas/${VENTA_ID}`;
+// El detalle vive ahora en un drawer dentro de /ventas (deep-link ?ver=<id>),
+// no en una ruta /ventas/[id] (eliminada en el rediseño 2026-05-29).
+const VENTA_URL = `/ventas?ver=${VENTA_ID}`;
 
 function crearDocumentoAceptado() {
   return {
