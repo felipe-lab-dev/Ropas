@@ -109,4 +109,44 @@ test.describe('Ventas POS · cobrar', () => {
     await gotoY(page, '/pos');
     await expect(page.locator('[data-testid="btn-cobrar-pos"]')).toBeDisabled();
   });
+
+  test('boleta > S/700 exige DNI: alerta + Cobrar bloqueado hasta asignar cliente', async ({
+    page,
+  }) => {
+    // ── ARRANGE: producto por encima del umbral SUNAT (S/700) ─────────────
+    const api = await apiContext();
+    const sucursalId = await sucursalActivaDelPos(api);
+    const producto = await seedProducto(api, {
+      precioVenta: 800, // > S/700 → la boleta exige identificar al cliente
+      stockInicial: 3,
+      sucursalId,
+    });
+    const cliente = await seedCliente(api, {
+      tipoDocumento: 'dni',
+      nombre: `POS DNI ${sufijoAleatorio(4)}`,
+    });
+    await api.dispose();
+
+    await gotoY(page, '/pos');
+
+    // 1. Agregar el producto de S/800 → boleta a consumidor final (sin cliente)
+    await fillEstable(page, '[data-testid="pos-buscar-producto"]', producto.sku);
+    const resultado = page.locator('[data-testid^="pos-resultado-E2E-V-"]').first();
+    await expect(resultado).toBeVisible({ timeout: 8_000 });
+    await resultado.click();
+
+    // 2. Sin cliente y total > 700 → alerta visible + Cobrar deshabilitado
+    await expect(page.locator('[data-testid="pos-alerta-dni-boleta"]')).toBeVisible();
+    await expect(page.locator('[data-testid="btn-cobrar-pos"]')).toBeDisabled();
+
+    // 3. Asignar un cliente con DNI desde el popover
+    await fillEstable(page, '[data-testid="pos-buscar-cliente"]', cliente.documento);
+    const itemPopover = page.getByRole('button').filter({ hasText: cliente.nombre }).first();
+    await expect(itemPopover).toBeVisible({ timeout: 8_000 });
+    await itemPopover.click();
+
+    // 4. Con DNI identificado → la alerta desaparece y Cobrar se habilita
+    await expect(page.locator('[data-testid="pos-alerta-dni-boleta"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="btn-cobrar-pos"]')).toBeEnabled();
+  });
 });

@@ -27,6 +27,7 @@ import {
   CrearCompraDto,
   RegistrarPagoCompraDto,
 } from './dto/crear-compra.dto';
+import { aPEN, costoUnitarioPEN, normalizarMoneda } from './compras.moneda';
 
 const D = (n: Prisma.Decimal | number | string | null | undefined): number =>
   n == null ? 0 : typeof n === 'number' ? n : Number(n.toString());
@@ -101,6 +102,8 @@ export class ComprasService {
     });
     const filas = compras.map(c => {
       const saldo = D(c.total) - D(c.totalPagado);
+      // saldoPen normaliza para los totales (un proveedor puede deber en PEN y USD).
+      const saldoPen = aPEN(saldo, D(c.tipoCambio));
       const venc = c.fechaVencimiento ? new Date(c.fechaVencimiento) : null;
       const diasVencido = venc ? Math.floor((hoy.getTime() - venc.getTime()) / 86400000) : 0;
       return {
@@ -110,9 +113,12 @@ export class ComprasService {
         proveedor: c.proveedor,
         fechaEmision: c.fechaEmision,
         fechaVencimiento: c.fechaVencimiento,
+        moneda: c.moneda,
+        tipoCambio: D(c.tipoCambio),
         total: D(c.total),
         totalPagado: D(c.totalPagado),
         saldo,
+        saldoPen,
         diasVencido: diasVencido > 0 ? diasVencido : 0,
         estado: c.estadoPago,
       };
@@ -120,8 +126,11 @@ export class ComprasService {
     return {
       datos: filas,
       totales: {
-        porPagar: filas.reduce((s, f) => s + f.saldo, 0),
-        vencido: filas.filter(f => f.diasVencido > 0).reduce((s, f) => s + f.saldo, 0),
+        // En PEN: mezclar monedas en un único total no tendría sentido.
+        porPagar: round2(filas.reduce((s, f) => s + f.saldoPen, 0)),
+        vencido: round2(
+          filas.filter(f => f.diasVencido > 0).reduce((s, f) => s + f.saldoPen, 0),
+        ),
       },
     };
   }
@@ -159,6 +168,11 @@ export class ComprasService {
         where: { id: dto.proveedorId, eliminadoEn: null },
       });
       if (!proveedor) throw new ErrorValidacion('Proveedor no existe');
+
+      // Moneda + TC: PEN fuerza tc=1; USD exige tc>0. Los montos de la compra
+      // quedan en moneda original; PEN se deriva donde haga falta (costo, asiento,
+      // deuda del proveedor).
+      const { moneda, tipoCambio } = normalizarMoneda(dto);
 
       const items = dto.items.map(item => {
         const v = variantes.find(x => x.id === item.varianteId)!;
@@ -203,8 +217,8 @@ export class ComprasService {
           numeroComprobante: dto.numeroComprobante,
           fechaEmision,
           fechaRecepcion,
-          moneda: dto.moneda ?? 'PEN',
-          tipoCambio: dto.tipoCambio ?? 1,
+          moneda,
+          tipoCambio,
           subtotal: subtotalNeto,
           igv,
           otrosImpuestos: otros,
@@ -234,7 +248,13 @@ export class ComprasService {
           motivo: `Compra ${numero}`,
           usuarioId,
         });
-        await this.recalcularCostoPromedio(tx, item.varianteId, item.cantidad, item.costoUnitario);
+        // El costo que alimenta el promedio del inventario SIEMPRE va en PEN.
+        await this.recalcularCostoPromedio(
+          tx,
+          item.varianteId,
+          item.cantidad,
+          costoUnitarioPEN(item.costoUnitario, tipoCambio),
+        );
       }
 
       // 2. Pagos iniciales si vienen
@@ -281,29 +301,31 @@ export class ComprasService {
         data: { totalPagado, estadoPago },
       });
 
-      // 3. Actualizar agregados del proveedor
+      // 3. Actualizar agregados del proveedor (acumuladores globales → PEN)
       await tx.proveedor.update({
         where: { id: dto.proveedorId },
         data: {
-          totalComprado: { increment: total },
-          deudaActual: { increment: total - totalPagado },
+          totalComprado: { increment: aPEN(total, tipoCambio) },
+          deudaActual: { increment: aPEN(total - totalPagado, tipoCambio) },
           ultimaCompraEn: new Date(),
         },
       });
 
-      // 4. Asiento contable de la compra (+ destino existencias)
+      // 4. Asiento contable de la compra (+ destino existencias) — en PEN.
       await this.asientos.generarPorCompra(tx, {
         compraId: compra.id,
         numero,
         fecha: fechaEmision,
-        subtotal: subtotalNeto,
-        igv,
-        total,
+        subtotal: aPEN(subtotalNeto, tipoCambio),
+        igv: aPEN(igv, tipoCambio),
+        total: aPEN(total, tipoCambio),
         esContado,
         medioPago: esContado ? medioPrincipalCompra : undefined,
         proveedorDoc: { tipo: proveedor.tipoDocumento, numero: proveedor.documento },
         docTipo: tipoCompSunat(dto.tipoComprobante),
         docNumero: `${dto.serie}-${dto.numeroComprobante}`,
+        moneda,
+        tipoCambio,
         usuarioId,
       });
 
@@ -359,20 +381,29 @@ export class ComprasService {
         data: { totalPagado: nuevoTotalPagado, estadoPago },
       });
 
+      // El pago se guarda en la moneda original (arriba), pero deuda, caja y
+      // asiento se llevan en PEN con el TC de la compra.
+      const montoPen = aPEN(dto.monto, D(compra.tipoCambio));
+
       await tx.proveedor.update({
         where: { id: compra.proveedorId },
-        data: { deudaActual: { decrement: dto.monto } },
+        data: { deudaActual: { decrement: montoPen } },
       });
 
       if (dto.sesionCajaId) {
+        // La caja maneja ambas monedas: el movimiento se registra en la moneda
+        // ORIGINAL de la compra (la deuda y el asiento sí van en PEN).
         await tx.movimientoCaja.create({
           data: {
             sesionId: dto.sesionCajaId,
             tipo: 'egreso',
+            categoria: 'pago_proveedor',
             medio: dto.medio as MedioPago,
+            moneda: compra.moneda,
             monto: dto.monto,
             motivo: `Pago compra ${compra.numero}`,
             contraparte: compra.proveedor.razonSocial,
+            contraparteTipo: 'proveedor',
             creadoPorId: usuarioId,
           },
         });
@@ -382,12 +413,14 @@ export class ComprasService {
         pagoId: pago.id,
         compraNumero: compra.numero,
         fecha: fechaPago,
-        monto: dto.monto,
+        monto: montoPen,
         medio: dto.medio,
         proveedorDoc: {
           tipo: compra.proveedor.tipoDocumento,
           numero: compra.proveedor.documento,
         },
+        moneda: compra.moneda,
+        tipoCambio: D(compra.tipoCambio),
         usuarioId,
       });
 
@@ -437,11 +470,14 @@ export class ComprasService {
           .catch(() => undefined);
       }
 
+      // Mismo criterio PEN que el incremento de crear(), si no la deuda se
+      // desincroniza permanentemente.
+      const tc = D(compra.tipoCambio);
       await tx.proveedor.update({
         where: { id: compra.proveedorId },
         data: {
-          totalComprado: { decrement: D(compra.total) },
-          deudaActual: { decrement: D(compra.total) - D(compra.totalPagado) },
+          totalComprado: { decrement: aPEN(D(compra.total), tc) },
+          deudaActual: { decrement: aPEN(D(compra.total) - D(compra.totalPagado), tc) },
         },
       });
 

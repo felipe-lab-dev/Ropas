@@ -131,6 +131,38 @@ export const CODIGO_TIPO_DOC_IDENTIDAD: Record<TipoDocumento, string> = {
   otro: '0',
 };
 
+// ─── Reglas SUNAT — identificación del adquiriente en boletas ────────────────
+
+/**
+ * Umbral (S/) por encima del cual una BOLETA debe identificar al adquiriente con
+ * su documento (DNI u otro). Reglamento de Comprobantes de Pago: las boletas
+ * cuyo importe total supere S/ 700 deben consignar los datos de identificación
+ * del adquiriente. Por debajo se admite "consumidor final".
+ */
+export const UMBRAL_IDENTIFICACION_BOLETA = 700;
+
+/**
+ * Número de documento genérico para boleta a "consumidor final" (cliente sin DNI).
+ * Convención documentada por Mifact: COD_TIP_NIF_RECP='0' + NUM_NIF_RECP='00000000'.
+ */
+export const NUM_DOC_CONSUMIDOR_FINAL = '00000000';
+
+/**
+ * ¿El número de documento identifica realmente al adquiriente? Es decir, NO es el
+ * placeholder de consumidor final ('00000000') ni está vacío.
+ */
+export function documentoIdentificaAdquiriente(
+  numeroDocumento: string | null | undefined,
+): boolean {
+  const n = (numeroDocumento ?? '').trim();
+  return n.length > 0 && n !== NUM_DOC_CONSUMIDOR_FINAL;
+}
+
+/** ¿Una boleta de este importe total exige identificar al adquiriente con su documento? */
+export function boletaRequiereIdentificacion(totalVenta: number): boolean {
+  return Number.isFinite(totalVenta) && totalVenta > UMBRAL_IDENTIFICACION_BOLETA;
+}
+
 // Códigos de estado que devuelve Mifact tras consulta a SUNAT
 export const CODIGO_A_ESTADO_SUNAT: Record<string, EstadoSunat> = {
   '101': 'en_proceso',

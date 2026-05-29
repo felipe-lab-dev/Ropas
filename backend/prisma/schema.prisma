@@ -586,6 +586,9 @@ model SesionCaja {
   montoCierre   Decimal?         @map("monto_cierre") @db.Decimal(12, 2)
   montoEsperado Decimal?         @map("monto_esperado") @db.Decimal(12, 2)
   diferencia    Decimal?         @db.Decimal(12, 2)
+  // Arqueo de monedas ADICIONALES a PEN (p.ej. USD). PEN vive en las columnas
+  // monto* de arriba. Array de { moneda, apertura, cierre, esperado, diferencia }.
+  saldosMoneda  Json?            @map("saldos_moneda")
   notasApertura String?          @map("notas_apertura") @db.Text
   notasCierre   String?          @map("notas_cierre") @db.Text
   abiertaEn     DateTime         @default(now()) @map("abierta_en")
@@ -644,6 +647,7 @@ model MovimientoCaja {
   categoria             CategoriaMovimientoCaja? @default(otro_ingreso)
   subCategoria          String?                  @map("sub_categoria") @db.VarChar(40)
   medio                 MedioPago                @default(efectivo)
+  moneda                String                   @default("PEN") @db.VarChar(3)
   monto                 Decimal                  @db.Decimal(12, 2)
   motivo                String                   @db.VarChar(240)
   comprobante           String?                  @db.VarChar(60)
@@ -1216,11 +1220,12 @@ model ConfiguracionFacturacion {
   direccionFiscal    String  @map("direccion_fiscal") @db.VarChar(240)
   ubigeoFiscalCodigo String  @map("ubigeo_fiscal_codigo") @db.VarChar(6)
 
-  enviarAutomaticoASunat Boolean @default(true) @map("enviar_automatico_a_sunat")
-  retornarPdf            Boolean @default(true) @map("retornar_pdf")
-  retornarXmlEnvio       Boolean @default(false) @map("retornar_xml_envio")
-  retornarXmlCdr         Boolean @default(false) @map("retornar_xml_cdr")
-  formatoImpresion       String  @default("001") @map("formato_impresion") @db.VarChar(3)
+  // Formato de impresión del PDF que se solicita on-demand a Mifact (GetInvoice):
+  // '001'=A4, '002'=A5, '004'=Ticket 80mm. La emisión NUNCA pide PDF/XML/CDR ni
+  // controla el modo de envío: el envío a SUNAT es siempre síncrono y los
+  // documentos (PDF/XML/CDR) se obtienen a pedido cuando el usuario presiona el
+  // botón respectivo. Por eso no hay flags enviar/retornar* persistidos.
+  formatoImpresion String @default("001") @map("formato_impresion") @db.VarChar(3)
 
   creadoEn      DateTime @default(now()) @map("creado_en")
   actualizadoEn DateTime @updatedAt @map("actualizado_en")

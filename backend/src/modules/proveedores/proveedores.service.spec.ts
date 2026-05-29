@@ -131,36 +131,54 @@ describe('ProveedoresService', () => {
   // ---------- detalle ----------
 
   describe('detalle', () => {
-    it('calcula deuda viva sumando solo compras pendientes/parciales/vencidas no anuladas', async () => {
+    it('calcula deuda viva (PEN) sumando solo compras pendientes/parciales/vencidas no anuladas', async () => {
       const prov = { id: 'p1', razonSocial: 'ACME', tipoDocumento: 'ruc' };
       cliente.proveedor.findFirst.mockResolvedValue(prov);
       cliente.compra.count.mockResolvedValue(3);
       cliente.compra.findFirst.mockResolvedValue({
         id: 'c1', numero: 'C-1', total: new Prisma.Decimal('100.00'), fechaEmision: new Date('2026-01-01'),
       });
-      cliente.compra.aggregate.mockResolvedValue({
-        _sum: {
+      // Una sola compra PEN (tc=1): deuda = 500 - 150.50 = 349.50
+      cliente.compra.findMany.mockResolvedValue([
+        {
           total: new Prisma.Decimal('500.00'),
           totalPagado: new Prisma.Decimal('150.50'),
+          tipoCambio: new Prisma.Decimal('1'),
         },
-      });
+      ]);
 
       const res = await service.detalle('p1', ctx);
 
       expect(res.stats.totalCompras).toBe(3);
       expect(res.stats.deudaCalculada).toBe('349.50');
-      const whereAgg = cliente.compra.aggregate.mock.calls[0][0].where;
-      expect(whereAgg.proveedorId).toBe('p1');
-      expect(whereAgg.eliminadoEn).toBeNull();
-      expect(whereAgg.anuladaEn).toBeNull();
-      expect(whereAgg.estadoPago).toEqual({ in: ['pendiente', 'parcial', 'vencida'] });
+      const whereFind = cliente.compra.findMany.mock.calls[0][0].where;
+      expect(whereFind.proveedorId).toBe('p1');
+      expect(whereFind.eliminadoEn).toBeNull();
+      expect(whereFind.anuladaEn).toBeNull();
+      expect(whereFind.estadoPago).toEqual({ in: ['pendiente', 'parcial', 'vencida'] });
+      // No debe usar aggregate (mezclaría monedas)
+      expect(cliente.compra.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('normaliza a PEN compras en USD + PEN con su tipo de cambio', async () => {
+      cliente.proveedor.findFirst.mockResolvedValue({ id: 'p1', razonSocial: 'ACME' });
+      cliente.compra.count.mockResolvedValue(2);
+      cliente.compra.findFirst.mockResolvedValue(null);
+      // 100 PEN (tc=1) + 50 USD (tc=3.8) = 100 + 190 = 290 PEN
+      cliente.compra.findMany.mockResolvedValue([
+        { total: new Prisma.Decimal('100'), totalPagado: new Prisma.Decimal('0'), tipoCambio: new Prisma.Decimal('1') },
+        { total: new Prisma.Decimal('50'), totalPagado: new Prisma.Decimal('0'), tipoCambio: new Prisma.Decimal('3.8') },
+      ]);
+
+      const res = await service.detalle('p1', ctx);
+      expect(res.stats.deudaCalculada).toBe('290.00');
     });
 
     it('cuando no hay compras devuelve deuda 0.00', async () => {
       cliente.proveedor.findFirst.mockResolvedValue({ id: 'p1' });
       cliente.compra.count.mockResolvedValue(0);
       cliente.compra.findFirst.mockResolvedValue(null);
-      cliente.compra.aggregate.mockResolvedValue({ _sum: { total: null, totalPagado: null } });
+      cliente.compra.findMany.mockResolvedValue([]);
 
       const res = await service.detalle('p1', ctx);
       expect(res.stats.totalCompras).toBe(0);

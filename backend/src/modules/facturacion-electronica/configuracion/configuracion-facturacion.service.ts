@@ -25,10 +25,6 @@ export interface ConfiguracionFacturacionGuardada {
   direccionFiscal: string;
   ubigeoFiscalCodigo: string;
   mifactBaseUrl: string;
-  enviarAutomaticoASunat: boolean;
-  retornarPdf: boolean;
-  retornarXmlEnvio: boolean;
-  retornarXmlCdr: boolean;
   formatoImpresion: string;
 }
 
@@ -40,16 +36,23 @@ export interface ConfiguracionFacturacionResuelta {
   nombreComercial: string | null;
   direccionFiscal: string;
   ubigeoFiscalCodigo: string;
-  enviarAutomaticoASunat: boolean;
-  retornarPdf: boolean;
-  retornarXmlEnvio: boolean;
-  retornarXmlCdr: boolean;
   formatoImpresion: string;
 }
 
 @Injectable()
 export class ConfiguracionFacturacionService {
   constructor(private readonly prismaTenancy: PrismaTenantService) {}
+
+  /**
+   * ¿El tenant tiene facturación electrónica configurada? Chequeo barato (sin
+   * descifrar token) para que otros módulos decidan si una venta emitirá CPE.
+   */
+  async estaConfigurada(ctx: TenantContext): Promise<boolean> {
+    const config = await this.prismaTenancy
+      .forTenant(ctx)
+      .configuracionFacturacion.findFirst({ select: { id: true } });
+    return config !== null;
+  }
 
   async obtenerConfiguracion(ctx: TenantContext): Promise<ConfiguracionFacturacionResuelta> {
     const config = await this.prismaTenancy.forTenant(ctx).configuracionFacturacion.findFirst();
@@ -76,10 +79,6 @@ export class ConfiguracionFacturacionService {
       nombreComercial: config.nombreComercial,
       direccionFiscal: config.direccionFiscal,
       ubigeoFiscalCodigo: config.ubigeoFiscalCodigo,
-      enviarAutomaticoASunat: config.enviarAutomaticoASunat,
-      retornarPdf: config.retornarPdf,
-      retornarXmlEnvio: config.retornarXmlEnvio,
-      retornarXmlCdr: config.retornarXmlCdr,
       formatoImpresion: config.formatoImpresion,
     };
   }
@@ -123,10 +122,6 @@ export class ConfiguracionFacturacionService {
       ubigeoFiscalCodigo: dto.ubigeoFiscalCodigo,
       mifactTokenCifrado: tokenCifrado,
       mifactBaseUrl: dto.mifactBaseUrl ?? 'https://demo.mifact.net.pe/api',
-      enviarAutomaticoASunat: dto.enviarAutomaticoASunat ?? true,
-      retornarPdf: dto.retornarPdf ?? true,
-      retornarXmlEnvio: dto.retornarXmlEnvio ?? false,
-      retornarXmlCdr: dto.retornarXmlCdr ?? false,
       formatoImpresion: dto.formatoImpresion ?? '001',
     };
 
@@ -148,10 +143,6 @@ export class ConfiguracionFacturacionService {
       direccionFiscal: data.direccionFiscal,
       ubigeoFiscalCodigo: data.ubigeoFiscalCodigo,
       mifactBaseUrl: data.mifactBaseUrl,
-      enviarAutomaticoASunat: data.enviarAutomaticoASunat,
-      retornarPdf: data.retornarPdf,
-      retornarXmlEnvio: data.retornarXmlEnvio,
-      retornarXmlCdr: data.retornarXmlCdr,
       formatoImpresion: data.formatoImpresion,
     };
   }

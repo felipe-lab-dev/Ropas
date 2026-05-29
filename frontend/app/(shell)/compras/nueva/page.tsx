@@ -13,6 +13,7 @@ import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { obtener, obtenerPaginado, postear, mensajeError } from '@/lib/api/client';
 import { formatearMoneda } from '@/lib/utils';
+import { CampoTipoCambio, type FuenteTc } from '@/components/utilidades/campo-tipo-cambio';
 
 interface Proveedor { id: string; razonSocial: string; documento: string; condicionPago: string; diasCredito: number }
 interface Sucursal { id: string; nombre: string }
@@ -42,6 +43,9 @@ export default function NuevaCompraPage() {
   const [busqueda, setBusqueda] = React.useState('');
   const [debounced, setDebounced] = React.useState('');
   const [notas, setNotas] = React.useState('');
+  const [moneda, setMoneda] = React.useState<'PEN' | 'USD'>('PEN');
+  const [tipoCambio, setTipoCambio] = React.useState<number | null>(null);
+  const [fuenteTc, setFuenteTc] = React.useState<FuenteTc>('oficial');
 
   React.useEffect(() => {
     const t = setTimeout(() => setDebounced(busqueda), 200);
@@ -114,6 +118,8 @@ export default function NuevaCompraPage() {
         numeroComprobante,
         fechaEmision,
         condicionPago,
+        moneda,
+        tipoCambio: moneda === 'USD' ? (tipoCambio ?? 1) : 1,
         items: items.map(i => ({
           varianteId: i.varianteId,
           cantidad: i.cantidad,
@@ -130,7 +136,13 @@ export default function NuevaCompraPage() {
     onError: e => toast.error(mensajeError(e)),
   });
 
-  const puede = proveedorId && sucursalId && serie && numeroComprobante && items.length > 0;
+  const puede =
+    proveedorId &&
+    sucursalId &&
+    serie &&
+    numeroComprobante &&
+    items.length > 0 &&
+    (moneda === 'PEN' || (tipoCambio !== null && tipoCambio > 0));
 
   return (
     <div className="space-y-6">
@@ -223,6 +235,30 @@ export default function NuevaCompraPage() {
                 <option value="credito_60">Crédito 60 días</option>
               </select>
             </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold">Moneda</label>
+              <select
+                data-testid="select-moneda-compra"
+                className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] px-3 text-sm"
+                value={moneda}
+                onChange={e => setMoneda(e.target.value as 'PEN' | 'USD')}
+              >
+                <option value="PEN">PEN — Soles</option>
+                <option value="USD">USD — Dólares</option>
+              </select>
+            </div>
+            {moneda === 'USD' && (
+              <CampoTipoCambio
+                fecha={fechaEmision}
+                valor={tipoCambio}
+                fuente={fuenteTc}
+                onCambio={(tc, f) => {
+                  setTipoCambio(tc);
+                  setFuenteTc(f);
+                }}
+                testId="campo-tipo-cambio-compra"
+              />
+            )}
           </div>
 
           <div className="pt-2 border-t border-[hsl(var(--border))] space-y-3">
@@ -309,16 +345,24 @@ export default function NuevaCompraPage() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-[hsl(var(--text-muted))]">Base imponible</span>
-              <span className="tabular-nums">{formatearMoneda(subtotal)}</span>
+              <span className="tabular-nums">{formatearMoneda(subtotal, moneda)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-[hsl(var(--text-muted))]">IGV (18%)</span>
-              <span className="tabular-nums">{formatearMoneda(igv)}</span>
+              <span className="tabular-nums">{formatearMoneda(igv, moneda)}</span>
             </div>
             <div className="flex justify-between pt-2 border-t border-[hsl(var(--border))] text-base font-bold">
               <span>Total</span>
-              <span className="tabular-nums">{formatearMoneda(total)}</span>
+              <span className="tabular-nums">{formatearMoneda(total, moneda)}</span>
             </div>
+            {moneda === 'USD' && tipoCambio ? (
+              <div className="flex justify-between text-xs text-[hsl(var(--text-muted))]">
+                <span>Equivalente en soles (TC {tipoCambio})</span>
+                <span className="tabular-nums" data-testid="equivalente-pen-compra">
+                  {formatearMoneda(total * tipoCambio, 'PEN')}
+                </span>
+              </div>
+            ) : null}
           </div>
 
           <Button

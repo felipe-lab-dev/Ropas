@@ -12,15 +12,32 @@ import { Textarea } from '@/components/ui/textarea';
 import { postear, mensajeError } from '@/lib/api/client';
 import { formatearMoneda } from '@/lib/utils';
 
+interface SaldoMonedaTotales {
+  moneda: string;
+  apertura: number;
+  ingresos: number;
+  egresos: number;
+  efectivoEsperado: number;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   sesionId: string;
   efectivoEsperado: number;
+  /** Monedas adicionales a PEN presentes en la sesión (USD…) para arquear aparte. */
+  porMoneda?: SaldoMonedaTotales[];
 }
 
-export function DialogCierre({ open, onOpenChange, sesionId, efectivoEsperado }: Props) {
+export function DialogCierre({
+  open,
+  onOpenChange,
+  sesionId,
+  efectivoEsperado,
+  porMoneda = [],
+}: Props) {
   const [monto, setMonto] = React.useState('');
+  const [montosExtra, setMontosExtra] = React.useState<Record<string, string>>({});
   const [notas, setNotas] = React.useState('');
   const qc = useQueryClient();
 
@@ -31,11 +48,15 @@ export function DialogCierre({ open, onOpenChange, sesionId, efectivoEsperado }:
     mutationFn: () =>
       postear(`/caja/${sesionId}/cerrar`, {
         montoCierre: parseFloat(monto),
+        cierresMoneda: porMoneda
+          .filter(p => (montosExtra[p.moneda] ?? '') !== '')
+          .map(p => ({ moneda: p.moneda, monto: parseFloat(montosExtra[p.moneda]!) })),
         notas: notas || undefined,
       }),
     onSuccess: () => {
       toast.success('Caja cerrada');
       setMonto('');
+      setMontosExtra({});
       setNotas('');
       qc.invalidateQueries({ queryKey: ['caja-mi-sesion'] });
       qc.invalidateQueries({ queryKey: ['caja-sesiones'] });
@@ -114,6 +135,44 @@ export function DialogCierre({ open, onOpenChange, sesionId, efectivoEsperado }:
             autoFocus
           />
         </div>
+
+        {porMoneda.map(p => {
+          const contado = montosExtra[p.moneda] ?? '';
+          const dif = contado !== '' ? parseFloat(contado) - p.efectivoEsperado : 0;
+          const hayDif = contado !== '' && Math.abs(dif) >= 0.01;
+          return (
+            <div
+              key={p.moneda}
+              className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/30 p-3 space-y-2"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--text-muted))]">
+                  Arqueo {p.moneda}
+                </span>
+                <span className="text-xs text-[hsl(var(--text-muted))]">
+                  Esperado{' '}
+                  <strong className="tabular-nums">
+                    {formatearMoneda(p.efectivoEsperado, p.moneda)}
+                  </strong>
+                </span>
+              </div>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder={`Contado en ${p.moneda}`}
+                value={contado}
+                onChange={e => setMontosExtra(s => ({ ...s, [p.moneda]: e.target.value }))}
+                className="font-mono"
+              />
+              {hayDif && (
+                <p className="text-[11px] text-[hsl(35_90%_65%)]">
+                  Diferencia {formatearMoneda(dif, p.moneda)} — quedará marcada para revisión.
+                </p>
+              )}
+            </div>
+          );
+        })}
 
         <div className="space-y-2">
           <Label htmlFor="cierre-notas">Notas de cierre (opcional)</Label>

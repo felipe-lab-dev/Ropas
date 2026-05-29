@@ -372,10 +372,6 @@ export async function setConfiguracionFE(
     ubigeoFiscalCodigo: string;
     mifactToken: string;
     mifactBaseUrl: string;
-    enviarAutomaticoASunat: boolean;
-    retornarPdf: boolean;
-    retornarXmlEnvio: boolean;
-    retornarXmlCdr: boolean;
     formatoImpresion: '001' | '002' | '004';
   }>,
 ): Promise<void> {
@@ -387,10 +383,6 @@ export async function setConfiguracionFE(
     direccionFiscal: actual.direccionFiscal ?? 'Av. La Marina 123',
     ubigeoFiscalCodigo: actual.ubigeoFiscalCodigo ?? '150101',
     mifactBaseUrl: actual.mifactBaseUrl ?? 'https://demo.mifact.net.pe/api',
-    enviarAutomaticoASunat: actual.enviarAutomaticoASunat ?? true,
-    retornarPdf: actual.retornarPdf ?? true,
-    retornarXmlEnvio: actual.retornarXmlEnvio ?? false,
-    retornarXmlCdr: actual.retornarXmlCdr ?? false,
     formatoImpresion: actual.formatoImpresion ?? '001',
     ...patch,
   };

@@ -5,8 +5,10 @@ import {
   IsEnum,
   IsNumber,
   IsOptional,
+  IsPositive,
   IsString,
   IsUUID,
+  Matches,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -38,8 +40,10 @@ export class CrearCompraDto {
   @IsArray() @ArrayNotEmpty() @ValidateNested({ each: true }) @Type(() => CrearCompraItemDto)
   items!: CrearCompraItemDto[];
 
-  @IsOptional() @IsString() moneda?: string;
-  @IsOptional() @IsNumber() tipoCambio?: number;
+  /** ISO-4217 de 3 letras (PEN/USD). La regla moneda↔TC vive en el service. */
+  @IsOptional() @IsString() @Matches(/^[A-Z]{3}$/i, { message: 'moneda debe ser un código de 3 letras (ej. PEN, USD)' })
+  moneda?: string;
+  @IsOptional() @IsNumber() @IsPositive() tipoCambio?: number;
   @IsOptional() @IsNumber() descuento?: number;
   @IsOptional() @IsNumber() otrosImpuestos?: number;
   /** Si no se manda, se calcula 18% sobre subtotal. */
