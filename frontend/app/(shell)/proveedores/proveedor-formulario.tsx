@@ -104,7 +104,7 @@ export function ProveedorFormulario({
 
   React.useEffect(() => {
     if (inicial) setForm(prev => ({ ...prev, ...inicial }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [inicial]);
 
   const set = <K extends keyof ProveedorFormValues>(k: K, v: ProveedorFormValues[K]) => {
@@ -399,7 +399,7 @@ export function ProveedorFormulario({
           />
           {!esLibre && form.condicionPago !== 'contado' && (
             <p id="diasCreditoHint" className="text-[11px] text-[hsl(var(--text-muted))] mt-1">
-              Cambia la condición a "Crédito (otro)" para editar manualmente.
+              Cambia la condición a &quot;Crédito (otro)&quot; para editar manualmente.
             </p>
           )}
         </Campo>

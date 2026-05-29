@@ -41,6 +41,8 @@ interface ItemCarrito {
   talla: string;
   color: string;
   precioUnitario: number;
+  /** Precio de lista original (antes de cualquier descuento manual por ítem). */
+  precioOriginal: number;
   cantidad: number;
   stockDisponible: number;
 }
@@ -82,6 +84,10 @@ export default function PosPage() {
   const usuario = useSesion(s => s.usuario);
   const cuponInicial = useSearchParams().get('cupon') ?? '';
   const [carrito, setCarrito] = React.useState<ItemCarrito[]>([]);
+  // Se incrementa en cada edición de precio para forzar el remount del input
+  // no controlado (defaultValue) y que siempre muestre el valor canónico tras
+  // un clamp o un rechazo (ej. el cajero escribe 0 o un monto sobre el de lista).
+  const [edicionPrecioNonce, setEdicionPrecioNonce] = React.useState(0);
   const [busqueda, setBusqueda] = React.useState('');
   const [debouncedBusqueda, setDebouncedBusqueda] = React.useState('');
   const [medioPago, setMedioPago] = React.useState<'efectivo' | 'tarjeta_debito' | 'yape'>('efectivo');
@@ -230,6 +236,7 @@ export default function PosPage() {
         talla: v.talla,
         color: v.color,
         precioUnitario: precio,
+        precioOriginal: precio,
         cantidad: 1,
         stockDisponible,
       }];
@@ -249,6 +256,47 @@ export default function PosPage() {
         }
         return [{ ...i, cantidad: nueva }];
       }),
+    );
+  };
+
+  // Descuento por total de línea: el cajero escribe el monto final que quiere
+  // cobrar por toda la línea (útil con cantidad > 1, donde dividir a mano es
+  // incómodo). Derivamos el precio unitario hacia atrás (total / cantidad).
+  //
+  // OJO: el precio unitario es el único lever válido. El comprobante SUNAT se
+  // arma con precioUnitario × cantidad e IGNORA el descuento por ítem, así que
+  // tocar el precio es lo único que mantiene la boleta cuadrada con lo cobrado.
+  // Para cantidades que no dividen exacto (ej. 430 / 3) puede quedar a ±1 cén-
+  // timo; el total mostrado refleja el real, no miente.
+  const cambiarTotalLinea = (varianteId: string, valor: string) => {
+    const total = parseFloat(valor);
+    const item = carrito.find(i => i.varianteId === varianteId);
+    // Siempre forzamos el remount del input al terminar de editar, así vuelve
+    // al valor canónico aunque lo escrito haya sido rechazado o recortado.
+    setEdicionPrecioNonce(n => n + 1);
+    if (!item) return;
+
+    // Un total <= 0 NO es válido para SUNAT: un ítem gravado a precio 0 con
+    // COD_TIP_PRC_VTA "01" (onerosa) se rechaza. Para regalar haría falta
+    // soporte de transferencia gratuita (tipo "02"), que no existe. Quitar un
+    // producto se hace con la ✕, no poniéndolo en 0.
+    if (isNaN(total) || total <= 0) {
+      if (!isNaN(total)) {
+        toast.info('El precio no puede ser 0. Usa la ✕ para quitar el producto.');
+      }
+      return;
+    }
+
+    // Solo descuentos: el total de la línea no puede superar el de lista.
+    const maxTotal = item.precioOriginal * item.cantidad;
+    let efectivo = total;
+    if (efectivo > maxTotal) {
+      efectivo = maxTotal;
+      toast.info(`El total no puede superar el de lista (${formatearMoneda(maxTotal)})`);
+    }
+    const unit = Math.round((efectivo / item.cantidad) * 100) / 100;
+    setCarrito(c =>
+      c.map(i => (i.varianteId === varianteId ? { ...i, precioUnitario: unit } : i)),
     );
   };
 
@@ -341,8 +389,8 @@ export default function PosPage() {
     modalidadComprobante.tipo === 'boleta' && total > UMBRAL_DNI_BOLETA && !clienteIdentificado;
 
   return (
-    <div className="grid lg:grid-cols-[1fr_440px] gap-6 -m-8 p-8 min-h-[calc(100vh-3.5rem)]">
-      <div className="space-y-4">
+    <div className="grid lg:grid-cols-[1fr_440px] gap-6">
+      <div className="space-y-4 min-w-0">
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -471,8 +519,11 @@ export default function PosPage() {
                     >
                       <div className="flex-1 min-w-0">
                         <div className="font-medium">{i.productoNombre}</div>
-                        <div className="text-xs text-[hsl(var(--text-muted))]">
-                          Talla {i.talla} · {i.color} · {formatearMoneda(i.precioUnitario)}
+                        <div className="text-xs text-[hsl(var(--text-muted))] mt-1">
+                          Talla {i.talla} · {i.color}
+                          {i.cantidad > 1 && (
+                            <> · {formatearMoneda(i.precioUnitario)} c/u</>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
@@ -484,8 +535,32 @@ export default function PosPage() {
                           <Plus className="size-3" />
                         </Button>
                       </div>
-                      <div className="w-24 text-right font-bold tabular-nums">
-                        {formatearMoneda(i.precioUnitario * i.cantidad)}
+                      <div className="w-28 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <span className="text-[11px] text-[hsl(var(--text-muted))]">S/</span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step="0.01"
+                            min="0"
+                            key={`tot-${i.varianteId}-${i.cantidad}-${i.precioUnitario}-${edicionPrecioNonce}`}
+                            defaultValue={(i.precioUnitario * i.cantidad).toFixed(2)}
+                            onFocus={e => e.target.select()}
+                            onBlur={e => cambiarTotalLinea(i.varianteId, e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                            data-testid={`pos-total-item-${i.varianteId}`}
+                            aria-label={`Total de la línea de ${i.productoNombre}`}
+                            className="w-24 h-8 px-2 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/40 text-sm font-bold tabular-nums text-right transition-colors focus:outline-none focus:border-[hsl(var(--brand-primary))] focus:bg-[hsl(var(--surface))]"
+                          />
+                        </div>
+                        {i.precioUnitario !== i.precioOriginal && (
+                          <div
+                            className="text-[10px] text-[hsl(var(--text-muted))] line-through tabular-nums mt-0.5"
+                            title="Total de lista"
+                          >
+                            {formatearMoneda(i.precioOriginal * i.cantidad)}
+                          </div>
+                        )}
                       </div>
                       <Button variant="ghost" size="icon-sm" className="text-[hsl(var(--brand-danger))]" onClick={() => remover(i.varianteId)}>
                         <X className="size-3.5" />
@@ -578,12 +653,20 @@ export default function PosPage() {
                   <Button
                     variant="outline"
                     size="icon"
-                    asChild
-                    title="Crear cliente"
+                    type="button"
+                    data-testid="pos-crear-cliente-doc"
+                    disabled={!tipoDocBusqueda || creandoClienteDoc}
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={consultarYCrearCliente}
+                    title={
+                      tipoDocBusqueda
+                        ? `Consultar ${tipoDocBusqueda === 'ruc' ? 'SUNAT' : 'RENIEC'} y crear cliente`
+                        : 'Ingresa un DNI (8 dígitos) o RUC (11 dígitos) para crear el cliente'
+                    }
                   >
-                    <Link href="/clientes" target="_blank" rel="noopener">
-                      <UserPlus className="size-4" />
-                    </Link>
+                    {creandoClienteDoc
+                      ? <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      : <UserPlus className="size-4" />}
                   </Button>
                 </div>
                 {popoverClienteAbierto && debouncedBuscarCliente.length >= 2 && (
@@ -593,25 +676,12 @@ export default function PosPage() {
                     )}
                     {!buscandoClientes &&
                       (clientesEncontrados?.datos.length === 0 ? (
-                        <div className="p-3 space-y-2">
-                          <p className="text-xs text-[hsl(var(--text-muted))]">Sin coincidencias.</p>
-                          {tipoDocBusqueda && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="w-full justify-center"
-                              disabled={creandoClienteDoc}
-                              onMouseDown={e => e.preventDefault()}
-                              onClick={consultarYCrearCliente}
-                              data-testid="pos-crear-cliente-doc"
-                            >
-                              <UserPlus className="size-3.5" />
-                              {creandoClienteDoc
-                                ? 'Consultando…'
-                                : `Consultar ${tipoDocBusqueda === 'ruc' ? 'SUNAT' : 'RENIEC'} y crear`}
-                            </Button>
-                          )}
+                        <div className="p-3">
+                          <p className="text-xs text-[hsl(var(--text-muted))]">
+                            {tipoDocBusqueda
+                              ? `Sin coincidencias. Usa el botón ${tipoDocBusqueda === 'ruc' ? 'SUNAT' : 'RENIEC'} 👤+ para crearlo.`
+                              : 'Sin coincidencias.'}
+                          </p>
                         </div>
                       ) : (
                         clientesEncontrados?.datos.map(c => (
@@ -636,6 +706,19 @@ export default function PosPage() {
                         ))
                       ))}
                   </div>
+                )}
+                {!requiereDni && (
+                  <p
+                    data-testid="pos-hint-consumidor-final"
+                    className="mt-2 flex items-start gap-1.5 text-[11px] text-[hsl(var(--text-muted))]"
+                  >
+                    <Receipt className="size-3.5 shrink-0 mt-px" />
+                    <span>
+                      ¿Sin cliente? Cobrá directo y se emite{' '}
+                      <span className="font-medium text-[hsl(var(--text))]">boleta a consumidor final</span>{' '}
+                      (sin DNI ni nombre). Válido hasta {formatearMoneda(UMBRAL_DNI_BOLETA)}.
+                    </span>
+                  </p>
                 )}
               </div>
             )}

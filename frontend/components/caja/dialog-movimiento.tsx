@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { postear, mensajeError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
   CATEGORIAS_INGRESO,
   CATEGORIAS_EGRESO,
@@ -178,23 +179,16 @@ export function DialogMovimiento({
               <div className="sm:col-span-2 space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="mov-monto">Monto</Label>
-                  <div className="inline-flex rounded-md border border-[hsl(var(--border))] p-0.5">
-                    {(['PEN', 'USD'] as const).map(mon => (
-                      <button
-                        key={mon}
-                        type="button"
-                        onClick={() => set('moneda', mon)}
-                        className={cn(
-                          'px-2 h-6 rounded text-[10px] font-bold transition-all',
-                          estado.moneda === mon
-                            ? 'bg-[hsl(var(--brand-accent))]/15 text-[hsl(var(--brand-accent))]'
-                            : 'text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))]',
-                        )}
-                      >
-                        {mon === 'PEN' ? 'S/ PEN' : 'US$ USD'}
-                      </button>
-                    ))}
-                  </div>
+                  <SegmentedControl
+                    size="sm"
+                    ariaLabel="Moneda"
+                    value={estado.moneda}
+                    onChange={mon => set('moneda', mon)}
+                    options={[
+                      { value: 'PEN', label: 'S/ PEN' },
+                      { value: 'USD', label: 'US$ USD' },
+                    ]}
+                  />
                 </div>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base font-bold text-[hsl(var(--brand-accent))] pointer-events-none">

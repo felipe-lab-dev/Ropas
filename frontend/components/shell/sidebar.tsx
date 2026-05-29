@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, ShoppingCart, Boxes, Wallet,
   Users, BarChart3, Settings, Building2, ChevronLeft, Sparkles,
-  Receipt, Home, History, Truck, PackageCheck, BookOpen, Tag, RotateCcw,
+  Receipt, Home, Truck, PackageCheck, BookOpen, Tag, RotateCcw,
   UserCog, ShieldCheck, ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -45,7 +45,6 @@ const SECCIONES: NavSection[] = [
       { label: 'Ventas', href: '/ventas', icon: Receipt, modulo: 'ventas' },
       { label: 'Notas de crédito', href: '/notas-credito', icon: RotateCcw, modulo: 'notas-credito' },
       { label: 'Caja', href: '/caja', icon: Wallet, modulo: 'caja' },
-      { label: 'Historial de caja', href: '/caja/historial', icon: History, modulo: 'caja' },
     ],
   },
   {

@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import {
   LayoutDashboard, Package, ShoppingCart, Boxes, Wallet,
-  Users, BarChart3, Settings, Building2, Home, History,
+  Users, BarChart3, Settings, Building2, Home,
   Truck, PackageCheck, BookOpen, Receipt, UserCog, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -34,7 +34,6 @@ const SECCIONES = [
       { label: 'Punto de Venta', href: '/pos', icon: ShoppingCart, modulo: 'ventas' },
       { label: 'Ventas', href: '/ventas', icon: Receipt, modulo: 'ventas' },
       { label: 'Caja', href: '/caja', icon: Wallet, modulo: 'caja' },
-      { label: 'Historial', href: '/caja/historial', icon: History, modulo: 'caja' },
     ],
   },
   {
