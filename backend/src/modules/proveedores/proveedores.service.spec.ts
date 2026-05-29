@@ -226,6 +226,26 @@ describe('ProveedoresService', () => {
       expect(data.tags).toEqual([]);
       expect(data.nombreComercial).toBeNull();
     });
+
+    it('asigna PR00001 al primer proveedor (sin códigos previos)', async () => {
+      cliente.proveedor.findFirst.mockResolvedValue(null); // dup-check y código → null
+      cliente.proveedor.create.mockResolvedValue({ id: 'p1' });
+      await service.crear(dto, ctx);
+      expect(cliente.proveedor.create.mock.calls[0][0].data.codigo).toBe('PR00001');
+      // findFirst se llama 2 veces: chequeo de duplicado + búsqueda del último código
+      const queryCodigo = cliente.proveedor.findFirst.mock.calls[1][0];
+      expect(queryCodigo.where.codigo).toEqual({ startsWith: 'PR' });
+      expect(queryCodigo.orderBy).toEqual({ codigo: 'desc' });
+    });
+
+    it('genera el código correlativo a partir del último existente', async () => {
+      cliente.proveedor.findFirst
+        .mockResolvedValueOnce(null) // dup-check
+        .mockResolvedValueOnce({ codigo: 'PR00042' }); // último código
+      cliente.proveedor.create.mockResolvedValue({ id: 'p1' });
+      await service.crear(dto, ctx);
+      expect(cliente.proveedor.create.mock.calls[0][0].data.codigo).toBe('PR00043');
+    });
   });
 
   // ---------- actualizar ----------

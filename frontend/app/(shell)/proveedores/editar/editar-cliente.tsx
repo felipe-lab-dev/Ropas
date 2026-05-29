@@ -38,6 +38,7 @@ import {
 
 interface ProveedorDetalle {
   id: string;
+  codigo: string | null;
   tipoDocumento: ProveedorFormValues['tipoDocumento'];
   documento: string;
   razonSocial: string;
@@ -197,7 +198,7 @@ export function EditarProveedorCliente() {
         titulo={proveedor ? proveedor.razonSocial : 'Editar proveedor'}
         descripcion={
           proveedor
-            ? `${proveedor.tipoDocumento.toUpperCase()} ${proveedor.documento} · ${CONDICION_LABEL[proveedor.condicionPago]}`
+            ? `${proveedor.codigo ? `${proveedor.codigo} · ` : ''}${proveedor.tipoDocumento.toUpperCase()} ${proveedor.documento} · ${CONDICION_LABEL[proveedor.condicionPago]}`
             : 'Cargando datos…'
         }
         acciones={

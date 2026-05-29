@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { obtener } from '@/lib/api/client';
 import { PageHeader } from '@/components/ui/page-header';
+import { EstadoError } from '@/components/ui/error-state';
 
 interface Sucursal {
   id: string; codigo: string; nombre: string;
@@ -16,7 +17,7 @@ interface Sucursal {
 }
 
 export default function SucursalesPage() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['sucursales-listado'],
     queryFn: () => obtener<Sucursal[]>('/sucursales'),
   });
@@ -29,6 +30,14 @@ export default function SucursalesPage() {
         acciones={<Button size="lg"><Plus className="size-4" /> Nueva sucursal</Button>}
       />
 
+      {isError ? (
+        <EstadoError
+          titulo="No se pudieron cargar las sucursales"
+          error={error}
+          onReintentar={() => refetch()}
+          reintentando={isFetching}
+        />
+      ) : (
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {isLoading ? (
           [...Array(3)].map((_, i) => <Skeleton key={i} className="h-32" />)
@@ -58,6 +67,7 @@ export default function SucursalesPage() {
           ))
         )}
       </div>
+      )}
     </div>
   );
 }

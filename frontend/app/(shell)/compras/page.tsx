@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Pagination } from '@/components/ui/pagination';
 import { FacetFilter } from '@/components/ui/facet-filter';
 import { EmptyState } from '@/components/ui/empty-state';
+import { EstadoError } from '@/components/ui/error-state';
 
 interface CompraLista {
   id: string;
@@ -61,7 +62,7 @@ export default function ComprasPage() {
   }, [buscar]);
   React.useEffect(() => { setPagina(1); }, [estados]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['compras', debounced, pagina, estados],
     queryFn: () =>
       obtenerPaginado<CompraLista>('/compras', {
@@ -108,6 +109,14 @@ export default function ComprasPage() {
         />
       </Card>
 
+      {isError ? (
+        <EstadoError
+          titulo="No se pudieron cargar las compras"
+          error={error}
+          onReintentar={() => refetch()}
+          reintentando={isFetching}
+        />
+      ) : (
       <Card className="overflow-hidden">
         <Table>
           <TableHeader>
@@ -115,10 +124,10 @@ export default function ComprasPage() {
               <TableHead>Nº</TableHead>
               <TableHead>Comprobante</TableHead>
               <TableHead>Proveedor</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead>Vence</TableHead>
+              <TableHead className="hidden lg:table-cell">Fecha</TableHead>
+              <TableHead className="hidden 2xl:table-cell">Vence</TableHead>
               <TableHead className="text-right">Total</TableHead>
-              <TableHead className="text-right">Pagado</TableHead>
+              <TableHead className="text-right hidden xl:table-cell">Pagado</TableHead>
               <TableHead>Estado</TableHead>
             </TableRow>
           </TableHeader>
@@ -154,10 +163,10 @@ export default function ComprasPage() {
                     <div className="font-medium">{c.proveedor.razonSocial}</div>
                     <div className="text-xs text-[hsl(var(--text-muted))] font-mono">{c.proveedor.documento}</div>
                   </TableCell>
-                  <TableCell className="text-xs">{formatearFecha(c.fechaEmision)}</TableCell>
-                  <TableCell className="text-xs">{c.fechaVencimiento ? formatearFecha(c.fechaVencimiento) : '—'}</TableCell>
+                  <TableCell className="text-xs hidden lg:table-cell">{formatearFecha(c.fechaEmision)}</TableCell>
+                  <TableCell className="text-xs hidden 2xl:table-cell">{c.fechaVencimiento ? formatearFecha(c.fechaVencimiento) : '—'}</TableCell>
                   <TableCell className="text-right tabular-nums font-bold">{formatearMoneda(c.total)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatearMoneda(c.totalPagado)}</TableCell>
+                  <TableCell className="text-right tabular-nums hidden xl:table-cell">{formatearMoneda(c.totalPagado)}</TableCell>
                   <TableCell>
                     {c.estado === 'anulada' ? (
                       <Badge variant="danger">Anulada</Badge>
@@ -182,6 +191,7 @@ export default function ComprasPage() {
           />
         )}
       </Card>
+      )}
     </div>
   );
 }

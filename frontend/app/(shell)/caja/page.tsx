@@ -36,6 +36,7 @@ import { useSesion } from '@/lib/store/sesion';
 import { usePreferencias } from '@/lib/use-preferencias';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
+import { EstadoError } from '@/components/ui/error-state';
 import { KpiCard } from '@/components/caja/kpi-card';
 import { DialogApertura } from '@/components/caja/dialog-apertura';
 import { DialogCierre } from '@/components/caja/dialog-cierre';
@@ -185,7 +186,7 @@ export default function CajaPage() {
       {
         id: 'creadoEn',
         titulo: 'Hora',
-        width: 130,
+        width: 112,
         sortValor: m => m.creadoEn,
         render: m => (
           <span className="text-xs font-semibold tabular-nums whitespace-nowrap">
@@ -196,7 +197,7 @@ export default function CajaPage() {
       {
         id: 'categoria',
         titulo: 'Categoría',
-        width: 170,
+        width: 150,
         sortValor: m => m.categoria ?? '',
         render: m => {
           const def = categoriaDef(m.categoria);
@@ -212,7 +213,7 @@ export default function CajaPage() {
       {
         id: 'motivo',
         titulo: 'Detalle',
-        width: 260,
+        width: 220,
         render: m => (
           <div className="flex flex-col">
             <span className="text-sm font-medium truncate">{m.motivo}</span>
@@ -230,7 +231,8 @@ export default function CajaPage() {
       {
         id: 'comprobante',
         titulo: 'N° comprobante',
-        width: 140,
+        width: 130,
+        colClassName: 'hidden lg:table-cell',
         render: m =>
           m.comprobante ? (
             <span className="text-xs font-mono">{m.comprobante}</span>
@@ -241,7 +243,8 @@ export default function CajaPage() {
       {
         id: 'medio',
         titulo: 'Medio',
-        width: 130,
+        width: 120,
+        colClassName: 'hidden xl:table-cell',
         render: m => (
           <Badge
             variant={esMedioFisico(m.medio as never) ? 'success' : 'default'}
@@ -255,7 +258,7 @@ export default function CajaPage() {
         id: 'monto',
         titulo: 'Monto',
         align: 'right',
-        width: 130,
+        width: 120,
         sortValor: m => Number(m.monto),
         render: m => (
           <span
@@ -379,7 +382,14 @@ export default function CajaPage() {
         </div>
       </Card>
 
-      {sesion ? (
+      {sesionQ.isError ? (
+        <EstadoError
+          titulo="No se pudo cargar el estado de la caja"
+          error={sesionQ.error}
+          onReintentar={() => sesionQ.refetch()}
+          reintentando={sesionQ.isFetching}
+        />
+      ) : sesion ? (
         <>
           {/* KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -551,6 +561,17 @@ export default function CajaPage() {
               </div>
             </div>
 
+            {movimientosQ.isError ? (
+              <div className="p-4">
+                <EstadoError
+                  titulo="No se pudieron cargar los movimientos"
+                  error={movimientosQ.error}
+                  onReintentar={() => movimientosQ.refetch()}
+                  reintentando={movimientosQ.isFetching}
+                />
+              </div>
+            ) : (
+            <>
             <DataTable<MovimientoCaja>
               columnas={columnas}
               filas={movimientosQ.data?.datos ?? []}
@@ -588,6 +609,8 @@ export default function CajaPage() {
                 limite={20}
                 onCambiar={setPagina}
               />
+            )}
+            </>
             )}
           </Card>
         </>

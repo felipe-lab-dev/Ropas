@@ -1,6 +1,6 @@
 -- GENERADO AUTOMÁTICAMENTE — NO EDITAR A MANO.
 -- Regenerar con `pnpm schema:snapshot`.
--- Generado el: 2026-05-27T16:31:22.280Z
+-- Generado el: 2026-05-29T03:18:43.246Z
 
 -- CreateEnum
 DO $$ BEGIN
@@ -59,6 +59,18 @@ END $$;
 -- CreateEnum
 DO $$ BEGIN
   CREATE TYPE "tipo_movimiento_caja" AS ENUM ('ingreso', 'egreso', 'retiro', 'ajuste');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- CreateEnum
+DO $$ BEGIN
+  CREATE TYPE "categoria_movimiento_caja" AS ENUM ('saldo_anterior', 'adelanto_cliente', 'cobro_credito', 'devolucion_proveedor', 'otro_ingreso', 'pago_proveedor', 'servicio_basico', 'comision_empleado', 'refrigerio', 'movilidad', 'publicidad', 'devolucion_cliente', 'otro_egreso');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- CreateEnum
+DO $$ BEGIN
+  CREATE TYPE "tipo_contraparte" AS ENUM ('cliente', 'proveedor', 'empleado', 'otro');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -330,6 +342,7 @@ CREATE TABLE IF NOT EXISTS "movimientos_stock" (
 -- CreateTable
 CREATE TABLE IF NOT EXISTS "clientes" (
     "id" UUID NOT NULL,
+    "codigo" VARCHAR(20),
     "tipo_documento" "tipo_documento" NOT NULL DEFAULT 'dni',
     "documento" VARCHAR(20),
     "nombre" VARCHAR(160) NOT NULL,
@@ -385,8 +398,7 @@ CREATE TABLE IF NOT EXISTS "ventas" (
     "actualizado_en" TIMESTAMP(3) NOT NULL,
     "eliminado_en" TIMESTAMP(3),
 
-    CONSTRAINT "ventas_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "ventas_modalidad_excluyente_chk" CHECK (NOT ("es_nota_de_venta" = true AND "tipo_cpe" IS NOT NULL))
+    CONSTRAINT "ventas_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -481,11 +493,16 @@ CREATE TABLE IF NOT EXISTS "movimientos_caja" (
     "id" UUID NOT NULL,
     "sesion_id" UUID NOT NULL,
     "tipo" "tipo_movimiento_caja" NOT NULL,
+    "categoria" "categoria_movimiento_caja" DEFAULT 'otro_ingreso',
+    "sub_categoria" VARCHAR(40),
     "medio" "medio_pago" NOT NULL DEFAULT 'efectivo',
     "monto" DECIMAL(12,2) NOT NULL,
     "motivo" VARCHAR(240) NOT NULL,
     "comprobante" VARCHAR(60),
     "contraparte" VARCHAR(180),
+    "contraparte_tipo" "tipo_contraparte",
+    "contraparte_id" UUID,
+    "contraparte_documento" VARCHAR(20),
     "creado_por_id" UUID,
     "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "eliminado_en" TIMESTAMP(3),
@@ -510,6 +527,7 @@ CREATE TABLE IF NOT EXISTS "audit_log" (
 -- CreateTable
 CREATE TABLE IF NOT EXISTS "proveedores" (
     "id" UUID NOT NULL,
+    "codigo" VARCHAR(20),
     "tipo_documento" "tipo_documento" NOT NULL DEFAULT 'ruc',
     "documento" VARCHAR(20) NOT NULL,
     "razon_social" VARCHAR(200) NOT NULL,
@@ -837,6 +855,9 @@ CREATE INDEX IF NOT EXISTS "movimientos_stock_variante_id_creado_en_idx" ON "mov
 CREATE INDEX IF NOT EXISTS "movimientos_stock_referencia_tipo_referencia_id_idx" ON "movimientos_stock"("referencia_tipo", "referencia_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "clientes_codigo_key" ON "clientes"("codigo");
+
+-- CreateIndex
 CREATE INDEX IF NOT EXISTS "clientes_eliminado_en_idx" ON "clientes"("eliminado_en");
 
 -- CreateIndex
@@ -897,7 +918,13 @@ CREATE INDEX IF NOT EXISTS "movimientos_caja_sesion_id_creado_en_idx" ON "movimi
 CREATE INDEX IF NOT EXISTS "movimientos_caja_sesion_id_tipo_idx" ON "movimientos_caja"("sesion_id", "tipo");
 
 -- CreateIndex
+CREATE INDEX IF NOT EXISTS "movimientos_caja_sesion_id_categoria_idx" ON "movimientos_caja"("sesion_id", "categoria");
+
+-- CreateIndex
 CREATE INDEX IF NOT EXISTS "audit_log_modulo_creado_en_idx" ON "audit_log"("modulo", "creado_en");
+
+-- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "proveedores_codigo_key" ON "proveedores"("codigo");
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "proveedores_eliminado_en_idx" ON "proveedores"("eliminado_en");
@@ -976,20 +1003,6 @@ CREATE INDEX IF NOT EXISTS "cupones_usos_cliente_id_idx" ON "cupones_usos"("clie
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "series_cpe_sucursal_id_tipo_cpe_aplica_a_idx" ON "series_cpe"("sucursal_id", "tipo_cpe", "aplica_a");
-
--- Unicidad TOTAL: a lo sumo UNA fila por (sucursal, tipoCpe, aplicaA), sin
--- importar `activa`. El toggle activa/inactiva es para "pausar" la serie, no
--- para coexistir con otra del mismo tipo.
--- Dos índices parciales separados porque Postgres trata cada NULL como distinto
--- en UNIQUE normal, así que aplica_a=NULL (factura/boleta/guias) necesita su
--- propio índice condicionado.
-CREATE UNIQUE INDEX IF NOT EXISTS "series_cpe_unicidad_sin_aplica_a"
-  ON "series_cpe" ("sucursal_id", "tipo_cpe")
-  WHERE "aplica_a" IS NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS "series_cpe_unicidad_con_aplica_a"
-  ON "series_cpe" ("sucursal_id", "tipo_cpe", "aplica_a")
-  WHERE "aplica_a" IS NOT NULL;
 
 -- CreateIndex
 CREATE UNIQUE INDEX IF NOT EXISTS "documentos_electronicos_venta_id_key" ON "documentos_electronicos"("venta_id");

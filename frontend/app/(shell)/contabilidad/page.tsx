@@ -15,6 +15,7 @@ import { obtener } from '@/lib/api/client';
 import { api } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
+import { EstadoError } from '@/components/ui/error-state';
 import { cn } from '@/lib/utils';
 
 type Tab = 'diario' | 'mayor' | 'ventas' | 'compras' | 'estado' | 'periodos' | 'plan';
@@ -106,7 +107,7 @@ export default function ContabilidadPage() {
 }
 
 function LibroDiario({ anio, mes, onExportar }: { anio: number; mes: number; onExportar: () => void }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['libro-diario', anio, mes],
     queryFn: () => obtener<any>(`/contabilidad/libro-diario?anio=${anio}&mes=${mes}`),
   });
@@ -126,7 +127,16 @@ function LibroDiario({ anio, mes, onExportar }: { anio: number; mes: number; onE
           <Download className="size-4" /> Exportar PLE 5.1
         </Button>
       </div>
-      {isLoading ? (
+      {isError ? (
+        <div className="p-4">
+          <EstadoError
+            titulo="No se pudo cargar el libro diario"
+            error={error}
+            onReintentar={() => refetch()}
+            reintentando={isFetching}
+          />
+        </div>
+      ) : isLoading ? (
         <div className="p-6"><Skeleton className="h-32" /></div>
       ) : data?.asientos.length === 0 ? (
         <div className="p-12 text-center text-sm text-[hsl(var(--text-muted))]">
@@ -139,7 +149,7 @@ function LibroDiario({ anio, mes, onExportar }: { anio: number; mes: number; onE
               <TableHead>Asiento</TableHead>
               <TableHead>Fecha</TableHead>
               <TableHead>Cuenta</TableHead>
-              <TableHead>Glosa</TableHead>
+              <TableHead className="hidden lg:table-cell">Glosa</TableHead>
               <TableHead className="text-right">Debe</TableHead>
               <TableHead className="text-right">Haber</TableHead>
             </TableRow>
@@ -161,7 +171,7 @@ function LibroDiario({ anio, mes, onExportar }: { anio: number; mes: number; onE
                     <span className="font-semibold">{d.cuentaCodigo}</span>
                     <span className="text-[hsl(var(--text-muted))] ml-2">{d.cuenta.nombre}</span>
                   </TableCell>
-                  <TableCell className="text-xs text-[hsl(var(--text-muted))]">{d.glosa ?? a.glosa}</TableCell>
+                  <TableCell className="text-xs text-[hsl(var(--text-muted))] hidden lg:table-cell">{d.glosa ?? a.glosa}</TableCell>
                   <TableCell className="text-right tabular-nums">{Number(d.debe) > 0 ? formatearMoneda(d.debe) : ''}</TableCell>
                   <TableCell className="text-right tabular-nums">{Number(d.haber) > 0 ? formatearMoneda(d.haber) : ''}</TableCell>
                 </TableRow>
@@ -180,7 +190,7 @@ function LibroMayor({ anio, mes }: { anio: number; mes: number }) {
     queryKey: ['plan-cuentas'],
     queryFn: () => obtener<any[]>('/contabilidad/plan-cuentas'),
   });
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['libro-mayor', cuenta, anio, mes],
     enabled: !!cuenta,
     queryFn: () => obtener<any>(`/contabilidad/libro-mayor?cuenta=${cuenta}&anio=${anio}&mes=${mes}`),
@@ -200,7 +210,16 @@ function LibroMayor({ anio, mes }: { anio: number; mes: number }) {
           ))}
         </select>
       </div>
-      {isLoading ? (
+      {isError ? (
+        <div className="p-4">
+          <EstadoError
+            titulo="No se pudo cargar el libro mayor"
+            error={error}
+            onReintentar={() => refetch()}
+            reintentando={isFetching}
+          />
+        </div>
+      ) : isLoading ? (
         <div className="p-6"><Skeleton className="h-32" /></div>
       ) : !data ? null : (
         <>
@@ -213,7 +232,7 @@ function LibroMayor({ anio, mes }: { anio: number; mes: number }) {
               <TableRow>
                 <TableHead>Fecha</TableHead>
                 <TableHead>Asiento</TableHead>
-                <TableHead>Glosa</TableHead>
+                <TableHead className="hidden lg:table-cell">Glosa</TableHead>
                 <TableHead className="text-right">Debe</TableHead>
                 <TableHead className="text-right">Haber</TableHead>
                 <TableHead className="text-right">Saldo</TableHead>
@@ -231,7 +250,7 @@ function LibroMayor({ anio, mes }: { anio: number; mes: number }) {
                   <TableRow key={i}>
                     <TableCell className="text-xs">{formatearFecha(f.fecha)}</TableCell>
                     <TableCell className="font-mono text-xs">{f.asientoNumero}</TableCell>
-                    <TableCell className="text-xs text-[hsl(var(--text-muted))]">{f.glosa}</TableCell>
+                    <TableCell className="text-xs text-[hsl(var(--text-muted))] hidden lg:table-cell">{f.glosa}</TableCell>
                     <TableCell className="text-right tabular-nums">{f.debe > 0 ? formatearMoneda(f.debe) : ''}</TableCell>
                     <TableCell className="text-right tabular-nums">{f.haber > 0 ? formatearMoneda(f.haber) : ''}</TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">{formatearMoneda(f.saldo)}</TableCell>
@@ -247,7 +266,7 @@ function LibroMayor({ anio, mes }: { anio: number; mes: number }) {
 }
 
 function RegistroVentas({ anio, mes, onExportar }: { anio: number; mes: number; onExportar: () => void }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['reg-ventas', anio, mes],
     queryFn: () => obtener<any>(`/contabilidad/registro-ventas?anio=${anio}&mes=${mes}`),
   });
@@ -259,7 +278,16 @@ function RegistroVentas({ anio, mes, onExportar }: { anio: number; mes: number; 
           <Download className="size-4" /> Exportar PLE 14.1
         </Button>
       </div>
-      {isLoading ? <div className="p-6"><Skeleton className="h-32" /></div> : (
+      {isError ? (
+        <div className="p-4">
+          <EstadoError
+            titulo="No se pudo cargar el registro de ventas"
+            error={error}
+            onReintentar={() => refetch()}
+            reintentando={isFetching}
+          />
+        </div>
+      ) : isLoading ? <div className="p-6"><Skeleton className="h-32" /></div> : (
         <>
           <Table>
             <TableHeader>
@@ -301,7 +329,7 @@ function RegistroVentas({ anio, mes, onExportar }: { anio: number; mes: number; 
 }
 
 function RegistroCompras({ anio, mes, onExportar }: { anio: number; mes: number; onExportar: () => void }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['reg-compras', anio, mes],
     queryFn: () => obtener<any>(`/contabilidad/registro-compras?anio=${anio}&mes=${mes}`),
   });
@@ -313,7 +341,16 @@ function RegistroCompras({ anio, mes, onExportar }: { anio: number; mes: number;
           <Download className="size-4" /> Exportar PLE 8.1
         </Button>
       </div>
-      {isLoading ? <div className="p-6"><Skeleton className="h-32" /></div> : (
+      {isError ? (
+        <div className="p-4">
+          <EstadoError
+            titulo="No se pudo cargar el registro de compras"
+            error={error}
+            onReintentar={() => refetch()}
+            reintentando={isFetching}
+          />
+        </div>
+      ) : isLoading ? <div className="p-6"><Skeleton className="h-32" /></div> : (
         <>
           <Table>
             <TableHeader>
@@ -358,10 +395,18 @@ function EstadoResultados({ anio, mes }: { anio: number; mes: number }) {
   const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
   const ult = new Date(anio, mes, 0).getDate();
   const hasta = `${anio}-${String(mes).padStart(2, '0')}-${ult}`;
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['estado-resultados', desde, hasta],
     queryFn: () => obtener<any>(`/contabilidad/estado-resultados?desde=${desde}&hasta=${hasta}`),
   });
+  if (isError) return (
+    <EstadoError
+      titulo="No se pudo cargar el estado de resultados"
+      error={error}
+      onReintentar={() => refetch()}
+      reintentando={isFetching}
+    />
+  );
   if (isLoading || !data) return <Card className="p-6"><Skeleton className="h-32" /></Card>;
   const linea = (label: string, monto: number, fuerte = false) => (
     <div className={cn('flex justify-between py-2 border-b border-[hsl(var(--border))] text-sm', fuerte && 'font-bold text-base pt-3')}>
@@ -383,13 +428,22 @@ function EstadoResultados({ anio, mes }: { anio: number; mes: number }) {
 }
 
 function Periodos() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['periodos'],
     queryFn: () => obtener<any[]>('/contabilidad/periodos'),
   });
   return (
     <Card className="overflow-hidden">
-      {isLoading ? <div className="p-6"><Skeleton className="h-32" /></div> : (
+      {isError ? (
+        <div className="p-4">
+          <EstadoError
+            titulo="No se pudieron cargar los períodos contables"
+            error={error}
+            onReintentar={() => refetch()}
+            reintentando={isFetching}
+          />
+        </div>
+      ) : isLoading ? <div className="p-6"><Skeleton className="h-32" /></div> : (
         <Table>
           <TableHeader>
             <TableRow>
@@ -420,13 +474,22 @@ function Periodos() {
 }
 
 function PlanCuentas() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['plan-cuentas'],
     queryFn: () => obtener<any[]>('/contabilidad/plan-cuentas'),
   });
   return (
     <Card className="overflow-hidden">
-      {isLoading ? <div className="p-6"><Skeleton className="h-32" /></div> : (
+      {isError ? (
+        <div className="p-4">
+          <EstadoError
+            titulo="No se pudo cargar el plan de cuentas"
+            error={error}
+            onReintentar={() => refetch()}
+            reintentando={isFetching}
+          />
+        </div>
+      ) : isLoading ? <div className="p-6"><Skeleton className="h-32" /></div> : (
         <Table>
           <TableHeader>
             <TableRow>

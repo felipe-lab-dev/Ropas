@@ -27,6 +27,7 @@ const TIPO_DOC = [
 
 interface ClienteDetalle {
   id: string;
+  codigo: string | null;
   nombre: string;
   tipoDocumento: string;
   documento: string | null;
@@ -131,9 +132,11 @@ export default function EditarClientePage() {
       <PageHeader
         titulo={cliente.nombre}
         descripcion={
-          cliente.documento
-            ? `${cliente.tipoDocumento.toUpperCase()} ${cliente.documento}`
-            : 'Sin documento registrado'
+          `${cliente.codigo ? `${cliente.codigo} · ` : ''}${
+            cliente.documento
+              ? `${cliente.tipoDocumento.toUpperCase()} ${cliente.documento}`
+              : 'Sin documento registrado'
+          }`
         }
         acciones={
           <>

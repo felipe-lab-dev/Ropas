@@ -325,6 +325,7 @@ enum TipoDocumento {
 
 model Cliente {
   id                 String            @id @default(uuid()) @db.Uuid
+  codigo             String?           @unique @db.VarChar(20)
   tipoDocumento      TipoDocumento     @default(dni) @map("tipo_documento")
   documento          String?           @db.VarChar(20)
   nombre             String            @db.VarChar(160)
@@ -678,6 +679,7 @@ enum EstadoPagoCompra {
 
 model Proveedor {
   id              String        @id @default(uuid()) @db.Uuid
+  codigo          String?       @unique @db.VarChar(20)
   tipoDocumento   TipoDocumento @default(ruc) @map("tipo_documento")
   documento       String        @db.VarChar(20)
   razonSocial     String        @map("razon_social") @db.VarChar(200)

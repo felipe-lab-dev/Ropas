@@ -149,11 +149,11 @@ test.describe('Proveedores · json.pe RUC autocomplete + tabla DIH', () => {
     // El estado default ya viene con sort razonSocial asc.
     const headerSort = page.locator('th').filter({ hasText: /razón social/i }).locator('button').first();
 
-    // Razón social vive en la 2da celda (después de la columna N°).
+    // Razón social vive en la 3ra celda (después de las columnas N° y Código).
     // Capturo el texto del nombre en la 1ra fila en ASC vs DESC.
     const primeraFila = page.locator('tbody tr').first();
     await expect(primeraFila).toBeVisible({ timeout: 8_000 });
-    const celdaRazonAsc = primeraFila.locator('td').nth(1);
+    const celdaRazonAsc = primeraFila.locator('td').nth(2);
     const primeraAsc = (await celdaRazonAsc.innerText()).trim().split('\n')[0]?.trim() ?? '';
 
     // Cambiar a DESC clickeando el header (asc → desc).

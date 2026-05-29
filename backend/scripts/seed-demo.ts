@@ -406,6 +406,34 @@ async function main() {
   }
   console.log(`Ventas: ${ventasCreadas} nuevas · ${ventasSaltadas} omitidas por idempotencia\n`);
 
+  // ─────────── AGREGADOS DEL CLIENTE (totalCompras + ultimaCompraEn) ───────────
+  // El seed crea ventas con Prisma directo, sin pasar por VentasService — que es
+  // quien normalmente incrementa cliente.totalCompras y setea ultimaCompraEn al
+  // vender. Recomputamos esos agregados desde las ventas reales no anuladas para
+  // que la columna "Total compras" no quede en 0. Idempotente: deriva de la fuente.
+  const agregados = await p.venta.groupBy({
+    by: ['clienteId'],
+    where: { clienteId: { not: null }, anuladaEn: null, eliminadoEn: null },
+    _sum: { total: true },
+    _max: { creadoEn: true },
+  });
+  if (agregados.length > 0) {
+    await p.$transaction(
+      agregados
+        .filter((a): a is typeof a & { clienteId: string } => a.clienteId !== null)
+        .map(a =>
+          p.cliente.update({
+            where: { id: a.clienteId },
+            data: {
+              totalCompras: a._sum.total ?? 0,
+              ultimaCompraEn: a._max.creadoEn ?? null,
+            },
+          }),
+        ),
+    );
+  }
+  console.log(`Agregados (totalCompras·ultimaCompraEn): ${agregados.length} clientes con ventas\n`);
+
   // ─────────────────── CLASIFICACIÓN RFM (motor inline) ───────────────────
   console.log('▶ Calculando clasificación RFM…');
 

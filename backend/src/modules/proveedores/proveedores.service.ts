@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, TipoDocumento, CondicionPago } from '@prisma/client';
+import { Prisma, PrismaClient, TipoDocumento, CondicionPago } from '@prisma/client';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import {
@@ -146,8 +146,11 @@ export class ProveedoresService {
       );
     }
 
+    const codigo = await this.siguienteCodigo(cliente);
+
     return cliente.proveedor.create({
       data: {
+        codigo,
         tipoDocumento: dto.tipoDocumento as TipoDocumento,
         documento: dto.documento,
         razonSocial: dto.razonSocial,
@@ -238,5 +241,20 @@ export class ProveedoresService {
       where: { id },
       data: { eliminadoEn: new Date(), activo: false },
     });
+  }
+
+  /**
+   * Genera el siguiente código legible de proveedor: PR00001, PR00002, …
+   * Monotónico por tenant (no reutiliza códigos de proveedores eliminados).
+   * El índice único `proveedores_codigo_key` actúa de red de seguridad ante carreras.
+   */
+  private async siguienteCodigo(cliente: PrismaClient): Promise<string> {
+    const ultimo = await cliente.proveedor.findFirst({
+      where: { codigo: { startsWith: 'PR' } },
+      orderBy: { codigo: 'desc' },
+      select: { codigo: true },
+    });
+    const n = ultimo?.codigo ? parseInt(ultimo.codigo.slice(2), 10) + 1 : 1;
+    return `PR${String(n).padStart(5, '0')}`;
   }
 }

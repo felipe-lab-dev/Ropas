@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
+import { EstadoError } from '@/components/ui/error-state';
 import { formatearMoneda, formatearNumero } from '@/lib/utils';
 
 interface Resumen {
@@ -34,10 +35,13 @@ interface Resumen {
 }
 
 export default function DashboardPage() {
-  const { data, isLoading } = useQuery({
+  const { data, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => obtener<Resumen>('/reportes/dashboard'),
   });
+
+  // Mientras no llegue el dato (y no haya error), los campos quedan como skeleton (null).
+  const cargando = !data;
 
   return (
     <div className="space-y-8">
@@ -46,26 +50,35 @@ export default function DashboardPage() {
         descripcion="Resumen en tiempo real de tu tienda."
       />
 
+      {isError ? (
+        <EstadoError
+          titulo="No se pudo cargar el dashboard"
+          error={error}
+          onReintentar={() => refetch()}
+          reintentando={isFetching}
+        />
+      ) : (
+        <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricaHero
           label="Ventas hoy"
-          valor={isLoading ? null : formatearMoneda(data!.ventas.hoy.monto)}
-          sublabel={isLoading ? null : `${data!.ventas.hoy.cantidad} ticket${data!.ventas.hoy.cantidad === 1 ? '' : 's'}`}
+          valor={cargando ? null : formatearMoneda(data.ventas.hoy.monto)}
+          sublabel={cargando ? null : `${data.ventas.hoy.cantidad} ticket${data.ventas.hoy.cantidad === 1 ? '' : 's'}`}
           icon={ShoppingBag}
           color="brand"
           delay={0}
         />
         <MetricaHero
           label="Ventas semana"
-          valor={isLoading ? null : formatearMoneda(data!.ventas.semana.monto)}
-          sublabel={isLoading ? null : `${data!.ventas.semana.cantidad} ventas`}
+          valor={cargando ? null : formatearMoneda(data.ventas.semana.monto)}
+          sublabel={cargando ? null : `${data.ventas.semana.cantidad} ventas`}
           icon={TrendingUp}
           color="accent"
           delay={0.06}
         />
         <MetricaHero
           label="Productos activos"
-          valor={isLoading ? null : formatearNumero(data!.totales.productos)}
+          valor={cargando ? null : formatearNumero(data.totales.productos)}
           sublabel="en catálogo"
           icon={Package}
           color="success"
@@ -73,7 +86,7 @@ export default function DashboardPage() {
         />
         <MetricaHero
           label="Clientes"
-          valor={isLoading ? null : formatearNumero(data!.totales.clientes)}
+          valor={cargando ? null : formatearNumero(data.totales.clientes)}
           sublabel="registrados"
           icon={Users}
           color="warning"
@@ -99,9 +112,9 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-1.5">
-              {isLoading ? (
+              {cargando ? (
                 [...Array(5)].map((_, i) => <Skeleton key={i} className="h-14" />)
-              ) : data!.topVendidos.length === 0 ? (
+              ) : data.topVendidos.length === 0 ? (
                 <div className="py-10 text-center">
                   <div className="size-12 mx-auto mb-3 rounded-xl bg-[hsl(var(--surface-2))] grid place-items-center text-[hsl(var(--text-muted))]">
                     <TrendingUp className="size-5" />
@@ -109,7 +122,7 @@ export default function DashboardPage() {
                   <p className="text-sm text-[hsl(var(--text-muted))]">Aún sin ventas registradas.</p>
                 </div>
               ) : (
-                data!.topVendidos.map((p, i) => (
+                data.topVendidos.map((p, i) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, x: -8 }}
@@ -157,9 +170,9 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-1.5">
-              {isLoading ? (
+              {cargando ? (
                 [...Array(5)].map((_, i) => <Skeleton key={i} className="h-14" />)
-              ) : data!.stockBajo.length === 0 ? (
+              ) : data.stockBajo.length === 0 ? (
                 <div className="py-10 text-center">
                   <div className="size-12 mx-auto mb-3 rounded-xl bg-[hsl(var(--brand-success))]/12 grid place-items-center text-[hsl(var(--brand-success))]">
                     ✓
@@ -167,7 +180,7 @@ export default function DashboardPage() {
                   <p className="text-sm text-[hsl(var(--text-muted))]">Todo el stock está bien.</p>
                 </div>
               ) : (
-                data!.stockBajo.map((s, i) => (
+                data.stockBajo.map((s, i) => (
                   <motion.div
                     key={s.id}
                     initial={{ opacity: 0, x: -8 }}
@@ -194,6 +207,8 @@ export default function DashboardPage() {
           </Card>
         </motion.div>
       </div>
+        </>
+      )}
     </div>
   );
 }

@@ -160,13 +160,13 @@ export default function InventarioPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Producto</TableHead>
-                <TableHead>Variante</TableHead>
-                <TableHead>Código barras</TableHead>
-                <TableHead>Sucursal</TableHead>
+                <TableHead className="hidden lg:table-cell">Variante</TableHead>
+                <TableHead className="hidden xl:table-cell">Código barras</TableHead>
+                <TableHead className="hidden lg:table-cell">Sucursal</TableHead>
                 <TableHead className="text-right">Disponible</TableHead>
-                <TableHead className="text-right">Reservado</TableHead>
-                <TableHead className="text-right">Mínimo</TableHead>
-                <TableHead>Estado</TableHead>
+                <TableHead className="text-right hidden xl:table-cell">Reservado</TableHead>
+                <TableHead className="text-right hidden 2xl:table-cell">Mínimo</TableHead>
+                <TableHead className="hidden lg:table-cell">Estado</TableHead>
                 <TableHead className="text-right pr-4">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -220,7 +220,7 @@ export default function InventarioPage() {
                           {s.variante.producto.codigo ?? s.variante.producto.sku}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden lg:table-cell">
                         <div className="flex items-center gap-2">
                           <span
                             className="size-4 rounded-full border border-[hsl(var(--border))] shrink-0"
@@ -230,15 +230,15 @@ export default function InventarioPage() {
                         </div>
                         <div className="text-[10px] text-[hsl(var(--text-muted))] font-mono mt-0.5">{s.variante.sku}</div>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{s.variante.codigoBarras ?? '—'}</TableCell>
-                      <TableCell>{s.sucursal.nombre}</TableCell>
+                      <TableCell className="font-mono text-xs hidden xl:table-cell">{s.variante.codigoBarras ?? '—'}</TableCell>
+                      <TableCell className="hidden lg:table-cell">{s.sucursal.nombre}</TableCell>
                       <TableCell className="text-right tabular-nums font-bold">
                         <span className={agotado ? 'text-[hsl(var(--brand-danger))]' : critico ? 'text-[hsl(var(--brand-warning))]' : ''}>
                           {s.disponible}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-[hsl(var(--text-muted))]">{s.reservado}</TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="text-right tabular-nums text-[hsl(var(--text-muted))] hidden xl:table-cell">{s.reservado}</TableCell>
+                      <TableCell className="text-right tabular-nums hidden 2xl:table-cell">
                         {editandoMinimoId === s.id ? (
                           <EditMinimoInline
                             stock={s}
@@ -259,7 +259,7 @@ export default function InventarioPage() {
                           </button>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden lg:table-cell">
                         {agotado ? (
                           <Badge variant="danger"><AlertTriangle className="size-3 mr-1" />Agotado</Badge>
                         ) : critico ? (

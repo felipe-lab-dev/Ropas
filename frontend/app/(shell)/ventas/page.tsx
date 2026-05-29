@@ -108,11 +108,11 @@ export default function VentasPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Número</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Vendedor</TableHead>
-              <TableHead>Sucursal</TableHead>
-              <TableHead className="text-right">Items</TableHead>
+              <TableHead className="hidden lg:table-cell">Fecha</TableHead>
+              <TableHead className="hidden lg:table-cell">Cliente</TableHead>
+              <TableHead className="hidden xl:table-cell">Vendedor</TableHead>
+              <TableHead className="hidden xl:table-cell">Sucursal</TableHead>
+              <TableHead className="text-right hidden 2xl:table-cell">Items</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead>Estado</TableHead>
             </TableRow>
@@ -166,11 +166,11 @@ export default function VentasPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs text-[hsl(var(--text-muted))]">{formatearFecha(v.creadoEn, 'completa')}</TableCell>
-                  <TableCell>{v.cliente?.nombre ?? <span className="text-[hsl(var(--text-muted))]">Consumidor final</span>}</TableCell>
-                  <TableCell>{v.vendedor.nombre}</TableCell>
-                  <TableCell>{v.sucursal.nombre}</TableCell>
-                  <TableCell className="text-right tabular-nums">{v._count.items}</TableCell>
+                  <TableCell className="text-xs text-[hsl(var(--text-muted))] hidden lg:table-cell">{formatearFecha(v.creadoEn, 'completa')}</TableCell>
+                  <TableCell className="hidden lg:table-cell">{v.cliente?.nombre ?? <span className="text-[hsl(var(--text-muted))]">Consumidor final</span>}</TableCell>
+                  <TableCell className="hidden xl:table-cell">{v.vendedor.nombre}</TableCell>
+                  <TableCell className="hidden xl:table-cell">{v.sucursal.nombre}</TableCell>
+                  <TableCell className="text-right tabular-nums hidden 2xl:table-cell">{v._count.items}</TableCell>
                   <TableCell className="text-right font-bold tabular-nums">{formatearMoneda(v.total)}</TableCell>
                   <TableCell>
                     <Badge variant={estadoColor[v.estado]}>{v.estado}</Badge>

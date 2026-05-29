@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ClasificacionAbc, Prisma } from '@prisma/client';
+import { ClasificacionAbc, Prisma, PrismaClient } from '@prisma/client';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { ErrorNoEncontrado, ErrorValidacion } from '../../core/errors/errores';
@@ -59,12 +59,30 @@ export class ClientesService {
       );
     }
     const { fechaNacimiento, ...rest } = data;
-    return this.prisma.forTenant(ctx).cliente.create({
+    const cliente = this.prisma.forTenant(ctx);
+    const codigo = await this.siguienteCodigo(cliente);
+    return cliente.cliente.create({
       data: {
         ...rest,
+        codigo,
         fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : null,
       },
     });
+  }
+
+  /**
+   * Genera el siguiente código legible de cliente: CL00001, CL00002, …
+   * Monotónico por tenant (no reutiliza códigos de clientes eliminados).
+   * El índice único `clientes_codigo_key` actúa de red de seguridad ante carreras.
+   */
+  private async siguienteCodigo(cliente: PrismaClient): Promise<string> {
+    const ultimo = await cliente.cliente.findFirst({
+      where: { codigo: { startsWith: 'CL' } },
+      orderBy: { codigo: 'desc' },
+      select: { codigo: true },
+    });
+    const n = ultimo?.codigo ? parseInt(ultimo.codigo.slice(2), 10) + 1 : 1;
+    return `CL${String(n).padStart(5, '0')}`;
   }
 
   async actualizar(id: string, data: ActualizarClienteDto, ctx: TenantContext) {

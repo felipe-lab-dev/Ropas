@@ -140,7 +140,7 @@ function FilaSerie({
           {serie.serie}
         </code>
       </TableCell>
-      <TableCell className="tabular-nums text-[hsl(var(--text-muted))]">
+      <TableCell className="tabular-nums text-[hsl(var(--text-muted))] hidden lg:table-cell">
         {serie.correlativoActual.toLocaleString('es-PE')}
       </TableCell>
       <TableCell className="text-right">
@@ -586,7 +586,7 @@ export default function SeriesCpePage() {
                 <TableRow>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Serie</TableHead>
-                  <TableHead>Correlativo actual</TableHead>
+                  <TableHead className="hidden lg:table-cell">Correlativo actual</TableHead>
                   <TableHead className="w-16 text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>

@@ -17,6 +17,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Pagination } from '@/components/ui/pagination';
 import { FacetFilter } from '@/components/ui/facet-filter';
 import { EmptyState } from '@/components/ui/empty-state';
+import { EstadoError } from '@/components/ui/error-state';
 
 interface NotaListada {
   id: string;
@@ -52,7 +53,7 @@ export default function NotasCreditoPage() {
 
   React.useEffect(() => { setPagina(1); }, [estados]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['notas-credito', debounced, pagina, estados],
     queryFn: () =>
       obtenerPaginado<NotaListada>('/notas-credito', {
@@ -89,16 +90,24 @@ export default function NotasCreditoPage() {
         />
       </Card>
 
+      {isError ? (
+        <EstadoError
+          titulo="No se pudieron cargar las notas de crédito"
+          error={error}
+          onReintentar={() => refetch()}
+          reintentando={isFetching}
+        />
+      ) : (
       <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Número</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead>Venta</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Motivo</TableHead>
-              <TableHead className="text-right">Items</TableHead>
+              <TableHead className="hidden lg:table-cell">Fecha</TableHead>
+              <TableHead className="hidden lg:table-cell">Venta</TableHead>
+              <TableHead className="hidden xl:table-cell">Cliente</TableHead>
+              <TableHead className="hidden 2xl:table-cell">Motivo</TableHead>
+              <TableHead className="text-right hidden 2xl:table-cell">Items</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead>Estado</TableHead>
             </TableRow>
@@ -148,10 +157,10 @@ export default function NotasCreditoPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs text-[hsl(var(--text-muted))]">
+                  <TableCell className="text-xs text-[hsl(var(--text-muted))] hidden lg:table-cell">
                     {formatearFecha(nc.creadoEn, 'completa')}
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="font-mono text-xs hidden lg:table-cell">
                     <Link
                       href={`/ventas/${nc.venta.id}`}
                       onClick={e => e.stopPropagation()}
@@ -160,13 +169,13 @@ export default function NotasCreditoPage() {
                       {nc.venta.numero}
                     </Link>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden xl:table-cell">
                     {nc.cliente?.nombre ?? (
                       <span className="text-[hsl(var(--text-muted))]">Consumidor final</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm max-w-xs truncate">{nc.motivo}</TableCell>
-                  <TableCell className="text-right tabular-nums">{nc._count.items}</TableCell>
+                  <TableCell className="text-sm max-w-xs truncate hidden 2xl:table-cell">{nc.motivo}</TableCell>
+                  <TableCell className="text-right tabular-nums hidden 2xl:table-cell">{nc._count.items}</TableCell>
                   <TableCell className="text-right font-bold tabular-nums">
                     {formatearMoneda(nc.total)}
                   </TableCell>
@@ -190,6 +199,7 @@ export default function NotasCreditoPage() {
           />
         )}
       </Card>
+      )}
     </div>
   );
 }

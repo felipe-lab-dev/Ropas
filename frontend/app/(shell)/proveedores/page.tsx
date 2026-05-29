@@ -30,6 +30,7 @@ import { LinkWhatsApp } from '@/components/ui/link-whatsapp';
 
 interface Proveedor {
   id: string;
+  codigo?: string | null;
   razonSocial: string;
   nombreComercial?: string | null;
   tipoDocumento: string;
@@ -41,6 +42,9 @@ interface Proveedor {
   ciudad?: string | null;
   condicionPago: string;
   diasCredito: number;
+  cuentaBancaria?: string | null;
+  notas?: string | null;
+  tags?: string[];
   totalComprado: string;
   deudaActual: string;
   activo: boolean;
@@ -62,11 +66,73 @@ const ESTADO_DEFAULT: TableState = {
 
 const LIMITE = 30;
 
+/** Campo etiqueta + valor para el panel expandible. */
+function Campo({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-muted))]">{label}</div>
+      <div className="text-sm mt-0.5 break-words">{children}</div>
+    </div>
+  );
+}
+
+const VACIO = <span className="text-[hsl(var(--text-muted))]">—</span>;
+
+/**
+ * Panel de detalle bajo la fila. Muestra TODOS los campos, incluidos los que se
+ * ocultan como columnas en pantallas chicas (contacto, email, teléfono, ciudad,
+ * dirección, condición, etc.) — así nada queda inaccesible en laptops.
+ */
+function DetalleProveedor({ p }: { p: Proveedor }) {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
+      <Campo label="Contacto">{p.contacto || VACIO}</Campo>
+      <Campo label="Email">
+        {p.email
+          ? <a href={`mailto:${p.email}`} className="text-[hsl(var(--brand-primary))] hover:underline break-all">{p.email}</a>
+          : VACIO}
+      </Campo>
+      <Campo label="Teléfono"><LinkWhatsApp telefono={p.telefono} className="text-sm" /></Campo>
+      <Campo label="Ciudad">{p.ciudad || VACIO}</Campo>
+      <Campo label="Dirección">{p.direccion || VACIO}</Campo>
+      <Campo label="Nombre comercial">{p.nombreComercial || VACIO}</Campo>
+      <Campo label="Condición de pago">
+        <Badge variant={p.condicionPago === 'contado' ? 'default' : 'warning'}>
+          {CONDICION_LABEL[p.condicionPago] ?? p.condicionPago}
+          {p.condicionPago !== 'contado' && p.diasCredito > 0 ? ` · ${p.diasCredito}d` : ''}
+        </Badge>
+      </Campo>
+      <Campo label="Cuenta bancaria">
+        {p.cuentaBancaria ? <span className="font-mono text-xs">{p.cuentaBancaria}</span> : VACIO}
+      </Campo>
+      <Campo label="Total comprado"><span className="tabular-nums">{formatearMoneda(p.totalComprado)}</span></Campo>
+      <Campo label="Deuda actual">
+        {Number(p.deudaActual) > 0
+          ? <span className="tabular-nums font-semibold text-[hsl(355_75%_60%)]">{formatearMoneda(p.deudaActual)}</span>
+          : VACIO}
+      </Campo>
+      {p.tags && p.tags.length > 0 && (
+        <Campo label="Tags">
+          <div className="flex flex-wrap gap-1">
+            {p.tags.map(t => <Badge key={t} variant="outline">{t}</Badge>)}
+          </div>
+        </Campo>
+      )}
+      {p.notas && (
+        <div className="col-span-2 md:col-span-3 lg:col-span-4">
+          <Campo label="Notas">{p.notas}</Campo>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProveedoresPage() {
   const [buscar, setBuscar] = React.useState('');
   const [pagina, setPagina] = React.useState(1);
   const [debounced, setDebounced] = React.useState('');
   const [aEliminar, setAEliminar] = React.useState<Proveedor | null>(null);
+  const [filaExpandida, setFilaExpandida] = React.useState<string | null>(null);
   const qc = useQueryClient();
 
   const [estadoTabla, setEstadoTabla] = usePreferencias<TableState>('proveedores', ESTADO_DEFAULT);
@@ -123,8 +189,8 @@ export default function ProveedoresPage() {
     {
       id: 'numero',
       titulo: 'N°',
-      width: 56,
-      minWidth: 48,
+      width: 44,
+      minWidth: 40,
       align: 'right',
       movible: false,
       render: (_p, idx) => (
@@ -134,10 +200,23 @@ export default function ProveedoresPage() {
       ),
     },
     {
+      id: 'codigo',
+      titulo: 'Código',
+      width: 80,
+      minWidth: 68,
+      sortValor: p => p.codigo ?? '',
+      filter: { tipo: 'texto', getValor: p => p.codigo ?? '' },
+      render: p => (
+        <span className="font-mono text-xs font-semibold text-[hsl(var(--brand-primary))]">
+          {p.codigo ?? '—'}
+        </span>
+      ),
+    },
+    {
       id: 'razonSocial',
       titulo: 'Razón social',
-      width: 240,
-      minWidth: 180,
+      width: 184,
+      minWidth: 140,
       sortValor: p => p.razonSocial,
       filter: { tipo: 'texto', getValor: p => p.razonSocial },
       render: p => (
@@ -152,7 +231,8 @@ export default function ProveedoresPage() {
     {
       id: 'documento',
       titulo: 'Documento',
-      width: 140,
+      width: 112,
+      minWidth: 96,
       sortValor: p => p.documento,
       filter: { tipo: 'texto', getValor: p => p.documento },
       render: p => (
@@ -163,44 +243,10 @@ export default function ProveedoresPage() {
       ),
     },
     {
-      id: 'contacto',
-      titulo: 'Contacto',
-      width: 180,
-      sortValor: p => p.contacto ?? '',
-      filter: { tipo: 'texto', getValor: p => p.contacto ?? '' },
-      render: p => (
-        <div className="min-w-0">
-          <div className="text-sm truncate">{p.contacto ?? '—'}</div>
-          {p.email && (
-            <div className="text-[10px] text-[hsl(var(--text-muted))] truncate">{p.email}</div>
-          )}
-        </div>
-      ),
-    },
-    {
-      id: 'telefono',
-      titulo: 'Teléfono',
-      width: 160,
-      sortValor: p => p.telefono ?? '',
-      filter: { tipo: 'texto', getValor: p => p.telefono ?? '' },
-      render: p => (
-        <LinkWhatsApp telefono={p.telefono} className="text-sm" />
-      ),
-    },
-    {
-      id: 'ciudad',
-      titulo: 'Ciudad',
-      width: 130,
-      sortValor: p => p.ciudad ?? '',
-      filter: { tipo: 'select', getValor: p => p.ciudad ?? '', opciones: opcionesCiudad },
-      render: p => p.ciudad
-        ? <span className="text-sm">{p.ciudad}</span>
-        : <span className="text-[hsl(var(--text-muted))]">—</span>,
-    },
-    {
       id: 'condicionPago',
       titulo: 'Condición',
-      width: 130,
+      width: 108,
+      colClassName: 'hidden lg:table-cell',
       sortValor: p => p.condicionPago,
       filter: { tipo: 'select', getValor: p => p.condicionPago, opciones: OPCIONES_CONDICION },
       render: p => (
@@ -213,8 +259,9 @@ export default function ProveedoresPage() {
     {
       id: 'totalComprado',
       titulo: 'Comprado',
-      width: 130,
+      width: 110,
       align: 'right',
+      colClassName: 'hidden 2xl:table-cell',
       sortValor: p => Number(p.totalComprado),
       filter: { tipo: 'rango', getValor: p => Number(p.totalComprado) },
       render: p => (
@@ -224,7 +271,7 @@ export default function ProveedoresPage() {
     {
       id: 'deudaActual',
       titulo: 'Deuda',
-      width: 130,
+      width: 100,
       align: 'right',
       sortValor: p => Number(p.deudaActual),
       filter: { tipo: 'rango', getValor: p => Number(p.deudaActual) },
@@ -233,9 +280,31 @@ export default function ProveedoresPage() {
         : <span className="text-[hsl(var(--text-muted))] tabular-nums">—</span>,
     },
     {
+      id: 'telefono',
+      titulo: 'Teléfono',
+      width: 120,
+      colClassName: 'hidden xl:table-cell',
+      sortValor: p => p.telefono ?? '',
+      filter: { tipo: 'texto', getValor: p => p.telefono ?? '' },
+      render: p => (
+        <LinkWhatsApp telefono={p.telefono} className="text-sm" />
+      ),
+    },
+    {
+      id: 'ciudad',
+      titulo: 'Ciudad',
+      width: 104,
+      colClassName: 'hidden 2xl:table-cell',
+      sortValor: p => p.ciudad ?? '',
+      filter: { tipo: 'select', getValor: p => p.ciudad ?? '', opciones: opcionesCiudad },
+      render: p => p.ciudad
+        ? <span className="text-sm">{p.ciudad}</span>
+        : <span className="text-[hsl(var(--text-muted))]">—</span>,
+    },
+    {
       id: 'estado',
       titulo: 'Estado',
-      width: 100,
+      width: 88,
       sortValor: p => (p.activo ? 1 : 0),
       filter: {
         tipo: 'select',
@@ -252,7 +321,7 @@ export default function ProveedoresPage() {
     {
       id: 'acciones',
       titulo: 'Acciones',
-      width: 110,
+      width: 88,
       align: 'right',
       movible: false,
       cellClassName: 'pr-4',
@@ -345,6 +414,9 @@ export default function ProveedoresPage() {
             onEstadoChange={setEstadoTabla}
             cargando={isLoading}
             rowClassName={p => (p.activo ? '' : 'opacity-60')}
+            filaExpandidaKey={filaExpandida}
+            onToggleFilaExpandida={key => setFilaExpandida(k => (k === key ? null : key))}
+            renderFilaExpandida={p => <DetalleProveedor p={p} />}
             vacioRender={
               <EmptyState
                 ilustracion={<Truck className="size-20 text-[hsl(var(--brand-primary))/60]" />}

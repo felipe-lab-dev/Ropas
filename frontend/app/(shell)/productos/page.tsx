@@ -23,13 +23,10 @@ import { DataTable, type ColumnaTabla, type TableState } from '@/components/ui/d
 import { colorCategoria } from '@/lib/color-categoria';
 import { usePreferencias } from '@/lib/use-preferencias';
 import { MotorLogisticoModal } from './motor-logistico-modal';
-<<<<<<< HEAD
 import { EditarProductoCliente } from './editar/editar-cliente';
 import { KardexCliente } from './kardex/kardex-cliente';
-=======
 import { PanelInsightsProducto } from './panel-insights-producto';
 import { ImportarExportarModal } from './importar-exportar-modal';
->>>>>>> 65ae9d4c94c89ae1d35f42faf90b8737aa47e1bc
 
 interface Categoria { id: string; nombre: string }
 
@@ -83,12 +80,9 @@ export default function ProductosPage() {
   const [categoriaIdFiltro, setCategoriaIdFiltro] = React.useState('');
   const [confirmandoId, setConfirmandoId] = React.useState<string | null>(null);
   const [motorAbierto, setMotorAbierto] = React.useState(false);
-<<<<<<< HEAD
   const [modal, setModal] = React.useState<{ tipo: 'editar' | 'kardex'; id: string } | null>(null);
-=======
   const [importarAbierto, setImportarAbierto] = React.useState(false);
   const [filaExpandidaId, setFilaExpandidaId] = React.useState<string | null>(null);
->>>>>>> 65ae9d4c94c89ae1d35f42faf90b8737aa47e1bc
   const qc = useQueryClient();
 
   const [estadoTabla, setEstadoTabla] = usePreferencias<TableState>('productos', ESTADO_DEFAULT);
@@ -178,7 +172,7 @@ export default function ProductosPage() {
     {
       id: 'codigo',
       titulo: 'Código',
-      width: 90,
+      width: 84,
       sortValor: p => p.codigo ?? '',
       filter: { tipo: 'texto', getValor: p => p.codigo },
       render: p => p.codigo
@@ -188,8 +182,8 @@ export default function ProductosPage() {
     {
       id: 'sku',
       titulo: 'SKU',
-      width: 90,
-      colClassName: 'hidden xl:table-cell',
+      width: 84,
+      colClassName: 'hidden 2xl:table-cell',
       sortValor: p => p.sku,
       filter: { tipo: 'texto', getValor: p => p.sku },
       render: p => <span className="font-mono text-[10px] text-[hsl(var(--text-muted))]">{p.sku}</span>,
@@ -197,7 +191,8 @@ export default function ProductosPage() {
     {
       id: 'categoria',
       titulo: 'Categoría',
-      width: 110,
+      width: 104,
+      colClassName: 'hidden lg:table-cell',
       sortValor: p => p.categoria.nombre,
       filter: { tipo: 'select', getValor: p => p.categoria.nombre, opciones: opcionesCategoria },
       render: p => {
@@ -216,9 +211,9 @@ export default function ProductosPage() {
     {
       id: 'clasificacion',
       titulo: 'Clase',
-      width: 70,
+      width: 64,
       align: 'center',
-      colClassName: 'hidden xl:table-cell',
+      colClassName: 'hidden 2xl:table-cell',
       sortValor: p => {
         const ord: Record<string, number> = { AA: 5, A: 4, B: 3, C: 2, D: 1 };
         return ord[p.clasificacion ?? ''] ?? 0;
@@ -253,8 +248,9 @@ export default function ProductosPage() {
     {
       id: 'diasEstancado',
       titulo: 'Estancado',
-      width: 90,
+      width: 84,
       align: 'right',
+      colClassName: 'hidden 2xl:table-cell',
       sortValor: p => p.diasEstancado,
       filter: { tipo: 'rango', getValor: p => p.diasEstancado },
       render: p => {
@@ -276,7 +272,8 @@ export default function ProductosPage() {
     {
       id: 'variantes',
       titulo: 'Variantes',
-      width: 110,
+      width: 104,
+      colClassName: 'hidden xl:table-cell',
       sortValor: p => p.cantidadVariantes,
       render: p => (
         <div>
@@ -302,8 +299,9 @@ export default function ProductosPage() {
     {
       id: 'cantidadVentas',
       titulo: 'C. Ventas',
-      width: 90,
+      width: 84,
       align: 'right',
+      colClassName: 'hidden xl:table-cell',
       sortValor: p => p.cantidadVentas,
       filter: { tipo: 'rango', getValor: p => p.cantidadVentas },
       render: p => {
@@ -365,7 +363,7 @@ export default function ProductosPage() {
     {
       id: 'acciones',
       titulo: 'Acciones',
-      width: 120,
+      width: 110,
       align: 'right',
       movible: false,
       cellClassName: 'pr-3',

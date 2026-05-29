@@ -23,6 +23,7 @@ import { formatearFecha, formatearMoneda, iniciales } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
 import { Pagination } from '@/components/ui/pagination';
 import { EmptyState } from '@/components/ui/empty-state';
+import { EstadoError } from '@/components/ui/error-state';
 import { FacetFilter } from '@/components/ui/facet-filter';
 import { CajaTabs } from '@/components/caja/caja-tabs';
 
@@ -84,7 +85,7 @@ export default function HistorialCajaPage() {
     queryFn: () => obtener<Sucursal[]>('/sucursales'),
   });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['caja-sesiones', pagina, debounced, estados, sucursalId, desde, hasta],
     queryFn: () =>
       obtenerPaginado<SesionItem>('/caja/sesiones', {
@@ -156,19 +157,27 @@ export default function HistorialCajaPage() {
         />
       </Card>
 
+      {isError ? (
+        <EstadoError
+          titulo="No se pudieron cargar los cierres de caja"
+          error={error}
+          onReintentar={() => refetch()}
+          reintentando={isFetching}
+        />
+      ) : (
       <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Fecha</TableHead>
               <TableHead>Cajero</TableHead>
-              <TableHead>Sucursal</TableHead>
-              <TableHead>Apertura / Cierre</TableHead>
+              <TableHead className="hidden lg:table-cell">Sucursal</TableHead>
+              <TableHead className="hidden xl:table-cell">Apertura / Cierre</TableHead>
               <TableHead>Estado</TableHead>
-              <TableHead className="text-right">Apertura</TableHead>
-              <TableHead className="text-right">Cierre</TableHead>
-              <TableHead className="text-right">Diferencia</TableHead>
-              <TableHead className="text-right">Ventas</TableHead>
+              <TableHead className="text-right hidden lg:table-cell">Apertura</TableHead>
+              <TableHead className="text-right hidden xl:table-cell">Cierre</TableHead>
+              <TableHead className="text-right hidden 2xl:table-cell">Diferencia</TableHead>
+              <TableHead className="text-right hidden 2xl:table-cell">Ventas</TableHead>
               <TableHead className="w-[60px]" />
             </TableRow>
           </TableHeader>
@@ -207,8 +216,8 @@ export default function HistorialCajaPage() {
                       <span className="text-sm font-medium">{s.cajero.nombre}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">{s.sucursal.nombre}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm hidden lg:table-cell">{s.sucursal.nombre}</TableCell>
+                  <TableCell className="hidden xl:table-cell">
                     <div className="flex flex-col gap-0.5 text-[10px]">
                       <span className="text-[hsl(150_55%_60%)] font-bold">
                         INICIO: {new Date(s.abiertaEn).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
@@ -226,17 +235,17 @@ export default function HistorialCajaPage() {
                       {ESTADO_LABEL[s.estado]}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-mono tabular-nums text-sm">
+                  <TableCell className="text-right font-mono tabular-nums text-sm hidden lg:table-cell">
                     {formatearMoneda(s.montoApertura)}
                   </TableCell>
-                  <TableCell className="text-right font-mono tabular-nums text-sm">
+                  <TableCell className="text-right font-mono tabular-nums text-sm hidden xl:table-cell">
                     {s.montoCierre ? (
                       formatearMoneda(s.montoCierre)
                     ) : (
                       <span className="text-[hsl(var(--text-muted))]">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right font-mono tabular-nums text-sm">
+                  <TableCell className="text-right font-mono tabular-nums text-sm hidden 2xl:table-cell">
                     {s.diferencia ? (
                       <span
                         className={
@@ -251,7 +260,7 @@ export default function HistorialCajaPage() {
                       <span className="text-[hsl(var(--text-muted))]">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right text-sm tabular-nums">
+                  <TableCell className="text-right text-sm tabular-nums hidden 2xl:table-cell">
                     {s._count.ventas}
                   </TableCell>
                   <TableCell>
@@ -276,6 +285,7 @@ export default function HistorialCajaPage() {
           />
         )}
       </Card>
+      )}
     </div>
   );
 }

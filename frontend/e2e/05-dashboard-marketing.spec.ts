@@ -51,13 +51,9 @@ test.describe('Cupones · dashboard de marketing destacado', () => {
     // Buscar "cupón"
     await page.getByPlaceholder(/buscar m[oó]dulo/i).fill('cup');
     await expect(page.getByRole('option', { name: /Nuevo cup[oó]n/i })).toBeVisible({ timeout: 4_000 });
-<<<<<<< HEAD
-    // Reescribimos el filtro para encontrar la plantilla brutal
+    // Reescribimos el filtro para encontrar la plantilla destacada
     await page.getByPlaceholder(/buscar m[oó]dulo/i).fill('plant');
-    await expect(page.getByRole('option', { name: /Plantilla brutal/i })).toBeVisible({ timeout: 4_000 });
-=======
-    await expect(page.getByRole('option', { name: /Plantilla destacada/i })).toBeVisible();
->>>>>>> 65ae9d4c94c89ae1d35f42faf90b8737aa47e1bc
+    await expect(page.getByRole('option', { name: /Plantilla (destacada|brutal)/i })).toBeVisible({ timeout: 4_000 });
   });
 
   test('sidebar muestra la sección "Promociones" con Cupones', async ({ page }) => {

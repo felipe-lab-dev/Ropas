@@ -96,7 +96,6 @@ export default function ConfiguracionPage() {
         descripcion="Personaliza la apariencia y los datos del negocio."
       />
 
-<<<<<<< HEAD
       <motion.div
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -114,9 +113,7 @@ export default function ConfiguracionPage() {
         </div>
       </motion.div>
 
-=======
       <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
->>>>>>> 65ae9d4c94c89ae1d35f42faf90b8737aa47e1bc
       <Card>
         <CardHeader>
           <CardTitle>Apariencia</CardTitle>

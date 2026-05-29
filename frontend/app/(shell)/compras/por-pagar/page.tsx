@@ -14,6 +14,7 @@ import {
 import { obtener } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
+import { EstadoError } from '@/components/ui/error-state';
 
 interface Fila {
   id: string;
@@ -35,7 +36,7 @@ interface Respuesta {
 }
 
 export default function CuentasPorPagarPage() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['compras-cxp'],
     queryFn: () => obtener<Respuesta>('/compras/cuentas-por-pagar'),
   });
@@ -52,6 +53,15 @@ export default function CuentasPorPagarPage() {
         }
       />
 
+      {isError ? (
+        <EstadoError
+          titulo="No se pudieron cargar las cuentas por pagar"
+          error={error}
+          onReintentar={() => refetch()}
+          reintentando={isFetching}
+        />
+      ) : (
+        <>
       <div className="grid grid-cols-2 gap-4">
         <Card className="p-5">
           <div className="text-xs uppercase tracking-wider text-[hsl(var(--text-muted))]">Total por pagar</div>
@@ -74,10 +84,10 @@ export default function CuentasPorPagarPage() {
               <TableHead>Nº</TableHead>
               <TableHead>Comprobante</TableHead>
               <TableHead>Proveedor</TableHead>
-              <TableHead>Emisión</TableHead>
-              <TableHead>Vencimiento</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-              <TableHead className="text-right">Pagado</TableHead>
+              <TableHead className="hidden xl:table-cell">Emisión</TableHead>
+              <TableHead className="hidden xl:table-cell">Vencimiento</TableHead>
+              <TableHead className="text-right hidden lg:table-cell">Total</TableHead>
+              <TableHead className="text-right hidden lg:table-cell">Pagado</TableHead>
               <TableHead className="text-right">Saldo</TableHead>
               <TableHead>Días venc.</TableHead>
             </TableRow>
@@ -106,10 +116,10 @@ export default function CuentasPorPagarPage() {
                     <div className="font-medium">{f.proveedor.razonSocial}</div>
                     <div className="text-xs text-[hsl(var(--text-muted))] font-mono">{f.proveedor.documento}</div>
                   </TableCell>
-                  <TableCell className="text-xs">{formatearFecha(f.fechaEmision)}</TableCell>
-                  <TableCell className="text-xs">{f.fechaVencimiento ? formatearFecha(f.fechaVencimiento) : '—'}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatearMoneda(f.total)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatearMoneda(f.totalPagado)}</TableCell>
+                  <TableCell className="text-xs hidden xl:table-cell">{formatearFecha(f.fechaEmision)}</TableCell>
+                  <TableCell className="text-xs hidden xl:table-cell">{f.fechaVencimiento ? formatearFecha(f.fechaVencimiento) : '—'}</TableCell>
+                  <TableCell className="text-right tabular-nums hidden lg:table-cell">{formatearMoneda(f.total)}</TableCell>
+                  <TableCell className="text-right tabular-nums hidden lg:table-cell">{formatearMoneda(f.totalPagado)}</TableCell>
                   <TableCell className="text-right tabular-nums font-bold">{formatearMoneda(f.saldo)}</TableCell>
                   <TableCell>
                     {f.diasVencido > 0 ? (
@@ -124,6 +134,8 @@ export default function CuentasPorPagarPage() {
           </TableBody>
         </Table>
       </Card>
+        </>
+      )}
     </div>
   );
 }

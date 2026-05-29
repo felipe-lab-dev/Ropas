@@ -446,39 +446,6 @@ export function DataTable<T>({
             </tr>
           ) : (
             <AnimatePresence initial={false} mode="popLayout">
-<<<<<<< HEAD
-              {filasProcesadas.map((fila, idx) => (
-                <motion.tr
-                  key={getRowKey(fila)}
-                  layout
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{
-                    duration: 0.2,
-                    delay: Math.min(idx * 0.02, 0.16),
-                    ease: [0.4, 0, 0.2, 1],
-                  }}
-                  className={cn(
-                    'border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--surface-2))]/30 transition-colors',
-                    rowClassName?.(fila),
-                  )}
-                >
-                  {renderRowAccent && <td className="p-0 w-1">{renderRowAccent(fila)}</td>}
-                  {columnasOrdenadas.map(col => (
-                    <motion.td
-                      key={col.id}
-                      layout="position"
-                      layoutId={`td-${getRowKey(fila)}-${col.id}`}
-                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                      className={cn(
-                        'px-2 py-1.5 xl:px-3 xl:py-2.5 truncate',
-                        col.align === 'right' && 'text-right',
-                        col.align === 'center' && 'text-center',
-                        col.cellClassName,
-                        col.colClassName,
-                      )}
-=======
               {filasProcesadas.flatMap((fila, idx) => {
                 const key = getRowKey(fila);
                 const expandida = renderFilaExpandida && filaExpandidaKey === key;
@@ -522,10 +489,11 @@ export function DataTable<T>({
                         layoutId={`td-${key}-${col.id}`}
                         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                         className={cn(
-                          'px-3 py-2.5 truncate',
+                          'px-2 py-1.5 xl:px-3 xl:py-2.5 truncate',
                           col.align === 'right' && 'text-right',
                           col.align === 'center' && 'text-center',
                           col.cellClassName,
+                          col.colClassName,
                         )}
                       >
                         {col.render(fila, idx)}
@@ -548,7 +516,6 @@ export function DataTable<T>({
                     <td
                       colSpan={columnasOrdenadas.length + (renderRowAccent ? 1 : 0)}
                       className="p-0"
->>>>>>> 65ae9d4c94c89ae1d35f42faf90b8737aa47e1bc
                     >
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}

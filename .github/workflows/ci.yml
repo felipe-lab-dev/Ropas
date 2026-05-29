@@ -445,13 +445,39 @@ jobs:
             --build-arg NODE_IMAGE="$ACR_LOGIN/library/node:22-bookworm-slim" \
             .
 
-      - name: 📋 Capturar revisión previa (rollback)
+      - name: 📋 Capturar imagen previa (rollback real)
         id: prev
         run: |
-          prev=$(az containerapp revision list \
+          # El Container App corre en SINGLE-revision mode (obligatorio: en
+          # multiple mode los deploys no mueven el tráfico → outage). En single
+          # mode el rollback NO es reactivar la revisión vieja (Azure siempre
+          # sirve la última revisión CREADA, que sería la nueva fallida). El
+          # rollback real es re-desplegar la IMAGEN previa: eso crea una revisión
+          # nueva con el código viejo que toma el 100% del tráfico automáticamente.
+          # Este paso corre ANTES del deploy, así que la imagen actual del CA es
+          # todavía la previa (la buena). La capturamos para poder volver a ella.
+          prev_img=$(az containerapp show \
             --subscription "$AZURE_SUB" -g "$RG" -n "$BACKEND_APP" \
-            --query "[?properties.active==\`true\`] | [0].name" -o tsv || true)
-          echo "prev=$prev" >> "$GITHUB_OUTPUT"
+            --query "properties.template.containers[0].image" -o tsv || true)
+          echo "prev_image=$prev_img" >> "$GITHUB_OUTPUT"
+          echo "ℹ️ Imagen previa para rollback: $prev_img"
+
+      - name: 🔒 Asegurar single-revision mode (anti-outage)
+        # GUARD: el outage del 28-may fue por multiple-revision mode (los deploys
+        # no movían el tráfico → quedaba 100% en una revisión muerta). Single mode
+        # da automáticamente el 100% del tráfico a la última revisión creada. Esto
+        # es idempotente y self-healing: si alguien lo cambió a Multiple por el
+        # portal/CLI, lo regresamos a Single ANTES de desplegar.
+        run: |
+          mode=$(az containerapp show \
+            --subscription "$AZURE_SUB" -g "$RG" -n "$BACKEND_APP" \
+            --query properties.configuration.activeRevisionsMode -o tsv)
+          echo "Revision mode actual: $mode"
+          if [ "$mode" != "Single" ]; then
+            echo "::warning::Container App en '$mode' mode — forzando a Single antes del deploy"
+            az containerapp revision set-mode \
+              --subscription "$AZURE_SUB" -g "$RG" -n "$BACKEND_APP" --mode single
+          fi
 
       - name: 🚀 Deploy a Container App
         id: deploy
@@ -508,13 +534,15 @@ jobs:
             exit 1
           fi
 
-      - name: 🔙 Rollback si falló
-        if: failure() && steps.prev.outputs.prev != ''
+      - name: 🔙 Rollback si falló (re-deploy imagen previa)
+        if: failure() && steps.prev.outputs.prev_image != ''
         run: |
-          echo "::warning::Reactivando revisión previa ${{ steps.prev.outputs.prev }}"
-          az containerapp revision activate \
+          echo "::warning::Deploy falló — re-desplegando imagen previa ${{ steps.prev.outputs.prev_image }}"
+          # En single mode esto crea una revisión nueva con el código viejo y le
+          # da el 100% del tráfico automáticamente — rollback real, no cosmético.
+          az containerapp update \
             --subscription "$AZURE_SUB" -g "$RG" -n "$BACKEND_APP" \
-            --revision "${{ steps.prev.outputs.prev }}" || true
+            --image "${{ steps.prev.outputs.prev_image }}" || true
           az containerapp logs show \
             --subscription "$AZURE_SUB" -g "$RG" -n "$BACKEND_APP" --tail 200 || true
 
@@ -533,7 +561,7 @@ jobs:
             echo "| :--------------- | :---- |"
             echo "| 🐳 Imagen        | \`$ACR_LOGIN/$IMAGE:${{ steps.meta.outputs.tag }}\` |"
             echo "| 🔢 Revisión nueva| \`${{ steps.deploy.outputs.revision }}\` |"
-            echo "| ↩️ Revisión previa| \`${{ steps.prev.outputs.prev }}\` |"
+            echo "| ↩️ Imagen previa  | \`${{ steps.prev.outputs.prev_image }}\` |"
             echo "| 🩺 Smoke HTTP     | \`${{ steps.smoke.outputs.health }}\` |"
             echo "| ⏱️ Duración       | \`${{ steps.timer.outputs.duration }}s\` |"
             echo ""

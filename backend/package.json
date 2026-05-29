@@ -26,6 +26,7 @@
     "seed:ventas": "tsx scripts/seed-ventas.ts",
     "seed:proveedores": "tsx scripts/seed-proveedores.ts",
     "migrar:codigo": "tsx scripts/aplicar-migracion-codigo.ts",
+    "migrar:codigo-entidades": "tsx scripts/aplicar-migracion-codigo-entidades.ts",
     "migrar:clasificacion-clientes": "tsx scripts/aplicar-migracion-clasificacion-clientes.ts",
     "migrar:cupones": "tsx scripts/aplicar-migracion-cupones.ts",
     "setup:facturacion": "tsx scripts/setup-facturacion.ts",

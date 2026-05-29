@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { obtener } from '@/lib/api/client';
 import { formatearMoneda, formatearNumero } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
+import { EstadoError } from '@/components/ui/error-state';
 
 interface CategoriaVenta { categoria: string; monto: number; unidades: number }
 interface ResumenDashboard {
@@ -45,15 +46,31 @@ const COLORES = [
 ];
 
 export default function ReportesPage() {
-  const { data: categorias, isLoading: loadingCategorias } = useQuery({
+  const {
+    data: categorias,
+    isLoading: loadingCategorias,
+    isError: errorCategorias,
+    error: errCategorias,
+    refetch: refetchCategorias,
+    isFetching: fetchingCategorias,
+  } = useQuery({
     queryKey: ['ventas-por-categoria'],
     queryFn: () => obtener<CategoriaVenta[]>('/reportes/ventas-por-categoria?dias=30'),
   });
 
-  const { data: resumen, isLoading: loadingResumen } = useQuery({
+  const {
+    data: resumen,
+    isLoading: loadingResumen,
+    isError: errorResumen,
+    error: errResumen,
+    refetch: refetchResumen,
+    isFetching: fetchingResumen,
+  } = useQuery({
     queryKey: ['dashboard-reportes'],
     queryFn: () => obtener<ResumenDashboard>('/reportes/dashboard'),
   });
+
+  const hayError = errorCategorias || errorResumen;
 
   // Datos sintéticos para área (días de la semana, demo)
   const tendencia = React.useMemo(() => {
@@ -69,6 +86,18 @@ export default function ReportesPage() {
     <div className="space-y-6">
       <PageHeader titulo="Reportes" descripcion="Analítica de ventas e inventario." />
 
+      {hayError ? (
+        <EstadoError
+          titulo="No se pudieron cargar los reportes"
+          error={errCategorias ?? errResumen}
+          onReintentar={() => {
+            if (errorCategorias) refetchCategorias();
+            if (errorResumen) refetchResumen();
+          }}
+          reintentando={fetchingCategorias || fetchingResumen}
+        />
+      ) : (
+        <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Tendencia semanal — área */}
         <motion.div
@@ -253,6 +282,8 @@ export default function ReportesPage() {
           </CardContent>
         </Card>
       </motion.div>
+        </>
+      )}
     </div>
   );
 }

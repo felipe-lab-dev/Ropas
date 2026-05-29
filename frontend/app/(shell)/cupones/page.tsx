@@ -206,9 +206,9 @@ export default function CuponesPage() {
             <TableRow>
               <TableHead>Cupón</TableHead>
               <TableHead>Descuento</TableHead>
-              <TableHead>Segmento</TableHead>
-              <TableHead>Vigencia</TableHead>
-              <TableHead className="text-right">Canjes</TableHead>
+              <TableHead className="hidden lg:table-cell">Segmento</TableHead>
+              <TableHead className="hidden lg:table-cell">Vigencia</TableHead>
+              <TableHead className="text-right hidden xl:table-cell">Canjes</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="text-right pr-4 w-[150px]">Acciones</TableHead>
             </TableRow>
@@ -276,12 +276,12 @@ export default function CuponesPage() {
                     <TableCell className="font-semibold tabular-nums">
                       {c.tipoDescuento === 'porcentaje' ? `${Number(c.valorDescuento)}%` : `S/ ${Number(c.valorDescuento).toFixed(2)}`}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       <Badge variant="outline" className="text-[10px]">
                         {SEGMENTO_LABEL[c.segmento as never] ?? c.segmento}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       <div className="text-xs">
                         Hasta {new Date(c.fechaFin).toLocaleDateString('es-PE')}
                       </div>
@@ -289,7 +289,7 @@ export default function CuponesPage() {
                         {venceEn < 0 ? 'Vencido' : venceEn === 0 ? '⚠ Vence hoy' : `${venceEn}d restantes`}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="text-right tabular-nums hidden xl:table-cell">
                       <div className="font-bold">{usos}{c.usosMaximosTotal ? ` / ${c.usosMaximosTotal}` : ''}</div>
                       {tasaCanje !== null && (
                         <div className="text-[10px] text-[hsl(var(--text-muted))]">{tasaCanje}% canje</div>
