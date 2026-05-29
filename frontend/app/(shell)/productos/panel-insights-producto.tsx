@@ -117,10 +117,10 @@ export function PanelInsightsProducto({ productoId, imagenes, nombre }: Props) {
   return (
     <div
       data-testid="panel-insights-producto"
-      className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-4"
+      className="space-y-4"
     >
       {/* ── Carrusel de fotos ───────────────────────────────────────────── */}
-      <div className="space-y-2">
+      <div className="space-y-2 sm:max-w-sm">
         <div className="relative aspect-[4/3] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] overflow-hidden grid place-items-center">
           {imagenActual ? (
             // eslint-disable-next-line @next/next/no-img-element

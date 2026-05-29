@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import {
   AlertCircle,
   Edit2,
+  Eye,
+  MoreVertical,
   Plus,
   Search,
   Trash2,
@@ -19,6 +21,10 @@ import { Badge } from '@/components/ui/badge';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { DetalleSheet } from '@/components/ui/sheet';
 import { eliminar, mensajeError, obtenerPaginado } from '@/lib/api/client';
 import { formatearMoneda, formatearNumero } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
@@ -29,6 +35,7 @@ import { usePreferencias } from '@/lib/use-preferencias';
 import { LinkWhatsApp } from '@/components/ui/link-whatsapp';
 import { NuevoProveedorContenido } from './nuevo/page';
 import { EditarProveedorCliente } from './editar/editar-cliente';
+import { ProveedorDetalle } from './proveedor-detalle';
 
 type ModalProveedores =
   | { tipo: 'nuevo' }
@@ -73,67 +80,6 @@ const ESTADO_DEFAULT: TableState = {
 
 const LIMITE = 30;
 
-/** Campo etiqueta + valor para el panel expandible. */
-function Campo({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-muted))]">{label}</div>
-      <div className="text-sm mt-0.5 break-words">{children}</div>
-    </div>
-  );
-}
-
-const VACIO = <span className="text-[hsl(var(--text-muted))]">—</span>;
-
-/**
- * Panel de detalle bajo la fila. Muestra TODOS los campos, incluidos los que se
- * ocultan como columnas en pantallas chicas (contacto, email, teléfono, ciudad,
- * dirección, condición, etc.) — así nada queda inaccesible en laptops.
- */
-function DetalleProveedor({ p }: { p: Proveedor }) {
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
-      <Campo label="Contacto">{p.contacto || VACIO}</Campo>
-      <Campo label="Email">
-        {p.email
-          ? <a href={`mailto:${p.email}`} className="text-[hsl(var(--brand-primary))] hover:underline break-all">{p.email}</a>
-          : VACIO}
-      </Campo>
-      <Campo label="Teléfono"><LinkWhatsApp telefono={p.telefono} className="text-sm" /></Campo>
-      <Campo label="Ciudad">{p.ciudad || VACIO}</Campo>
-      <Campo label="Dirección">{p.direccion || VACIO}</Campo>
-      <Campo label="Nombre comercial">{p.nombreComercial || VACIO}</Campo>
-      <Campo label="Condición de pago">
-        <Badge variant={p.condicionPago === 'contado' ? 'default' : 'warning'}>
-          {CONDICION_LABEL[p.condicionPago] ?? p.condicionPago}
-          {p.condicionPago !== 'contado' && p.diasCredito > 0 ? ` · ${p.diasCredito}d` : ''}
-        </Badge>
-      </Campo>
-      <Campo label="Cuenta bancaria">
-        {p.cuentaBancaria ? <span className="font-mono text-xs">{p.cuentaBancaria}</span> : VACIO}
-      </Campo>
-      <Campo label="Total comprado"><span className="tabular-nums">{formatearMoneda(p.totalComprado)}</span></Campo>
-      <Campo label="Deuda actual">
-        {Number(p.deudaActual) > 0
-          ? <span className="tabular-nums font-semibold text-[hsl(355_75%_60%)]">{formatearMoneda(p.deudaActual)}</span>
-          : VACIO}
-      </Campo>
-      {p.tags && p.tags.length > 0 && (
-        <Campo label="Tags">
-          <div className="flex flex-wrap gap-1">
-            {p.tags.map(t => <Badge key={t} variant="outline">{t}</Badge>)}
-          </div>
-        </Campo>
-      )}
-      {p.notas && (
-        <div className="col-span-2 md:col-span-3 lg:col-span-4">
-          <Campo label="Notas">{p.notas}</Campo>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function ProveedoresPage() {
   return (
     <React.Suspense fallback={null}>
@@ -147,10 +93,10 @@ function ProveedoresPageContenido() {
   const [pagina, setPagina] = React.useState(1);
   const [debounced, setDebounced] = React.useState('');
   const [aEliminar, setAEliminar] = React.useState<Proveedor | null>(null);
-  const [filaExpandida, setFilaExpandida] = React.useState<string | null>(null);
   const qc = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const verId = searchParams.get('ver');
 
   // Estado del modal de alta/edición — soporta deep-link vía ?nuevo=1 o ?editar=<id>.
   const modal: ModalProveedores = React.useMemo(() => {
@@ -160,15 +106,54 @@ function ProveedoresPageContenido() {
     return null;
   }, [searchParams]);
 
+  // Drawer de ficha de lectura (?ver=<id>).
+  const [proveedorAbierto, setProveedorAbierto] = React.useState<{ id: string; razonSocial?: string } | null>(
+    verId ? { id: verId } : null,
+  );
+  const pusheamos = React.useRef(false);
+
+  React.useEffect(() => {
+    if (verId) {
+      setProveedorAbierto(prev => (prev?.id === verId ? prev : { id: verId }));
+    } else {
+      setProveedorAbierto(null);
+      pusheamos.current = false;
+    }
+  }, [verId]);
+
+  const abrir = React.useCallback(
+    (id: string, razonSocial?: string) => {
+      setProveedorAbierto({ id, razonSocial });
+      pusheamos.current = true;
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.delete('nuevo'); sp.delete('editar'); sp.set('ver', id);
+      router.push(`/proveedores?${sp.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  const cerrar = React.useCallback(() => {
+    setProveedorAbierto(null);
+    if (pusheamos.current) {
+      pusheamos.current = false;
+      router.back();
+    } else {
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.delete('ver');
+      const qs = sp.toString();
+      router.replace(`/proveedores${qs ? `?${qs}` : ''}`, { scroll: false });
+    }
+  }, [router, searchParams]);
+
   const abrirNuevo = React.useCallback(() => {
     const sp = new URLSearchParams(searchParams.toString());
-    sp.delete('editar'); sp.set('nuevo', '1');
+    sp.delete('editar'); sp.delete('ver'); sp.set('nuevo', '1');
     router.replace(`/proveedores?${sp.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
   const abrirEditar = React.useCallback((id: string) => {
     const sp = new URLSearchParams(searchParams.toString());
-    sp.delete('nuevo'); sp.set('editar', id);
+    sp.delete('nuevo'); sp.delete('ver'); sp.set('editar', id);
     router.replace(`/proveedores?${sp.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
@@ -365,7 +350,7 @@ function ProveedoresPageContenido() {
     {
       id: 'acciones',
       titulo: 'Acciones',
-      width: 88,
+      width: 80,
       align: 'right',
       movible: false,
       cellClassName: 'pr-4',
@@ -374,24 +359,33 @@ function ProveedoresPageContenido() {
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label={`Editar ${p.razonSocial}`}
-            onClick={() => abrirEditar(p.id)}
+            aria-label={`Ver ${p.razonSocial}`}
+            title="Ver ficha"
+            onClick={() => abrir(p.id, p.razonSocial)}
+            data-testid="btn-ver-proveedor"
           >
-            <Edit2 className="size-3.5" />
+            <Eye className="size-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Eliminar ${p.razonSocial}`}
-            onClick={() => setAEliminar(p)}
-            className="text-[hsl(355_75%_65%)] hover:text-[hsl(355_75%_75%)] hover:bg-[hsl(355_75%_55%/0.1)]"
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label="Más acciones">
+                <MoreVertical className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onSelect={() => abrirEditar(p.id)}>
+                <Edit2 /> Editar
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variante="danger" onSelect={() => setAEliminar(p)}>
+                <Trash2 /> Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       ),
     },
-  ], [pagina, opcionesCiudad, abrirEditar]);
+  ], [pagina, opcionesCiudad, abrirEditar, abrir]);
 
   const filtrosActivos = Object.keys(estadoTabla.filtros ?? {}).length;
 
@@ -463,9 +457,7 @@ function ProveedoresPageContenido() {
             onEstadoChange={setEstadoTabla}
             cargando={isLoading}
             rowClassName={p => (p.activo ? '' : 'opacity-60')}
-            filaExpandidaKey={filaExpandida}
-            onToggleFilaExpandida={key => setFilaExpandida(k => (k === key ? null : key))}
-            renderFilaExpandida={p => <DetalleProveedor p={p} />}
+            onFilaClick={p => abrir(p.id, p.razonSocial)}
             vacioRender={
               <EmptyState
                 ilustracion={<Truck className="size-20 text-[hsl(var(--brand-primary))/60]" />}
@@ -494,6 +486,19 @@ function ProveedoresPageContenido() {
           />
         )}
       </Card>
+
+      <DetalleSheet
+        open={!!proveedorAbierto}
+        onOpenChange={o => { if (!o) cerrar(); }}
+        titulo={proveedorAbierto?.razonSocial ?? 'Proveedor'}
+        subtitulo="Ficha del proveedor"
+        icono={<Truck className="size-4" />}
+        ancho="2xl"
+      >
+        {proveedorAbierto && (
+          <ProveedorDetalle proveedorId={proveedorAbierto.id} onEditar={abrirEditar} />
+        )}
+      </DetalleSheet>
 
       <Dialog open={!!aEliminar} onOpenChange={o => !o && setAEliminar(null)}>
         <DialogContent>
