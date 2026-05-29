@@ -2,12 +2,14 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   AlertCircle,
   Eye,
   Edit2,
+  MoreVertical,
   PauseCircle,
   PlayCircle,
   Plus,
@@ -38,11 +40,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { DetalleSheet } from '@/components/ui/sheet';
 import { eliminar, mensajeError, obtenerPaginado, actualizar } from '@/lib/api/client';
 import { PageHeader } from '@/components/ui/page-header';
 import { Pagination } from '@/components/ui/pagination';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ESTADO_LABEL, ESTADOS, SEGMENTO_LABEL, SEGMENTOS } from './cupon-schema';
+import { CuponDetalle } from './cupon-detalle';
 
 interface CuponLista {
   id: string;
@@ -69,6 +76,18 @@ const ESTADO_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'outlin
 };
 
 export default function CuponesPage() {
+  return (
+    <React.Suspense fallback={<div className="p-8" />}>
+      <CuponesContenido />
+    </React.Suspense>
+  );
+}
+
+function CuponesContenido() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const verId = searchParams.get('ver');
+
   const [buscar, setBuscar] = React.useState('');
   const [pagina, setPagina] = React.useState(1);
   const [estado, setEstado] = React.useState<string>('');
@@ -76,6 +95,40 @@ export default function CuponesPage() {
   const [debounced, setDebounced] = React.useState('');
   const [aEliminar, setAEliminar] = React.useState<CuponLista | null>(null);
   const qc = useQueryClient();
+
+  // Drawer de detalle (reemplaza la antigua página /cupones/detalle?id=).
+  const [cuponAbierto, setCuponAbierto] = React.useState<{ id: string; codigo?: string } | null>(
+    verId ? { id: verId } : null,
+  );
+  const pusheamos = React.useRef(false);
+
+  React.useEffect(() => {
+    if (verId) {
+      setCuponAbierto(prev => (prev?.id === verId ? prev : { id: verId }));
+    } else {
+      setCuponAbierto(null);
+      pusheamos.current = false;
+    }
+  }, [verId]);
+
+  const abrir = React.useCallback(
+    (id: string, codigo?: string) => {
+      setCuponAbierto({ id, codigo });
+      pusheamos.current = true;
+      router.push(`/cupones?ver=${id}`, { scroll: false });
+    },
+    [router],
+  );
+
+  const cerrar = React.useCallback(() => {
+    setCuponAbierto(null);
+    if (pusheamos.current) {
+      pusheamos.current = false;
+      router.back();
+    } else {
+      router.replace('/cupones', { scroll: false });
+    }
+  }, [router]);
 
   React.useEffect(() => {
     const t = setTimeout(() => {
@@ -210,7 +263,7 @@ export default function CuponesPage() {
               <TableHead className="hidden lg:table-cell">Vigencia</TableHead>
               <TableHead className="text-right hidden xl:table-cell">Canjes</TableHead>
               <TableHead>Estado</TableHead>
-              <TableHead className="text-right pr-4 w-[150px]">Acciones</TableHead>
+              <TableHead className="text-right pr-4 w-24">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -249,7 +302,12 @@ export default function CuponesPage() {
                   : null;
                 const venceEn = Math.ceil((new Date(c.fechaFin).getTime() - Date.now()) / 86400_000);
                 return (
-                  <TableRow key={c.id}>
+                  <TableRow
+                    key={c.id}
+                    className="cursor-pointer hover:bg-[hsl(var(--surface-2))]/50"
+                    onClick={() => abrir(c.id, c.codigo)}
+                    data-testid="fila-cupon"
+                  >
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <span
@@ -300,45 +358,44 @@ export default function CuponesPage() {
                         {ESTADO_LABEL[c.estado]}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right pr-4">
+                    <TableCell className="text-right pr-4" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <Button asChild variant="ghost" size="icon-sm" aria-label={`Ver ${c.codigo}`}>
-                          <Link href={`/cupones/detalle?id=${c.id}`}><Eye className="size-3.5" /></Link>
-                        </Button>
-                        <Button asChild variant="ghost" size="icon-sm" aria-label={`Editar ${c.codigo}`}>
-                          <Link href={`/cupones/editar?id=${c.id}`}><Edit2 className="size-3.5" /></Link>
-                        </Button>
-                        {c.estado === 'activo' && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`Pausar ${c.codigo}`}
-                            onClick={() => mutarPausar.mutate({ id: c.id, pausar: true })}
-                            disabled={mutarPausar.isPending}
-                          >
-                            <PauseCircle className="size-3.5" />
-                          </Button>
-                        )}
-                        {c.estado === 'pausado' && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`Reanudar ${c.codigo}`}
-                            onClick={() => mutarPausar.mutate({ id: c.id, pausar: false })}
-                            disabled={mutarPausar.isPending}
-                          >
-                            <PlayCircle className="size-3.5" />
-                          </Button>
-                        )}
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label={`Eliminar ${c.codigo}`}
-                          onClick={() => setAEliminar(c)}
-                          className="text-[hsl(355_75%_65%)] hover:text-[hsl(355_75%_75%)] hover:bg-[hsl(355_75%_55%/0.1)]"
+                          aria-label={`Ver ${c.codigo}`}
+                          title="Ver detalle"
+                          onClick={() => abrir(c.id, c.codigo)}
+                          data-testid="btn-ver-cupon"
                         >
-                          <Trash2 className="size-3.5" />
+                          <Eye className="size-3.5" />
                         </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon-sm" aria-label="Más acciones">
+                              <MoreVertical className="size-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem onSelect={() => router.push(`/cupones/editar?id=${c.id}`)}>
+                              <Edit2 /> Editar
+                            </DropdownMenuItem>
+                            {c.estado === 'activo' && (
+                              <DropdownMenuItem onSelect={() => mutarPausar.mutate({ id: c.id, pausar: true })}>
+                                <PauseCircle /> Pausar
+                              </DropdownMenuItem>
+                            )}
+                            {c.estado === 'pausado' && (
+                              <DropdownMenuItem onSelect={() => mutarPausar.mutate({ id: c.id, pausar: false })}>
+                                <PlayCircle /> Reanudar
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem variante="danger" onSelect={() => setAEliminar(c)}>
+                              <Trash2 /> Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -357,6 +414,17 @@ export default function CuponesPage() {
           />
         )}
       </Card>
+
+      <DetalleSheet
+        open={!!cuponAbierto}
+        onOpenChange={o => { if (!o) cerrar(); }}
+        titulo={cuponAbierto?.codigo ?? 'Cupón'}
+        subtitulo="Detalle del cupón"
+        icono={<Tag className="size-4" />}
+        ancho="2xl"
+      >
+        {cuponAbierto && <CuponDetalle cuponId={cuponAbierto.id} />}
+      </DetalleSheet>
 
       <Dialog open={!!aEliminar} onOpenChange={o => !o && setAEliminar(null)}>
         <DialogContent>

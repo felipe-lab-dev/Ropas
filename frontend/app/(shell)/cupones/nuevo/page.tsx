@@ -68,7 +68,7 @@ export default function NuevoCuponPage() {
     onSuccess: data => {
       toast.success(`Cupón "${data?.codigo ?? ''}" creado`);
       qc.invalidateQueries({ queryKey: ['cupones'] });
-      router.push(`/cupones/detalle?id=${data.id}`);
+      router.push(`/cupones?ver=${data.id}`);
     },
     onError: e => setError(mensajeError(e)),
   });
