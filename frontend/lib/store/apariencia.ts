@@ -20,6 +20,12 @@ interface EstadoApariencia {
   setLogoSvg: (s: string) => void;
   setNombreApp: (s: string) => void;
   setSubtituloApp: (s: string) => void;
+  /**
+   * Aplica el branding tenant-level traído del servidor (/saas/mi-config).
+   * El server gana sobre lo guardado en este navegador para logo/nombre/eslogan
+   * (son datos de la tienda, compartidos). Solo pisa cuando el server trae valor.
+   */
+  setBrandingServidor: (b: { logoSvg?: string | null; nombre?: string | null; subtitulo?: string | null }) => void;
   hidratar: () => void;
 }
 
@@ -41,6 +47,15 @@ export const useApariencia = create<EstadoApariencia>()((set, get) => ({
   setLogoSvg: logoSvg => { set({ logoSvg }); persistir(get()); },
   setNombreApp: nombreApp => { set({ nombreApp }); persistir(get()); },
   setSubtituloApp: subtituloApp => { set({ subtituloApp }); persistir(get()); },
+  setBrandingServidor: b => {
+    const s = get();
+    set({
+      logoSvg: b.logoSvg ?? s.logoSvg,
+      nombreApp: b.nombre ?? s.nombreApp,
+      subtituloApp: b.subtitulo ?? s.subtituloApp,
+    });
+    persistir(get());
+  },
   hidratar: () => {
     if (typeof window === 'undefined' || get().hidratado) return;
     try {

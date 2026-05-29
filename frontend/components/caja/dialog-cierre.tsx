@@ -14,17 +14,16 @@ import { useValidacionForm } from '@/lib/use-validacion-form';
 import { postear, mensajeError } from '@/lib/api/client';
 import { formatearMoneda } from '@/lib/utils';
 
-<<<<<<< HEAD
 interface FormCierre {
   monto: string;
-=======
+}
+
 interface SaldoMonedaTotales {
   moneda: string;
   apertura: number;
   ingresos: number;
   egresos: number;
   efectivoEsperado: number;
->>>>>>> 7af26ac3e43321f6fdb1128c8298ba12a07f9eda
 }
 
 interface Props {

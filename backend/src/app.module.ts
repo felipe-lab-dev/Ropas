@@ -16,6 +16,7 @@ import { SucursalesModule } from './modules/sucursales/sucursales.module';
 import { CategoriasModule } from './modules/categorias/categorias.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { ConfiguracionModule } from './modules/configuracion/configuracion.module';
+import { BrandingModule } from './modules/branding/branding.module';
 import { ProveedoresModule } from './modules/proveedores/proveedores.module';
 import { ComprasModule } from './modules/compras/compras.module';
 import { ContabilidadModule } from './modules/contabilidad/contabilidad.module';
@@ -72,6 +73,7 @@ import { LogsSistemaModule } from './modules/logs-sistema/logs-sistema.module';
     ContabilidadModule,
     ReportesModule,
     ConfiguracionModule,
+    BrandingModule,
     PreferenciasModule,
     CuponesModule,
     NotasCreditoModule,

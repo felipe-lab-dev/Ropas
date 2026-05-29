@@ -472,7 +472,6 @@ describe('VentasService', () => {
     });
   });
 
-<<<<<<< HEAD
   // ---------- crear: costo congelado (snapshot rentabilidad) ----------
 
   describe('crear (costo congelado)', () => {
@@ -515,7 +514,9 @@ describe('VentasService', () => {
       );
       const itemsCreate = tx.venta.create.mock.calls[0][0].data.items.create;
       expect(itemsCreate[0].costoUnitario).toBeNull();
-=======
+    });
+  });
+
   // ---------- crear: guard SUNAT (boleta > S/700 requiere DNI) ----------
 
   describe('crear (guard identificación boleta > S/700)', () => {
@@ -585,7 +586,6 @@ describe('VentasService', () => {
           'u1',
         ),
       ).resolves.toBeDefined();
->>>>>>> 7af26ac3e43321f6fdb1128c8298ba12a07f9eda
     });
   });
 

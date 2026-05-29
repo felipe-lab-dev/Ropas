@@ -4,7 +4,9 @@
   "private": true,
   "description": "Frontend Next.js 16 de Ropas — diseño brutal premium",
   "scripts": {
+    "predev": "node scripts/kill-puerto.mjs 3000",
     "dev": "next dev --turbopack",
+    "kill-puerto": "node scripts/kill-puerto.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

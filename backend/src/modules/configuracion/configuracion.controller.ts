@@ -1,6 +1,8 @@
 import {
+  Body,
   Controller,
   Post,
+  Put,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -8,15 +10,36 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Express } from 'express';
 import { AzureBlobService } from '../../core/storage/azure-blob.service';
+import { BrandingService } from '../branding/branding.service';
 import { Tenant } from '../../core/tenancy/tenant.decorator';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import { AuthGuard, RequierePermiso } from '../auth/auth.guard';
 import { ErrorValidacion } from '../../core/errors/errores';
+import { ActualizarBrandingDto } from './dto/actualizar-branding.dto';
 
 @Controller('configuracion')
 @UseGuards(AuthGuard)
 export class ConfiguracionController {
-  constructor(private readonly blob: AzureBlobService) {}
+  constructor(
+    private readonly blob: AzureBlobService,
+    private readonly branding: BrandingService,
+  ) {}
+
+  /**
+   * Persiste la identidad de la tienda (logo SVG + nombre + eslogan) en
+   * public.tenants.branding. Como la DB es compartida dev/prod, editar acá se
+   * refleja en producción al instante. El SVG viaja como texto (no blob) porque
+   * el logo se extruye en 3D y necesita los paths.
+   */
+  @Put('branding')
+  @RequierePermiso('configuracion:editar')
+  async guardarBranding(
+    @Body() dto: ActualizarBrandingDto,
+    @Tenant() ctx: TenantContext,
+  ) {
+    const datos = await this.branding.actualizar(ctx.codigo, dto);
+    return { datos, mensaje: 'Identidad de la tienda actualizada' };
+  }
 
   /**
    * Sube el logo SVG de la tienda al blob storage del tenant.

@@ -10,7 +10,9 @@ declare module 'express' {
   }
 }
 
-const RUTAS_SIN_TENANT = ['/api/v1/health', '/api/v1/saas/mi-config'];
+// /api/v1/branding/* es público (login pre-auth + selector de tiendas): se sirve
+// por :codigo, sin header X-Tenant-Code.
+const RUTAS_SIN_TENANT = ['/api/v1/health', '/api/v1/saas/mi-config', '/api/v1/branding'];
 
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {

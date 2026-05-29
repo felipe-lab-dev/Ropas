@@ -44,6 +44,9 @@ model Tenant {
   planNombre         String?      @map("plan_nombre") @db.VarChar(80)
   modulosHabilitados Json         @default("[]") @map("modulos_habilitados")
   limites            Json         @default("{}")
+  // Branding por tienda servido al login (pre-auth) y al shell: { logoSvg, nombre, subtitulo }.
+  // Vive en public.tenants (DB compartida dev/prod) → editar en local se refleja en producción.
+  branding           Json?
   configCache        Json?        @map("config_cache")
   configCacheAt      DateTime?    @map("config_cache_at")
   creadoEn           DateTime     @default(now()) @map("creado_en")

@@ -105,17 +105,12 @@ export function DialogApertura({ open, onOpenChange, sucursalId, sucursalNombre 
           referencia al cierre para calcular el monto esperado.
         </div>
 
-<<<<<<< HEAD
         <FormField
-          label="Monto inicial en caja"
+          label="Monto inicial en soles (S/)"
           htmlFor="apertura-monto"
           requerido
           error={validacion.errores['apertura-monto']}
         >
-=======
-        <div className="space-y-2">
-          <Label htmlFor="apertura-monto">Monto inicial en soles (S/)</Label>
->>>>>>> 7af26ac3e43321f6fdb1128c8298ba12a07f9eda
           <Input
             id="apertura-monto"
             type="number"
