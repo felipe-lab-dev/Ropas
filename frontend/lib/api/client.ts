@@ -158,6 +158,32 @@ export async function subirArchivos<T>(
   return data.datos;
 }
 
+/**
+ * Descarga un archivo binario (Excel, PDF, etc.) usando la instancia `api`
+ * (incluye Bearer + X-Tenant-Code y el refresh automático sobre 401).
+ * Respeta el filename del header Content-Disposition si viene; si no, usa el default.
+ */
+export async function descargarArchivo(
+  url: string,
+  params: Record<string, unknown> | undefined,
+  nombrePorDefecto: string,
+): Promise<void> {
+  const res = await api.get(url, { params, responseType: 'blob' });
+  const blob = res.data as Blob;
+  const cd = (res.headers as Record<string, string>)['content-disposition'];
+  const match = cd?.match(/filename="?([^";]+)"?/i);
+  const filename = match?.[1] ?? nombrePorDefecto;
+
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 export function mensajeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
     return err.response?.data?.mensaje ?? err.message ?? 'Error de red';

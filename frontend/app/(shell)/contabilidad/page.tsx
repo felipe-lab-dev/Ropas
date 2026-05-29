@@ -15,6 +15,7 @@ import { obtener } from '@/lib/api/client';
 import { api } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
+import { ReportesBoton } from '@/components/reportes/reportes-boton';
 import { EstadoError } from '@/components/ui/error-state';
 import { cn } from '@/lib/utils';
 
@@ -69,6 +70,14 @@ export default function ContabilidadPage() {
                 <option key={m} value={m}>{['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][m - 1]}</option>
               ))}
             </select>
+            <ReportesBoton
+              recurso="contabilidad"
+              conRango={false}
+              filtros={{
+                desde: `${anio}-${String(mes).padStart(2, '0')}-01`,
+                hasta: `${anio}-${String(mes).padStart(2, '0')}-${String(new Date(anio, mes, 0).getDate()).padStart(2, '0')}`,
+              }}
+            />
           </div>
         }
       />

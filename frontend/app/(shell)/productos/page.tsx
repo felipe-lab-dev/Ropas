@@ -22,6 +22,7 @@ import { IconoCategoria } from '@/components/ui/icono-categoria';
 import { DataTable, type ColumnaTabla, type TableState } from '@/components/ui/data-table';
 import { colorCategoria } from '@/lib/color-categoria';
 import { usePreferencias } from '@/lib/use-preferencias';
+import { ReportesBoton } from '@/components/reportes/reportes-boton';
 import { MotorLogisticoModal } from './motor-logistico-modal';
 import { EditarProductoCliente } from './editar/editar-cliente';
 import { KardexCliente } from './kardex/kardex-cliente';
@@ -487,6 +488,14 @@ function ProductosPageContenido() {
               <Zap className="size-4 text-[hsl(var(--brand-primary))]" />
               Motor Logístico
             </Button>
+            <ReportesBoton
+              recurso="productos"
+              conRango={false}
+              filtros={{
+                buscar: debouncedBuscar || undefined,
+                categoriaId: categoriaIdFiltro || undefined,
+              }}
+            />
             <Button size="lg" onClick={abrirNuevo} data-testid="btn-abrir-nuevo-producto">
               <Plus className="size-4" /> Nuevo producto
             </Button>

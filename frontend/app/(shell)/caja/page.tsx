@@ -35,6 +35,7 @@ import { formatearFecha, formatearMoneda, cn } from '@/lib/utils';
 import { useSesion } from '@/lib/store/sesion';
 import { usePreferencias } from '@/lib/use-preferencias';
 import { PageHeader } from '@/components/ui/page-header';
+import { ReportesBoton } from '@/components/reportes/reportes-boton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { EstadoError } from '@/components/ui/error-state';
 import { KpiCard } from '@/components/caja/kpi-card';
@@ -315,6 +316,12 @@ export default function CajaPage() {
       <PageHeader
         titulo="Operaciones del día"
         descripcion="Estado de caja, ingresos y egresos de la sesión activa."
+        acciones={
+          <ReportesBoton
+            recurso="caja"
+            filtros={{ sucursalId: sucursalId || undefined }}
+          />
+        }
       />
 
       <CajaTabs />
