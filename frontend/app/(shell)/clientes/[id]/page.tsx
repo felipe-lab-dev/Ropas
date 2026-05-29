@@ -1,4 +1,4 @@
-import EditarClientePage from './page.client';
+import EditarClientePage from './cliente-editar-cliente';
 
 export function generateStaticParams() {
   return [{ id: '_' }];

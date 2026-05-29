@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Search, Edit2, Trash2, History, Zap } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, History, Zap, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -22,6 +22,8 @@ import { DataTable, type ColumnaTabla, type TableState } from '@/components/ui/d
 import { colorCategoria } from '@/lib/color-categoria';
 import { usePreferencias } from '@/lib/use-preferencias';
 import { MotorLogisticoModal } from './motor-logistico-modal';
+import { PanelInsightsProducto } from './panel-insights-producto';
+import { ImportarExportarModal } from './importar-exportar-modal';
 
 interface Categoria { id: string; nombre: string }
 
@@ -75,6 +77,8 @@ export default function ProductosPage() {
   const [categoriaIdFiltro, setCategoriaIdFiltro] = React.useState('');
   const [confirmandoId, setConfirmandoId] = React.useState<string | null>(null);
   const [motorAbierto, setMotorAbierto] = React.useState(false);
+  const [importarAbierto, setImportarAbierto] = React.useState(false);
+  const [filaExpandidaId, setFilaExpandidaId] = React.useState<string | null>(null);
   const qc = useQueryClient();
 
   const [estadoTabla, setEstadoTabla] = usePreferencias<TableState>('productos', ESTADO_DEFAULT);
@@ -402,6 +406,15 @@ export default function ProductosPage() {
             <Button
               variant="outline"
               size="lg"
+              onClick={() => setImportarAbierto(true)}
+              className="border-[hsl(var(--border))]"
+              data-testid="btn-importar-exportar"
+            >
+              <FileSpreadsheet className="size-4" /> Importar / Exportar
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
               onClick={() => setMotorAbierto(true)}
               className="relative overflow-hidden border-[hsl(var(--brand-primary))]/40 bg-gradient-to-r from-[hsl(var(--brand-primary))]/10 to-[#ec4899]/10 hover:from-[hsl(var(--brand-primary))]/20 hover:to-[#ec4899]/20"
             >
@@ -415,6 +428,7 @@ export default function ProductosPage() {
         }
       />
       <MotorLogisticoModal abierto={motorAbierto} onAbiertoChange={setMotorAbierto} />
+      <ImportarExportarModal abierto={importarAbierto} onAbiertoChange={setImportarAbierto} />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative max-w-md flex-1 min-w-[220px]">
@@ -469,6 +483,17 @@ export default function ProductosPage() {
             estado={estadoTabla}
             onEstadoChange={setEstadoTabla}
             cargando={isLoading}
+            filaExpandidaKey={filaExpandidaId}
+            onToggleFilaExpandida={(key) =>
+              setFilaExpandidaId(prev => (prev === key ? null : key))
+            }
+            renderFilaExpandida={(p) => (
+              <PanelInsightsProducto
+                productoId={p.id}
+                imagenes={p.imagenes}
+                nombre={p.nombre}
+              />
+            )}
             renderRowAccent={p => {
               const cat = colorCategoria(p.categoria.slug ?? p.categoria.nombre);
               return (

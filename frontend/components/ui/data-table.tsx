@@ -62,6 +62,12 @@ interface Props<T> {
   vacioRender?: React.ReactNode;
   cargando?: boolean;
   cargandoFilas?: number;
+  /** Render del panel expandido bajo la fila. Si se pasa, la fila es clickeable. */
+  renderFilaExpandida?: (fila: T) => React.ReactNode;
+  /** Key de la fila actualmente expandida (controlado por el padre). */
+  filaExpandidaKey?: string | null;
+  /** Llamado al click en la fila para toggle. */
+  onToggleFilaExpandida?: (key: string) => void;
 }
 
 // ─── Utilidades ───────────────────────────────────────────────────────────
@@ -360,6 +366,7 @@ function FiltroPopover<T>({
 export function DataTable<T>({
   columnas, filas, getRowKey, estado, onEstadoChange,
   rowClassName, renderRowAccent, vacioRender, cargando, cargandoFilas = 8,
+  renderFilaExpandida, filaExpandidaKey, onToggleFilaExpandida,
 }: Props<T>) {
   const [draggedId, setDraggedId] = React.useState<string | null>(null);
   const [hoverId, setHoverId] = React.useState<string | null>(null);
@@ -448,42 +455,91 @@ export function DataTable<T>({
             </tr>
           ) : (
             <AnimatePresence initial={false} mode="popLayout">
-              {filasProcesadas.map((fila, idx) => (
-                <motion.tr
-                  key={getRowKey(fila)}
-                  layout
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{
-                    duration: 0.2,
-                    delay: Math.min(idx * 0.02, 0.16),
-                    ease: [0.4, 0, 0.2, 1],
-                  }}
-                  className={cn(
-                    'border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--surface-2))]/30 transition-colors',
-                    rowClassName?.(fila),
-                  )}
-                >
-                  {renderRowAccent && <td className="p-0 w-1">{renderRowAccent(fila)}</td>}
-                  {columnasOrdenadas.map(col => (
-                    <motion.td
-                      key={col.id}
-                      layout="position"
-                      layoutId={`td-${getRowKey(fila)}-${col.id}`}
-                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                      className={cn(
-                        'px-3 py-2.5 truncate',
-                        col.align === 'right' && 'text-right',
-                        col.align === 'center' && 'text-center',
-                        col.cellClassName,
-                      )}
+              {filasProcesadas.flatMap((fila, idx) => {
+                const key = getRowKey(fila);
+                const expandida = renderFilaExpandida && filaExpandidaKey === key;
+                const clickeable = !!renderFilaExpandida && !!onToggleFilaExpandida;
+                const filaPrincipal = (
+                  <motion.tr
+                    key={key}
+                    layout
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{
+                      duration: 0.2,
+                      delay: Math.min(idx * 0.02, 0.16),
+                      ease: [0.4, 0, 0.2, 1],
+                    }}
+                    data-testid="data-table-row"
+                    data-row-key={key}
+                    onClick={
+                      clickeable
+                        ? (e) => {
+                            const target = e.target as HTMLElement;
+                            // No expandir si el click vino de un control interactivo
+                            if (target.closest('button, a, input, select, textarea, [role="button"]')) return;
+                            onToggleFilaExpandida!(key);
+                          }
+                        : undefined
+                    }
+                    className={cn(
+                      'border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--surface-2))]/30 transition-colors',
+                      clickeable && 'cursor-pointer',
+                      expandida && 'bg-[hsl(var(--surface-2))]/40',
+                      rowClassName?.(fila),
+                    )}
+                  >
+                    {renderRowAccent && <td className="p-0 w-1">{renderRowAccent(fila)}</td>}
+                    {columnasOrdenadas.map(col => (
+                      <motion.td
+                        key={col.id}
+                        layout="position"
+                        layoutId={`td-${key}-${col.id}`}
+                        transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                        className={cn(
+                          'px-3 py-2.5 truncate',
+                          col.align === 'right' && 'text-right',
+                          col.align === 'center' && 'text-center',
+                          col.cellClassName,
+                        )}
+                      >
+                        {col.render(fila, idx)}
+                      </motion.td>
+                    ))}
+                  </motion.tr>
+                );
+
+                if (!expandida) return [filaPrincipal];
+
+                const filaPanel = (
+                  <motion.tr
+                    key={`${key}-expandida`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="border-b border-[hsl(var(--border))] bg-[hsl(var(--surface-2))]/20"
+                  >
+                    <td
+                      colSpan={columnasOrdenadas.length + (renderRowAccent ? 1 : 0)}
+                      className="p-0"
                     >
-                      {col.render(fila, idx)}
-                    </motion.td>
-                  ))}
-                </motion.tr>
-              ))}
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <div className="p-4">{renderFilaExpandida!(fila)}</div>
+                      </motion.div>
+                    </td>
+                  </motion.tr>
+                );
+
+                return [filaPrincipal, filaPanel];
+              })}
             </AnimatePresence>
           )}
         </tbody>

@@ -23,6 +23,7 @@ import { CuponesModule } from './modules/cupones/cupones.module';
 import { NotasCreditoModule } from './modules/notas-credito/notas-credito.module';
 import { CatalogosModule } from './modules/catalogos/catalogos.module';
 import { FacturacionElectronicaModule } from './modules/facturacion-electronica/facturacion-electronica.module';
+import { UtilidadesModule } from './modules/utilidades/utilidades.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { FacturacionElectronicaModule } from './modules/facturacion-electronica/
     NotasCreditoModule,
     CatalogosModule,
     FacturacionElectronicaModule,
+    UtilidadesModule,
   ],
 })
 export class AppModule {}

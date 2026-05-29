@@ -88,6 +88,13 @@ export class CajaController {
     return { datos };
   }
 
+  // Desglose de movimientos manuales por categoría
+  @Get('sesiones/:id/desglose-categorias') @RequierePermiso('caja:leer')
+  async desglose(@Param('id') id: string, @Tenant() ctx: TenantContext) {
+    const datos = await this.service.desglosePorCategoria(id, ctx);
+    return { datos };
+  }
+
   // Movimientos
   @Get('sesiones/:id/movimientos') @RequierePermiso('caja:leer')
   async listarMovimientos(

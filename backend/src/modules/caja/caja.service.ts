@@ -1,10 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, TipoMovimientoCaja, MedioPago } from '@prisma/client';
+import {
+  Prisma,
+  TipoMovimientoCaja,
+  MedioPago,
+  CategoriaMovimientoCaja,
+  TipoContraparte,
+} from '@prisma/client';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import {
   ErrorConflicto,
   ErrorNoEncontrado,
+  ErrorValidacion,
 } from '../../core/errors/errores';
 import {
   obtenerPaginacion,
@@ -24,16 +31,43 @@ export interface FiltroSesionesDto extends PaginacionDto {
 export interface FiltroMovimientosDto extends PaginacionDto {
   tipo?: TipoMovimientoCaja;
   medio?: MedioPago;
+  categoria?: CategoriaMovimientoCaja;
+  /** 'fisico' = solo efectivo, 'virtual' = todo lo demás. */
+  flujo?: 'fisico' | 'virtual';
 }
 
 export interface CrearMovimientoDto {
   tipo: TipoMovimientoCaja;
+  categoria: CategoriaMovimientoCaja;
+  subCategoria?: string;
   medio?: MedioPago;
   monto: number;
   motivo: string;
   comprobante?: string;
   contraparte?: string;
+  contraparteTipo?: TipoContraparte;
+  contraparteId?: string;
+  contraparteDocumento?: string;
 }
+
+const CATEGORIAS_INGRESO: CategoriaMovimientoCaja[] = [
+  'saldo_anterior',
+  'adelanto_cliente',
+  'cobro_credito',
+  'devolucion_proveedor',
+  'otro_ingreso',
+];
+
+const CATEGORIAS_EGRESO: CategoriaMovimientoCaja[] = [
+  'pago_proveedor',
+  'servicio_basico',
+  'comision_empleado',
+  'refrigerio',
+  'movilidad',
+  'publicidad',
+  'devolucion_cliente',
+  'otro_egreso',
+];
 
 @Injectable()
 export class CajaService {
@@ -234,6 +268,9 @@ export class CajaService {
     };
     if (query.tipo) where.tipo = query.tipo;
     if (query.medio) where.medio = query.medio;
+    if (query.categoria) where.categoria = query.categoria;
+    if (query.flujo === 'fisico') where.medio = 'efectivo';
+    else if (query.flujo === 'virtual') where.medio = { not: 'efectivo' };
 
     const busqueda = construirBusquedaWordSplit(query.buscar, ['motivo', 'contraparte', 'comprobante']);
     if (busqueda) Object.assign(where, busqueda);
@@ -266,19 +303,93 @@ export class CajaService {
     if (sesion.estado !== 'abierta')
       throw new ErrorConflicto('La sesión está cerrada, no se pueden registrar movimientos');
 
+    // Validar coherencia tipo ↔ categoría
+    const catsValidas = dto.tipo === 'ingreso' ? CATEGORIAS_INGRESO : CATEGORIAS_EGRESO;
+    if (dto.tipo === 'ingreso' || dto.tipo === 'egreso') {
+      if (!catsValidas.includes(dto.categoria)) {
+        throw new ErrorValidacion(
+          `La categoría "${dto.categoria}" no corresponde a un movimiento de tipo "${dto.tipo}"`,
+        );
+      }
+    }
+
+    // Saldo anterior: solo efectivo y única vez por sesión
+    if (dto.categoria === 'saldo_anterior') {
+      const medio = dto.medio ?? 'efectivo';
+      if (medio !== 'efectivo') {
+        throw new ErrorValidacion('El saldo anterior solo puede registrarse en efectivo');
+      }
+      const yaRegistrado = await cliente.movimientoCaja.findFirst({
+        where: { sesionId, categoria: 'saldo_anterior', eliminadoEn: null },
+        select: { id: true },
+      });
+      if (yaRegistrado) {
+        throw new ErrorConflicto('Ya se registró el saldo anterior en esta sesión de caja');
+      }
+    }
+
     return cliente.movimientoCaja.create({
       data: {
         sesionId,
         tipo: dto.tipo,
+        categoria: dto.categoria,
+        subCategoria: dto.subCategoria,
         medio: dto.medio ?? 'efectivo',
         monto: dto.monto,
         motivo: dto.motivo,
         comprobante: dto.comprobante,
         contraparte: dto.contraparte,
+        contraparteTipo: dto.contraparteTipo,
+        contraparteId: dto.contraparteId,
+        contraparteDocumento: dto.contraparteDocumento,
         creadoPorId,
       },
       include: { creadoPor: { select: { id: true, nombre: true } } },
     });
+  }
+
+  /**
+   * Desglose de movimientos manuales de una sesión agrupado por categoría.
+   * Retorna ingresos y egresos por separado con monto total + cantidad.
+   */
+  async desglosePorCategoria(sesionId: string, ctx: TenantContext) {
+    const cliente = this.prisma.forTenant(ctx);
+    const sesion = await cliente.sesionCaja.findUnique({
+      where: { id: sesionId },
+      select: { id: true },
+    });
+    if (!sesion) throw new ErrorNoEncontrado('Sesión de caja no encontrada');
+
+    const grupos = await cliente.movimientoCaja.groupBy({
+      by: ['tipo', 'categoria', 'medio'],
+      where: { sesionId, eliminadoEn: null },
+      _sum: { monto: true },
+      _count: { _all: true },
+    });
+
+    const init = (cats: CategoriaMovimientoCaja[]) =>
+      Object.fromEntries(
+        cats.map(c => [c, { total: 0, cantidad: 0, fisico: 0, virtual: 0 }]),
+      ) as Record<
+        CategoriaMovimientoCaja,
+        { total: number; cantidad: number; fisico: number; virtual: number }
+      >;
+    const ingresos = init(CATEGORIAS_INGRESO);
+    const egresos = init(CATEGORIAS_EGRESO);
+
+    for (const g of grupos) {
+      const cat = g.categoria;
+      if (!cat) continue;
+      const target = g.tipo === 'ingreso' ? ingresos : egresos;
+      if (!target[cat]) continue;
+      const monto = Number(g._sum.monto ?? 0);
+      target[cat].total += monto;
+      target[cat].cantidad += g._count._all;
+      if (g.medio === 'efectivo') target[cat].fisico += monto;
+      else target[cat].virtual += monto;
+    }
+
+    return { sesionId, ingresos, egresos };
   }
 
   async eliminarMovimiento(id: string, ctx: TenantContext) {

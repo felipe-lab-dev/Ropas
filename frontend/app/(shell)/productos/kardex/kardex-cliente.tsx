@@ -55,12 +55,12 @@ export function KardexCliente() {
   const id = search.get('id') ?? '';
 
   const hoy = new Date();
-  const haceUnMes = new Date();
-  haceUnMes.setMonth(haceUnMes.getMonth() - 1);
+  const hace12Meses = new Date();
+  hace12Meses.setMonth(hace12Meses.getMonth() - 12);
 
   const [tipo, setTipo] = React.useState<'ambas' | 'entradas' | 'salidas'>('ambas');
   const [varianteId, setVarianteId] = React.useState('');
-  const [fechaIni, setFechaIni] = React.useState(haceUnMes.toISOString().slice(0, 10));
+  const [fechaIni, setFechaIni] = React.useState(hace12Meses.toISOString().slice(0, 10));
   const [fechaFin, setFechaFin] = React.useState(hoy.toISOString().slice(0, 10));
   const [pagina, setPagina] = React.useState(1);
 
