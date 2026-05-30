@@ -39,8 +39,13 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { obtener, obtenerPaginado, postear, mensajeError } from '@/lib/api/client';
+import { invalidarStock } from '@/lib/api/invalidaciones';
+import { BotonVisorPdf } from '@/components/ui/visor-pdf';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { tienePermiso, useSesion } from '@/lib/store/sesion';
+import { useSesionCajaAbierta } from '@/lib/api/hooks/use-sesion-caja-abierta';
+import { MEDIOS_PAGO, MEDIO_LABEL, type MedioPago } from '@/lib/medios-pago';
+import { Select } from '@/components/ui/select';
 import { SeccionCpe } from '@/components/facturacion-electronica/seccion-cpe';
 import { useDocumentoElectronico } from '@/lib/api/hooks/use-documento-electronico';
 import {
@@ -132,16 +137,6 @@ const ESTADO_BADGE = {
   anulada: 'danger',
 } as const;
 
-const MEDIO_LABEL: Record<string, string> = {
-  efectivo: 'Efectivo',
-  tarjeta_debito: 'Tarjeta débito',
-  tarjeta_credito: 'Tarjeta crédito',
-  pix: 'PIX',
-  transferencia: 'Transferencia',
-  yape: 'Yape',
-  plin: 'Plin',
-  otro: 'Otro',
-};
 
 interface VentaDetalleProps {
   ventaId: string;
@@ -167,6 +162,12 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
   const [ncMotivo, setNcMotivo] = React.useState('');
   const [ncRestituyeStock, setNcRestituyeStock] = React.useState(true);
   const [ncCantidades, setNcCantidades] = React.useState<Record<string, number>>({});
+  /**
+   * Medio por el que se devuelve el dinero. El valor especial 'sin_devolucion'
+   * significa que no hay devolución monetaria (p. ej. solo cambio de producto
+   * o nota a favor): se omite del payload.
+   */
+  const [ncMedioDevolucion, setNcMedioDevolucion] = React.useState<MedioPago | 'sin_devolucion'>('efectivo');
 
   const { data: venta, isLoading, isError } = useQuery({
     queryKey: ['venta', ventaId],
@@ -181,6 +182,10 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
     enabled: !!clienteId,
   });
 
+  // Sesión de caja abierta — requerida para pago y NC (backend exige sesionCajaId).
+  const sucursalIdVenta = venta?.sucursal?.id;
+  const { data: sesionCaja } = useSesionCajaAbierta(sucursalIdVenta);
+
   const anular = useMutation({
     mutationFn: () =>
       postear<VentaDetalle>(`/ventas/${ventaId}/anular`, { motivo: motivoAnulacion.trim() }),
@@ -190,6 +195,8 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
       setMotivoAnulacion('');
       qc.invalidateQueries({ queryKey: ['venta', ventaId] });
       qc.invalidateQueries({ queryKey: ['ventas'] });
+      // La anulación restituye stock (ingreso_devolucion).
+      invalidarStock(qc);
     },
     onError: err => toast.error(mensajeError(err)),
   });
@@ -200,6 +207,7 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
         medio: pagoMedio,
         monto: parseFloat(pagoMonto),
         referencia: pagoReferencia.trim() || undefined,
+        sesionCajaId: sesionCaja?.id,
       }),
     onSuccess: data => {
       toast.success(data.estado === 'pagada' ? 'Venta saldada' : 'Pago registrado');
@@ -221,6 +229,10 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
         items: Object.entries(ncCantidades)
           .filter(([, c]) => c > 0)
           .map(([ventaItemId, cantidad]) => ({ ventaItemId, cantidad })),
+        sesionCajaId: sesionCaja?.id,
+        ...(ncMedioDevolucion !== 'sin_devolucion'
+          ? { medioDevolucion: ncMedioDevolucion }
+          : {}),
       }),
     onSuccess: data => {
       toast.success(
@@ -231,8 +243,11 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
       setDialogoNC(false);
       setNcMotivo('');
       setNcCantidades({});
+      setNcMedioDevolucion('efectivo');
       qc.invalidateQueries({ queryKey: ['venta', ventaId] });
       qc.invalidateQueries({ queryKey: ['notas-credito'] });
+      // Con restituyeStock, la NC reingresa stock (inocuo si no restituye).
+      invalidarStock(qc);
     },
     onError: err => toast.error(mensajeError(err)),
   });
@@ -260,6 +275,7 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
       const init: Record<string, number> = {};
       for (const it of venta.items) init[it.id] = 0;
       setNcCantidades(init);
+      setNcMedioDevolucion('efectivo');
       setDialogoNC(true);
     } else if (
       accionInicial === 'anular' &&
@@ -687,15 +703,37 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
         </Card>
       )}
 
+      {/* Aviso de caja cerrada — visible cuando la sesión ya resolvió como null */}
+      {sucursalIdVenta && sesionCaja === null && (
+        <div className="flex items-center gap-3 rounded-lg border border-[hsl(35_90%_55%/0.4)] bg-[hsl(35_90%_55%/0.08)] px-4 py-3 text-sm">
+          <AlertTriangle className="size-4 text-[hsl(35_90%_55%)] shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium">No hay caja abierta</p>
+            <p className="text-xs text-[hsl(var(--text-muted))]">
+              No podés registrar pagos ni emitir notas de crédito sin una sesión de caja abierta.{' '}
+              <Link href="/caja" className="underline">Abrir caja</Link>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Barra de acciones fija al pie del drawer */}
       <div
         className="no-print sticky bottom-0 -mx-4 sm:-mx-5 -mb-5 mt-1 flex flex-wrap items-center justify-end gap-2 border-t border-[hsl(var(--border))] bg-[hsl(var(--surface))]/95 px-4 sm:px-5 py-3 backdrop-blur"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
       >
         {venta.esNotaDeVenta ? (
-          <Button variant="outline" size="sm" onClick={imprimirDetalle}>
-            <Printer className="size-4" /> Imprimir
-          </Button>
+          <>
+            <BotonVisorPdf
+              url={`/ventas/${venta.id}/pdf-interno`}
+              fileName={`${venta.numero}.pdf`}
+              titulo={`Nota de venta ${venta.numero}`}
+              label="Ver PDF"
+            />
+            <Button variant="outline" size="sm" onClick={imprimirDetalle}>
+              <Printer className="size-4" /> Imprimir
+            </Button>
+          </>
         ) : (
           <BotonVerPdf ventaId={venta.id} />
         )}
@@ -703,6 +741,7 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
           <Button
             variant="outline"
             size="sm"
+            disabled={sesionCaja === null}
             onClick={() => {
               setPagoMonto(pendiente.toFixed(2));
               setDialogoPago(true);
@@ -715,10 +754,12 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
           <Button
             variant="outline"
             size="sm"
+            disabled={sesionCaja === null}
             onClick={() => {
               const init: Record<string, number> = {};
               for (const it of venta.items) init[it.id] = 0;
               setNcCantidades(init);
+              setNcMedioDevolucion('efectivo');
               setDialogoNC(true);
             }}
           >
@@ -888,6 +929,30 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
               />
               Restituir stock al inventario
             </label>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="nc-medio-devolucion">
+                ¿Cómo se devuelve el dinero?
+              </label>
+              <Select
+                id="nc-medio-devolucion"
+                value={ncMedioDevolucion}
+                onChange={e =>
+                  setNcMedioDevolucion(e.target.value as MedioPago | 'sin_devolucion')
+                }
+              >
+                {MEDIOS_PAGO.map(m => (
+                  <option key={m} value={m}>
+                    {MEDIO_LABEL[m]}
+                  </option>
+                ))}
+                <option value="sin_devolucion">Sin devolución de dinero (cambio / nota a favor)</option>
+              </Select>
+              {ncMedioDevolucion === 'efectivo' && (
+                <p className="text-xs text-[hsl(var(--text-muted))]">
+                  Se registrará un egreso de caja por el monto devuelto.
+                </p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialogoNC(false)}>Cancelar</Button>

@@ -36,6 +36,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { obtener, postear, mensajeError } from '@/lib/api/client';
+import { invalidarStock } from '@/lib/api/invalidaciones';
+import { BotonVisorPdf } from '@/components/ui/visor-pdf';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { tienePermiso, useSesion } from '@/lib/store/sesion';
 import { SeccionCpe } from '@/components/facturacion-electronica/seccion-cpe';
@@ -104,6 +106,8 @@ export function NotaCreditoDetalle({ ncId, accionInicial }: NotaCreditoDetallePr
       qc.invalidateQueries({ queryKey: ['nota-credito', ncId] });
       qc.invalidateQueries({ queryKey: ['notas-credito'] });
       qc.invalidateQueries({ queryKey: ['venta'] });
+      // Anular una NC que había restituido stock lo vuelve a descontar (egreso_ajuste).
+      invalidarStock(qc);
     },
     onError: err => toast.error(mensajeError(err)),
   });
@@ -415,9 +419,17 @@ export function NotaCreditoDetalle({ ncId, accionInicial }: NotaCreditoDetallePr
         {nc.tipoCpe ? (
           <BotonVerPdf ncId={nc.id} />
         ) : (
-          <Button variant="outline" size="sm" onClick={imprimirDetalle}>
-            <Printer className="size-4" /> Imprimir
-          </Button>
+          <>
+            <BotonVisorPdf
+              url={`/notas-credito/${nc.id}/pdf-interno`}
+              fileName={`${nc.numero}.pdf`}
+              titulo={`Nota de crédito ${nc.numero}`}
+              label="Ver PDF"
+            />
+            <Button variant="outline" size="sm" onClick={imprimirDetalle}>
+              <Printer className="size-4" /> Imprimir
+            </Button>
+          </>
         )}
         {puedeAnular && (
           <Button
