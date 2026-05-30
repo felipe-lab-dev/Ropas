@@ -1,13 +1,17 @@
 'use client';
 
 import * as React from 'react';
-import { Check, Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useTipoCambio } from './use-tipo-cambio';
 
 export type FuenteTc = 'oficial' | 'manual';
+
+/** Convierte una fecha ISO (YYYY-MM-DD) a día-mes-año (DD-MM-YYYY). */
+function aDdMmYyyy(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : iso;
+}
 
 interface Props {
   /** Fecha del comprobante (YYYY-MM-DD) usada para pedir el TC de ese día. */
@@ -20,76 +24,82 @@ interface Props {
 
 /**
  * Campo de tipo de cambio con autocompletado SUNAT (json.pe) y override manual.
- * - Al montar (o si cambia la fecha y el valor sigue siendo oficial) intenta
- *   traer el TC venta oficial. Nunca pisa un valor que el usuario tipeó a mano.
- * - Si json.pe falla, el campo queda editable y marca el valor como "manual".
+ * - Al montar (o si cambia la fecha y el valor sigue siendo oficial) trae el TC
+ *   venta oficial EN SILENCIO. Nunca pisa un valor que el usuario tipeó a mano.
+ * - Si json.pe falla, el campo queda editable como "manual" (no bloquea la compra).
+ *
+ * No hay botón "SUNAT": el valor se autocompleta solo. Si el usuario lo edita a
+ * mano, ofrecemos un enlace discreto para volver al oficial.
  */
 export function CampoTipoCambio({ fecha, valor, fuente, onCambio, testId }: Props) {
   const { estado, mensaje, consultar } = useTipoCambio();
-
-  const obtenerOficial = React.useCallback(async () => {
-    const datos = await consultar(fecha);
-    if (datos) onCambio(datos.venta, 'oficial');
-  }, [consultar, fecha, onCambio]);
+  // Último TC oficial conocido para la fecha: permite "volver al oficial"
+  // después de una edición manual sin re-disparar la consulta.
+  const [oficial, setOficial] = React.useState<{ venta: number; fecha: string } | null>(null);
 
   React.useEffect(() => {
     let activo = true;
-    if (valor == null || fuente === 'oficial') {
-      consultar(fecha).then(d => {
-        if (activo && d) onCambio(d.venta, 'oficial');
-      });
-    }
+    consultar(fecha, { silenciar: true }).then(d => {
+      if (!activo || !d) return;
+      setOficial({ venta: d.venta, fecha: d.fecha });
+      // Solo autocompletamos si el usuario no fijó un valor manual.
+      if (valor == null || fuente === 'oficial') onCambio(d.venta, 'oficial');
+    });
     return () => {
       activo = false;
     };
-    // Solo re-consultamos al cambiar la fecha; evitamos pisar un TC manual.
+    // Re-consultamos solo al cambiar la fecha; evitamos pisar un TC manual.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fecha]);
+
+  const usarOficial = () => {
+    if (oficial) onCambio(oficial.venta, 'oficial');
+  };
 
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-semibold">Tipo de cambio (venta) *</label>
-      <div className="flex gap-2">
-        <Input
-          type="number"
-          step={0.001}
-          min={0}
-          data-testid={testId}
-          value={valor ?? ''}
-          onChange={e => onCambio(Number(e.target.value), 'manual')}
-          placeholder="3.756"
-          className="h-10"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={obtenerOficial}
-          disabled={estado === 'cargando'}
-        >
-          {estado === 'cargando' ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : estado === 'ok' ? (
-            <Check className="size-4" />
-          ) : (
-            <RefreshCw className="size-4" />
-          )}
-          SUNAT
-        </Button>
-      </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        {valor ? (
-          fuente === 'oficial' ? (
-            <Badge variant="success">TC SUNAT (oficial)</Badge>
-          ) : (
-            <Badge variant="warning">TC manual — verifica el valor</Badge>
-          )
-        ) : null}
-        {mensaje && (
-          <span role="status" className="text-xs text-[hsl(var(--text-muted))]">
-            {mensaje}
-          </span>
+      <Input
+        type="number"
+        step={0.001}
+        min={0}
+        data-testid={testId}
+        value={valor ?? ''}
+        onChange={e => onCambio(Number(e.target.value), 'manual')}
+        placeholder="3.756"
+        className="h-10 tabular-nums"
+      />
+      <p
+        role="status"
+        className="flex items-center gap-1.5 text-[11px] text-[hsl(var(--text-muted))]"
+      >
+        {estado === 'cargando' ? (
+          <>
+            <Loader2 className="size-3 animate-spin" />
+            Consultando SUNAT…
+          </>
+        ) : valor && fuente === 'oficial' ? (
+          <>
+            <ShieldCheck className="size-3 text-[hsl(var(--brand-success,142_71%_45%))]" />
+            Oficial SUNAT{oficial ? ` · ${aDdMmYyyy(oficial.fecha)}` : ''}
+          </>
+        ) : valor && fuente === 'manual' ? (
+          <>
+            <span className="text-[hsl(var(--brand-warning,38_92%_50%))]">Manual — verificá el valor</span>
+            {oficial && Math.abs(oficial.venta - valor) > 1e-4 && (
+              <button
+                type="button"
+                onClick={usarOficial}
+                className="underline underline-offset-2 hover:text-[hsl(var(--text))]"
+              >
+                usar oficial {oficial.venta.toFixed(3)}
+              </button>
+            )}
+          </>
+        ) : (
+          mensaje ?? 'Ingresá el tipo de cambio del día'
         )}
-      </div>
+      </p>
     </div>
   );
 }

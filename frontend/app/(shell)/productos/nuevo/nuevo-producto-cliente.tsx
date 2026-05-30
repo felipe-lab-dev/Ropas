@@ -20,7 +20,13 @@ import { FormActions } from '@/components/ui/form-actions';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { IconoCategoria } from '@/components/ui/icono-categoria';
 import { colorCategoria } from '@/lib/color-categoria';
-import { GENEROS, MATERIALES, ICONO_MATERIAL_FALLBACK } from '@/lib/catalogos-producto';
+import {
+  GENEROS,
+  MATERIALES,
+  ICONO_MATERIAL_FALLBACK,
+  TALLAS_SUGERIDAS,
+  COLORES_SUGERIDOS,
+} from '@/lib/catalogos-producto';
 import { obtener, postear, mensajeError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useValidacionForm } from '@/lib/use-validacion-form';
@@ -36,18 +42,6 @@ interface Variante {
   colorHex: string;
   stockInicial: number;
 }
-
-const TALLAS_SUGERIDAS = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const COLORES_SUGERIDOS: Array<{ nombre: string; hex: string }> = [
-  { nombre: 'Negro', hex: '#111111' },
-  { nombre: 'Blanco', hex: '#F8F8F8' },
-  { nombre: 'Gris', hex: '#808080' },
-  { nombre: 'Azul', hex: '#1E40AF' },
-  { nombre: 'Rojo', hex: '#DC2626' },
-  { nombre: 'Verde', hex: '#16A34A' },
-  { nombre: 'Beige', hex: '#D4C5A0' },
-  { nombre: 'Rosa', hex: '#EC4899' },
-];
 
 const VARIANTE_UNICA: Variante = {
   talla: 'Única',
@@ -73,6 +67,8 @@ interface NuevoProductoClienteProps {
   onCerrar?: () => void;
   /** Notifica el id del producto recién creado (el padre suele abrir "editar"). */
   onCreado?: (id: string) => void;
+  /** Precarga el nombre (ej. el término que el usuario buscaba en Compras). */
+  nombreInicial?: string;
 }
 
 /**
@@ -80,14 +76,14 @@ interface NuevoProductoClienteProps {
  *  - `modoModal`: sin PageHeader; tras crear llama `onCreado(id)` (o `onCerrar`).
  *  - Página standalone (`/productos/nuevo`): header + redirección a editar.
  */
-export function NuevoProductoCliente({ modoModal = false, onCerrar, onCreado }: NuevoProductoClienteProps = {}) {
+export function NuevoProductoCliente({ modoModal = false, onCerrar, onCreado, nombreInicial = '' }: NuevoProductoClienteProps = {}) {
   const router = useRouter();
   const qc = useQueryClient();
 
   const [tab, setTab] = React.useState<TabId>('general');
 
   const [codigo, setCodigo] = React.useState('');
-  const [nombre, setNombre] = React.useState('');
+  const [nombre, setNombre] = React.useState(nombreInicial);
   const [descripcion, setDescripcion] = React.useState('');
   const [categoriaId, setCategoriaId] = React.useState('');
   const [genero, setGenero] = React.useState('mujer');

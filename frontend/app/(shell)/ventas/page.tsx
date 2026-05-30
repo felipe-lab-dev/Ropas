@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { DetalleSheet } from '@/components/ui/sheet';
 import { obtenerPaginado, mensajeError } from '@/lib/api/client';
+import { BotonVisorPdf } from '@/components/ui/visor-pdf';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { tienePermiso, useSesion } from '@/lib/store/sesion';
 import { PageHeader } from '@/components/ui/page-header';
@@ -290,7 +291,13 @@ function VentasContenido() {
                     </TableCell>
                     <TableCell className="text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        {v.pdfUrl && (
+                        {v.esNotaDeVenta ? (
+                          <BotonVisorPdf
+                            url={`/ventas/${v.id}/pdf-interno`}
+                            fileName={`${v.numero}.pdf`}
+                            titulo={`Nota de venta ${v.numero}`}
+                          />
+                        ) : v.pdfUrl ? (
                           <Button
                             asChild
                             variant="ghost"
@@ -302,7 +309,7 @@ function VentasContenido() {
                               <FileText className="size-4" />
                             </a>
                           </Button>
-                        )}
+                        ) : null}
                         <Button
                           variant="ghost"
                           size="icon-sm"

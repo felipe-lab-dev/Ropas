@@ -29,7 +29,8 @@ export class CrearCompraItemDto {
 
 export class CrearCompraDto {
   @IsUUID() proveedorId!: string;
-  @IsUUID() sucursalId!: string;
+  /** Opcional: 1-tenant-1-sucursal → si no viene, el service usa la sucursal principal. */
+  @IsOptional() @IsUUID() sucursalId?: string;
 
   @IsEnum(TIPO_COMP) tipoComprobante!: (typeof TIPO_COMP)[number];
   @IsString() serie!: string;
@@ -59,6 +60,8 @@ export class CrearCompraDto {
   @IsOptional() @IsString() notas?: string;
   /** Si true, crea + confirma en un solo paso (ingresa stock + asiento). */
   @IsOptional() confirmar?: boolean;
+  /** ID de la sesión de caja abierta. OBLIGATORIO para vincular la compra al turno actual. */
+  @IsOptional() @IsUUID() sesionCajaId?: string;
 }
 
 export class RegistrarPagoCompraDto {

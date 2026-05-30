@@ -257,6 +257,35 @@
     background-color: hsl(var(--brand-primary) / 0.3);
     color: hsl(var(--text));
   }
+  /* Date/time inputs: en tema oscuro el indicador de calendario nativo queda
+     casi invisible (negro sobre fondo oscuro). `color-scheme` hace que el
+     navegador dibuje el icono y el popup acordes al tema. */
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"],
+  input[type="month"] {
+    color-scheme: light;
+  }
+  [data-theme="dark"] input[type="date"],
+  [data-theme="dark"] input[type="datetime-local"],
+  [data-theme="dark"] input[type="time"],
+  [data-theme="dark"] input[type="month"] {
+    color-scheme: dark;
+  }
+  /* Icono del calendario: cursor y hover más claros, mejor alineado al borde. */
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+    margin-left: 0.25rem;
+    transition: opacity 0.15s ease;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator:hover,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+  input[type="time"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
 }
 
 @layer utilities {

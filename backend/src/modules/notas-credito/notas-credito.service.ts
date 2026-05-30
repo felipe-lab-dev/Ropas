@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, TipoMovimientoStock } from '@prisma/client';
+import { MedioPago, Prisma, TipoMovimientoStock } from '@prisma/client';
 import { PrismaTenantService } from '../../core/prisma/prisma-tenant.service';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 import {
@@ -114,9 +114,28 @@ export class NotasCreditoService {
     const motivo = dto.motivo?.trim();
     if (!motivo) throw new ErrorValidacion('El motivo es obligatorio');
 
+    // Sesión de caja OBLIGATORIA para toda operación transaccional
+    if (!dto.sesionCajaId) {
+      throw new ErrorConflicto(
+        'No hay una sesión de caja abierta. Abrí la caja para registrar la operación.',
+      );
+    }
+
     const cliente = this.prisma.forTenant(ctx);
     const nota = await cliente.$transaction(async tx => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${LOCK_KEY_NUMERO_NC})`;
+
+      // Validar sesión de caja abierta
+      const sesion = await tx.sesionCaja.findUnique({
+        where: { id: dto.sesionCajaId },
+        select: { id: true, estado: true, sucursalId: true },
+      });
+      if (!sesion) throw new ErrorNoEncontrado('Sesión de caja no encontrada');
+      if (sesion.estado !== 'abierta') {
+        throw new ErrorConflicto(
+          'No hay una sesión de caja abierta. Abrí la caja para registrar la operación.',
+        );
+      }
 
       const venta = await tx.venta.findFirst({
         where: { id: dto.ventaId, eliminadoEn: null },
@@ -132,6 +151,14 @@ export class NotasCreditoService {
       if (!venta) throw new ErrorNoEncontrado('Venta no encontrada');
       if (venta.estado === 'anulada') {
         throw new ErrorConflicto('No se puede emitir NC sobre venta anulada');
+      }
+
+      // Validar que la sesión corresponda a la misma sucursal de la venta.
+      // Una NC puede ser registrada por un admin distinto al cajero — NO se valida cajeroId.
+      if (sesion.sucursalId !== venta.sucursalId) {
+        throw new ErrorConflicto(
+          'La sesión de caja no corresponde a esta sucursal',
+        );
       }
 
       // ─── Modalidad de la NC según la venta original ───────────────────────
@@ -307,6 +334,10 @@ export class NotasCreditoService {
           subtotal,
           total,
           restituyeStock,
+          // medioDevolucion: campo nuevo, requiere `prisma generate` para que el tipo lo conozca.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...(dto.medioDevolucion != null ? { medioDevolucion: dto.medioDevolucion } : {}),
+          sesionCajaId: dto.sesionCajaId,
           items: { create: itemsFinales },
           // Datos SUNAT — solo se llenan si la venta tenía CPE emitido.
           ...(datosSunat
@@ -322,6 +353,26 @@ export class NotasCreditoService {
         },
         include: { items: true },
       });
+
+      // MovimientoCaja: egreso 'devolucion_cliente' solo cuando la devolución es en efectivo.
+      // Otros medios (tarjeta, transferencia, yape…) se guardan en el registro pero no
+      // generan movimiento automático de caja (el dinero no sale del cajón en el momento).
+      if (dto.medioDevolucion === 'efectivo') {
+        const monedaNc = (venta as { moneda?: string }).moneda ?? 'PEN';
+        await tx.movimientoCaja.create({
+          data: {
+            sesionId: dto.sesionCajaId!,
+            tipo: 'egreso',
+            categoria: 'devolucion_cliente',
+            medio: 'efectivo' as MedioPago,
+            moneda: monedaNc,
+            monto: total,
+            motivo: `Devolución NC ${numero} sobre venta ${venta.numero}`,
+            contraparteTipo: 'cliente',
+            creadoPorId: emitidaPorId,
+          },
+        });
+      }
 
       if (restituyeStock) {
         for (const item of itemsFinales) {

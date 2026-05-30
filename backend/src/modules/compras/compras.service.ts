@@ -174,6 +174,45 @@ export class ComprasService {
       // deuda del proveedor).
       const { moneda, tipoCambio } = normalizarMoneda(dto);
 
+      // 1-tenant-1-sucursal: la UI no expone selector de sucursal. Si el DTO no
+      // trae sucursalId, se resuelve la principal (mismo patrón que productos).
+      const sucursalId =
+        dto.sucursalId ??
+        (
+          await tx.sucursal.findFirst({
+            where: { esPrincipal: true, eliminadoEn: null },
+            select: { id: true },
+          })
+        )?.id;
+      if (!sucursalId) {
+        throw new ErrorValidacion('No hay sucursal principal configurada');
+      }
+
+      // ─── Sesión de caja (OBLIGATORIA) ─────────────────────────────────
+      // Toda compra debe quedar vinculada a un turno de caja abierto.
+      if (!dto.sesionCajaId) {
+        throw new ErrorConflicto(
+          'No hay una sesión de caja abierta. Abrí la caja para registrar la operación.',
+        );
+      }
+      {
+        const sesion = await tx.sesionCaja.findUnique({
+          where: { id: dto.sesionCajaId },
+          select: { id: true, estado: true, sucursalId: true },
+        });
+        if (!sesion) throw new ErrorNoEncontrado('Sesión de caja no encontrada');
+        if (sesion.estado !== 'abierta') {
+          throw new ErrorConflicto(
+            'No hay una sesión de caja abierta. Abrí la caja para registrar la operación.',
+          );
+        }
+        if (sesion.sucursalId !== sucursalId) {
+          throw new ErrorConflicto(
+            'La sesión de caja no corresponde a esta sucursal',
+          );
+        }
+      }
+
       const items = dto.items.map(item => {
         const v = variantes.find(x => x.id === item.varianteId)!;
         const subtotal = round2(item.costoUnitario * item.cantidad - (item.descuento ?? 0));
@@ -211,7 +250,7 @@ export class ComprasService {
         data: {
           numero,
           proveedorId: dto.proveedorId,
-          sucursalId: dto.sucursalId,
+          sucursalId,
           tipoComprobante: dto.tipoComprobante as TipoComprobanteCompra,
           serie: dto.serie,
           numeroComprobante: dto.numeroComprobante,
@@ -229,6 +268,7 @@ export class ComprasService {
           fechaVencimiento,
           notas: dto.notas,
           usuarioId,
+          sesionCajaId: dto.sesionCajaId,
           items: { create: items },
         },
         include: { items: true, proveedor: true },
@@ -240,7 +280,7 @@ export class ComprasService {
       for (const item of items) {
         await this.inventario.ajustarEnTx(tx, {
           varianteId: item.varianteId,
-          sucursalId: dto.sucursalId,
+          sucursalId,
           delta: item.cantidad,
           tipo: TipoMovimientoStock.ingreso_compra,
           referenciaTipo: 'Compra',
@@ -301,6 +341,34 @@ export class ComprasService {
         data: { totalPagado, estadoPago },
       });
 
+      // MovimientoCaja: registrar egreso por la parte en efectivo pagada al crear
+      if (dto.sesionCajaId && totalPagado > 0) {
+        const pagosEfectivo = dto.pagos?.filter(p => p.medio === 'efectivo') ?? [];
+        const montoEfectivo =
+          pagosEfectivo.length > 0
+            ? pagosEfectivo.reduce((s, p) => s + p.monto, 0)
+            : esContado && !dto.pagos?.length
+              ? total
+              : 0;
+        if (montoEfectivo > 0) {
+          await tx.movimientoCaja.create({
+            data: {
+              sesionId: dto.sesionCajaId!,
+              tipo: 'egreso',
+              categoria: 'pago_proveedor',
+              medio: 'efectivo' as MedioPago,
+              moneda,
+              monto: montoEfectivo,
+              motivo: `Pago compra ${numero} (${proveedor.razonSocial})`,
+              contraparte: proveedor.razonSocial,
+              contraparteTipo: 'proveedor',
+              contraparteId: proveedor.id,
+              creadoPorId: usuarioId,
+            },
+          });
+        }
+      }
+
       // 3. Actualizar agregados del proveedor (acumuladores globales → PEN)
       await tx.proveedor.update({
         where: { id: dto.proveedorId },
@@ -342,6 +410,12 @@ export class ComprasService {
     ctx: TenantContext,
     usuarioId: string,
   ) {
+    // Sesión de caja OBLIGATORIA para registrar pagos
+    if (!dto.sesionCajaId) {
+      throw new ErrorConflicto(
+        'No hay una sesión de caja abierta. Abrí la caja para registrar la operación.',
+      );
+    }
     const cliente = this.prisma.forTenant(ctx);
     return cliente.$transaction(async tx => {
       const compra = await tx.compra.findFirst({
@@ -355,6 +429,23 @@ export class ComprasService {
       const saldo = D(compra.total) - D(compra.totalPagado);
       if (dto.monto > saldo + 0.01) {
         throw new ErrorConflicto(`Monto excede el saldo pendiente (S/ ${saldo.toFixed(2)})`);
+      }
+
+      // Validar sesión de caja abierta
+      const sesion = await tx.sesionCaja.findUnique({
+        where: { id: dto.sesionCajaId },
+        select: { id: true, estado: true, sucursalId: true },
+      });
+      if (!sesion) throw new ErrorNoEncontrado('Sesión de caja no encontrada');
+      if (sesion.estado !== 'abierta') {
+        throw new ErrorConflicto(
+          'No hay una sesión de caja abierta. Abrí la caja para registrar la operación.',
+        );
+      }
+      if (sesion.sucursalId !== compra.sucursalId) {
+        throw new ErrorConflicto(
+          'La sesión de caja no corresponde a esta sucursal',
+        );
       }
 
       const fechaPago = dto.fechaPago ? new Date(dto.fechaPago) : new Date();
@@ -390,12 +481,13 @@ export class ComprasService {
         data: { deudaActual: { decrement: montoPen } },
       });
 
-      if (dto.sesionCajaId) {
+      // MovimientoCaja: solo si el pago es en efectivo
+      if (dto.medio === 'efectivo') {
         // La caja maneja ambas monedas: el movimiento se registra en la moneda
         // ORIGINAL de la compra (la deuda y el asiento sí van en PEN).
         await tx.movimientoCaja.create({
           data: {
-            sesionId: dto.sesionCajaId,
+            sesionId: dto.sesionCajaId!,
             tipo: 'egreso',
             categoria: 'pago_proveedor',
             medio: dto.medio as MedioPago,

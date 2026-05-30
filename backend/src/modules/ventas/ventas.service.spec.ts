@@ -54,6 +54,7 @@ function crearTxMock() {
   };
   const stockSucursal = { findUnique: jest.fn(), upsert: jest.fn() };
   const movimientoStock = { create: jest.fn() };
+  const movimientoCaja: Mocked<{ create: unknown }> = { create: jest.fn().mockResolvedValue({}) };
   // Snapshot de costo: crear() consulta el último costo de compra para variantes
   // sin precioCompra; listar() consulta los ítems para el margen por página.
   const compraItem: Mocked<{ findMany: unknown }> = { findMany: jest.fn().mockResolvedValue([]) };
@@ -70,6 +71,7 @@ function crearTxMock() {
     cuponUso,
     stockSucursal,
     movimientoStock,
+    movimientoCaja,
     compraItem,
     ventaItem,
     $executeRaw,
@@ -167,10 +169,14 @@ describe('VentasService', () => {
 
     it('rechaza items duplicados (mismo varianteId más de una vez)', async () => {
       tx.sucursal.findFirst.mockResolvedValue({ id: 's' });
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
       await expect(
         service.crear(
           {
             sucursalId: 's',
+            sesionCajaId: 'sess-1',
             items: [
               { varianteId: 'v1', cantidad: 1 },
               { varianteId: 'v1', cantidad: 2 },
@@ -184,10 +190,13 @@ describe('VentasService', () => {
 
     it('rechaza si alguna variante no existe', async () => {
       tx.sucursal.findFirst.mockResolvedValue({ id: 's' });
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
       tx.variante.findMany.mockResolvedValue([]); // no encontró ninguna
       await expect(
         service.crear(
-          { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+          { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
           ctx,
           'u1',
         ),
@@ -196,12 +205,15 @@ describe('VentasService', () => {
 
     it('rechaza si el producto de la variante está soft-deleted', async () => {
       tx.sucursal.findFirst.mockResolvedValue({ id: 's' });
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
       tx.variante.findMany.mockResolvedValue([
         variante('v1', '10', { eliminadoEn: new Date() }),
       ]);
       await expect(
         service.crear(
-          { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+          { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
           ctx,
           'u1',
         ),
@@ -210,11 +222,15 @@ describe('VentasService', () => {
 
     it('rechaza precio unitario explícito <= 0', async () => {
       tx.sucursal.findFirst.mockResolvedValue({ id: 's' });
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
       tx.variante.findMany.mockResolvedValue([variante('v1', '10')]);
       await expect(
         service.crear(
           {
             sucursalId: 's',
+            sesionCajaId: 'sess-1',
             items: [{ varianteId: 'v1', cantidad: 1, precioUnitario: 0 }],
           } as never,
           ctx,
@@ -225,11 +241,15 @@ describe('VentasService', () => {
 
     it('rechaza descuento por item mayor al subtotal del item', async () => {
       tx.sucursal.findFirst.mockResolvedValue({ id: 's' });
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
       tx.variante.findMany.mockResolvedValue([variante('v1', '10')]);
       await expect(
         service.crear(
           {
             sucursalId: 's',
+            sesionCajaId: 'sess-1',
             items: [{ varianteId: 'v1', cantidad: 1, descuento: 999 }],
           } as never,
           ctx,
@@ -244,6 +264,7 @@ describe('VentasService', () => {
         service.crear(
           {
             sucursalId: 's',
+            sesionCajaId: 'sess-1',
             items: [{ varianteId: 'v1', cantidad: 1 }],
             pagos: [{ medio: 'efectivo', monto: 9999 }],
           } as never,
@@ -258,6 +279,16 @@ describe('VentasService', () => {
 
   describe('crear (sesión de caja)', () => {
     beforeEach(() => mockHappyPath(tx));
+
+    it('rechaza si no se manda sesionCajaId (sesión OBLIGATORIA)', async () => {
+      await expect(
+        service.crear(
+          { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+          ctx,
+          'u1',
+        ),
+      ).rejects.toBeInstanceOf(ErrorConflicto);
+    });
 
     it('rechaza sesión de caja inexistente', async () => {
       tx.sesionCaja.findUnique.mockResolvedValue(null);
@@ -342,7 +373,7 @@ describe('VentasService', () => {
       mockHappyPath(tx);
       tx.venta.findFirst.mockResolvedValue({ numero: 'V-000042' });
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -356,7 +387,7 @@ describe('VentasService', () => {
       mockHappyPath(tx);
       tx.venta.findFirst.mockResolvedValue(null);
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -366,7 +397,7 @@ describe('VentasService', () => {
     it('toma advisory lock antes de generar el número', async () => {
       mockHappyPath(tx);
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -380,6 +411,7 @@ describe('VentasService', () => {
       await service.crear(
         {
           sucursalId: 's',
+          sesionCajaId: 'sess-1',
           items: [{ varianteId: 'v1', cantidad: 2 }],
           pagos: [{ medio: 'efectivo', monto: 20 }],
         } as never,
@@ -392,6 +424,7 @@ describe('VentasService', () => {
       await service.crear(
         {
           sucursalId: 's',
+          sesionCajaId: 'sess-1',
           items: [{ varianteId: 'v1', cantidad: 2 }],
           pagos: [{ medio: 'efectivo', monto: 5 }],
         } as never,
@@ -404,7 +437,7 @@ describe('VentasService', () => {
     it('estado=confirmada cuando NO hay pagos', async () => {
       mockHappyPath(tx);
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -414,7 +447,7 @@ describe('VentasService', () => {
     it('descuenta stock por cada item con egreso_venta', async () => {
       mockHappyPath(tx);
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 3 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 3 }] } as never,
         ctx,
         'u1',
       );
@@ -440,6 +473,7 @@ describe('VentasService', () => {
       await service.crear(
         {
           sucursalId: 's',
+          sesionCajaId: 'sess-1',
           clienteId: 'c1',
           items: [{ varianteId: 'v1', cantidad: 1 }],
         } as never,
@@ -462,7 +496,7 @@ describe('VentasService', () => {
       // precio 10.005 * 1 - desc 0 - cup 0 + imp 0 = 10.005 → debe redondear a 10.01
       tx.variante.findMany.mockResolvedValue([variante('v1', '10.005')]);
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -479,7 +513,7 @@ describe('VentasService', () => {
       mockHappyPath(tx);
       tx.variante.findMany.mockResolvedValue([variante('v1', '10', { precioCompra: '6' })]);
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -496,7 +530,7 @@ describe('VentasService', () => {
         { varianteId: 'v1', costoUnitario: new Prisma.Decimal('4.5'), compra: { creadoEn: new Date() } },
       ]);
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -508,7 +542,7 @@ describe('VentasService', () => {
       mockHappyPath(tx); // compraItem.findMany → [] por defecto
       tx.variante.findMany.mockResolvedValue([variante('v1', '10', { precioCompra: null })]);
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -521,12 +555,12 @@ describe('VentasService', () => {
 
   describe('crear (guard identificación boleta > S/700)', () => {
     it('rechaza boleta > S/700 sin cliente cuando el tenant emite CPE', async () => {
-      tx.sucursal.findFirst.mockResolvedValue({ id: 's' });
+      mockHappyPath(tx);
       tx.variante.findMany.mockResolvedValue([variante('v1', '800')]);
       configFacturacion.estaConfigurada.mockResolvedValue(true);
       await expect(
         service.crear(
-          { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+          { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
           ctx,
           'u1',
         ),
@@ -549,6 +583,7 @@ describe('VentasService', () => {
         service.crear(
           {
             sucursalId: 's',
+            sesionCajaId: 'sess-1',
             clienteId: 'c1',
             items: [{ varianteId: 'v1', cantidad: 1 }],
           } as never,
@@ -565,6 +600,7 @@ describe('VentasService', () => {
         service.crear(
           {
             sucursalId: 's',
+            sesionCajaId: 'sess-1',
             items: [{ varianteId: 'v1', cantidad: 1 }],
             esNotaDeVenta: true,
           } as never,
@@ -581,7 +617,7 @@ describe('VentasService', () => {
       configFacturacion.estaConfigurada.mockResolvedValue(false);
       await expect(
         service.crear(
-          { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+          { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
           ctx,
           'u1',
         ),
@@ -809,10 +845,19 @@ describe('VentasService', () => {
       ).rejects.toBeInstanceOf(ErrorValidacion);
     });
 
+    it('rechaza si no se manda sesionCajaId (sesión OBLIGATORIA)', async () => {
+      await expect(
+        service.registrarPago('v1', { medio: 'efectivo', monto: 10 }, ctx, 'u1'),
+      ).rejects.toBeInstanceOf(ErrorConflicto);
+    });
+
     it('rechaza venta inexistente', async () => {
       tx.venta.findFirst.mockResolvedValue(null);
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
       await expect(
-        service.registrarPago('vx', { medio: 'efectivo', monto: 10 }, ctx, 'u1'),
+        service.registrarPago('vx', { medio: 'efectivo', monto: 10, sesionCajaId: 'sess-1' }, ctx, 'u1'),
       ).rejects.toBeInstanceOf(ErrorNoEncontrado);
     });
 
@@ -821,8 +866,11 @@ describe('VentasService', () => {
         id: 'v1', numero: 'V-1', estado: 'anulada', total: new Prisma.Decimal('100'),
         totalPagado: new Prisma.Decimal('0'), sucursalId: 's',
       });
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
       await expect(
-        service.registrarPago('v1', { medio: 'efectivo', monto: 10 }, ctx, 'u1'),
+        service.registrarPago('v1', { medio: 'efectivo', monto: 10, sesionCajaId: 'sess-1' }, ctx, 'u1'),
       ).rejects.toBeInstanceOf(ErrorConflicto);
     });
 
@@ -831,8 +879,11 @@ describe('VentasService', () => {
         id: 'v1', numero: 'V-1', estado: 'pagada', total: new Prisma.Decimal('100'),
         totalPagado: new Prisma.Decimal('100'), sucursalId: 's',
       });
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
       await expect(
-        service.registrarPago('v1', { medio: 'efectivo', monto: 10 }, ctx, 'u1'),
+        service.registrarPago('v1', { medio: 'efectivo', monto: 10, sesionCajaId: 'sess-1' }, ctx, 'u1'),
       ).rejects.toBeInstanceOf(ErrorConflicto);
     });
 
@@ -841,8 +892,11 @@ describe('VentasService', () => {
         id: 'v1', numero: 'V-1', estado: 'parcial', total: new Prisma.Decimal('100'),
         totalPagado: new Prisma.Decimal('80'), sucursalId: 's',
       });
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
       await expect(
-        service.registrarPago('v1', { medio: 'efectivo', monto: 25 }, ctx, 'u1'),
+        service.registrarPago('v1', { medio: 'efectivo', monto: 25, sesionCajaId: 'sess-1' }, ctx, 'u1'),
       ).rejects.toBeInstanceOf(ErrorConflicto);
     });
 
@@ -851,14 +905,27 @@ describe('VentasService', () => {
         id: 'v1', numero: 'V-1', estado: 'parcial', total: new Prisma.Decimal('100'),
         totalPagado: new Prisma.Decimal('80'), sucursalId: 's',
       });
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
       tx.venta.update = jest.fn().mockResolvedValue({ id: 'v1' });
-      // ventaPago.create
       (tx as any).ventaPago = { create: jest.fn().mockResolvedValue({ id: 'p1' }) };
       const res = await service.registrarPago(
-        'v1', { medio: 'efectivo', monto: 20 }, ctx, 'u1',
+        'v1', { medio: 'efectivo', monto: 20, sesionCajaId: 'sess-1' }, ctx, 'u1',
       );
       expect(res.estado).toBe('pagada');
       expect(res.totalPagado).toBe(100);
+      // Cobro de crédito en efectivo → crea MovimientoCaja ingreso con moneda explícita PEN
+      expect(tx.movimientoCaja.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            sesionId: 'sess-1',
+            tipo: 'ingreso',
+            categoria: 'cobro_credito',
+            moneda: 'PEN',
+          }),
+        }),
+      );
     });
 
     it('mantiene estado parcial cuando aún falta', async () => {
@@ -866,13 +933,33 @@ describe('VentasService', () => {
         id: 'v1', numero: 'V-1', estado: 'parcial', total: new Prisma.Decimal('100'),
         totalPagado: new Prisma.Decimal('30'), sucursalId: 's',
       });
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
       tx.venta.update = jest.fn().mockResolvedValue({ id: 'v1' });
       (tx as any).ventaPago = { create: jest.fn().mockResolvedValue({ id: 'p1' }) };
       const res = await service.registrarPago(
-        'v1', { medio: 'efectivo', monto: 20 }, ctx, 'u1',
+        'v1', { medio: 'efectivo', monto: 20, sesionCajaId: 'sess-1' }, ctx, 'u1',
       );
       expect(res.estado).toBe('parcial');
       expect(res.totalPagado).toBe(50);
+    });
+
+    it('cobro en tarjeta NO crea MovimientoCaja (solo efectivo genera movimiento)', async () => {
+      tx.venta.findFirst.mockResolvedValue({
+        id: 'v1', numero: 'V-1', estado: 'parcial', total: new Prisma.Decimal('100'),
+        totalPagado: new Prisma.Decimal('0'), sucursalId: 's',
+      });
+      tx.sesionCaja.findUnique.mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 's', cajeroId: 'u1',
+      });
+      tx.venta.update = jest.fn().mockResolvedValue({ id: 'v1' });
+      (tx as any).ventaPago = { create: jest.fn().mockResolvedValue({ id: 'p1' }) };
+      tx.movimientoCaja.create.mockClear();
+      await service.registrarPago(
+        'v1', { medio: 'tarjeta_debito', monto: 50, sesionCajaId: 'sess-1' }, ctx, 'u1',
+      );
+      expect(tx.movimientoCaja.create).not.toHaveBeenCalled();
     });
 
     it('valida sesión de caja (cerrada → 409)', async () => {
@@ -909,7 +996,7 @@ describe('VentasService', () => {
       });
 
       await service.crear(
-        { sucursalId: 's', clienteId: 'c-ruc', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', clienteId: 'c-ruc', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -943,7 +1030,7 @@ describe('VentasService', () => {
       });
 
       await service.crear(
-        { sucursalId: 's', clienteId: 'c-dni', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', clienteId: 'c-dni', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -965,7 +1052,7 @@ describe('VentasService', () => {
       });
 
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -990,7 +1077,7 @@ describe('VentasService', () => {
 
       // La venta debe retornar OK
       const resultado = await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -1015,7 +1102,7 @@ describe('VentasService', () => {
       );
 
       const resultado = await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -1035,7 +1122,7 @@ describe('VentasService', () => {
       });
 
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -1059,7 +1146,7 @@ describe('VentasService', () => {
       );
 
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -1086,6 +1173,7 @@ describe('VentasService', () => {
       await service.crear(
         {
           sucursalId: 's',
+          sesionCajaId: 'sess-1',
           items: [{ varianteId: 'v1', cantidad: 1 }],
           esNotaDeVenta: true,
         } as never,
@@ -1113,6 +1201,7 @@ describe('VentasService', () => {
       await service.crear(
         {
           sucursalId: 's',
+          sesionCajaId: 'sess-1',
           items: [{ varianteId: 'v1', cantidad: 1 }],
           esNotaDeVenta: true,
         } as never,
@@ -1142,7 +1231,7 @@ describe('VentasService', () => {
       });
 
       await service.crear(
-        { sucursalId: 's', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
+        { sucursalId: 's', sesionCajaId: 'sess-1', items: [{ varianteId: 'v1', cantidad: 1 }] } as never,
         ctx,
         'u1',
       );
@@ -1184,7 +1273,7 @@ function variante(
 }
 
 /** Configura los mocks para que `crear` llegue al final con datos por defecto:
- * 1 variante v1 a precio 10, sucursal OK, sin cupón, sin sesión, sin cliente. */
+ * 1 variante v1 a precio 10, sucursal OK, sesión de caja abierta (sess-1), sin cliente. */
 function mockHappyPath(tx: ReturnType<typeof crearTxMock>) {
   tx.sucursal.findFirst.mockResolvedValue({ id: 's' });
   tx.variante.findMany.mockResolvedValue([variante('v1', '10')]);
@@ -1194,5 +1283,12 @@ function mockHappyPath(tx: ReturnType<typeof crearTxMock>) {
     numero: 'V-000001',
     items: [],
     pagos: [],
+  });
+  // Sesión de caja abierta por defecto (toda operación la exige)
+  tx.sesionCaja.findUnique.mockResolvedValue({
+    id: 'sess-1',
+    estado: 'abierta',
+    sucursalId: 's',
+    cajeroId: 'u1',
   });
 }

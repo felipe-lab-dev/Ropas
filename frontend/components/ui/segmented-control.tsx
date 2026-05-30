@@ -16,6 +16,8 @@ export interface SegmentedOption<T extends string> {
   activeClassName?: string;
   disabled?: boolean;
   title?: string;
+  /** data-testid para esta opción (útil en E2E que clickean un valor concreto). */
+  testId?: string;
 }
 
 type Size = 'sm' | 'md' | 'lg';
@@ -77,6 +79,7 @@ export function SegmentedControl<T extends string>({
             aria-checked={activo}
             disabled={opt.disabled}
             title={opt.title}
+            data-testid={opt.testId}
             onClick={() => !opt.disabled && onChange(opt.value)}
             className={cn(
               'inline-flex items-center gap-1.5 whitespace-nowrap transition-all',

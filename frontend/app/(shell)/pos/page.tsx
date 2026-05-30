@@ -1,39 +1,22 @@
 'use client';
 
 import * as React from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ShoppingCart, X, Plus, Minus, ScanBarcode, CreditCard, Banknote, Smartphone, Tag, CheckCircle2, XCircle, AlertTriangle, UserPlus, User as UserIcon, Percent, FileText, Receipt } from 'lucide-react';
+import { ShoppingCart, X, Plus, Minus, ScanBarcode, CreditCard, Banknote, Smartphone, Tag, CheckCircle2, XCircle, AlertTriangle, UserPlus, User as UserIcon, Percent, FileText, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { obtener, obtenerPaginado, postear, mensajeError } from '@/lib/api/client';
+import { invalidarStock } from '@/lib/api/invalidaciones';
 import { formatearMoneda } from '@/lib/utils';
 import { useSesion } from '@/lib/store/sesion';
 import { useConsultaDoc } from '@/components/sunat/use-consulta-doc';
-
-interface VarianteBuscable {
-  id: string;
-  sku: string;
-  talla: string;
-  color: string;
-  colorHex?: string | null;
-  codigoBarras?: string | null;
-  precioVenta?: string | null;
-  stocks?: Array<{ sucursalId: string; disponible: number }>;
-}
-
-interface ProductoBuscable {
-  id: string;
-  nombre: string;
-  sku: string;
-  precioVenta: string;
-  variantes: VarianteBuscable[];
-}
+import { BuscadorVariantes, type VarianteEncontrada } from '@/components/productos/buscador-variantes';
 
 interface ItemCarrito {
   varianteId: string;
@@ -69,18 +52,20 @@ interface ClienteResumen {
  */
 const UMBRAL_DNI_BOLETA = 700;
 
-function precioParaVariante(v: VarianteBuscable, p: ProductoBuscable): number {
+function precioParaVariante(v: VarianteEncontrada): number {
   // Variante puede sobreescribir el precio base del producto (campo opcional).
-  const base = v.precioVenta ?? p.precioVenta;
+  const base = v.precioVenta ?? v.producto.precioVenta;
   return parseFloat(base ?? '0');
 }
 
-function stockEnSucursal(v: VarianteBuscable, sucursalId: string | null): number {
+function stockEnSucursal(v: VarianteEncontrada, sucursalId: string | null): number {
   if (!v.stocks || !sucursalId) return 0;
   return v.stocks.find(s => s.sucursalId === sucursalId)?.disponible ?? 0;
 }
 
 export default function PosPage() {
+  const router = useRouter();
+  const qc = useQueryClient();
   const usuario = useSesion(s => s.usuario);
   const cuponInicial = useSearchParams().get('cupon') ?? '';
   const [carrito, setCarrito] = React.useState<ItemCarrito[]>([]);
@@ -89,7 +74,6 @@ export default function PosPage() {
   // un clamp o un rechazo (ej. el cajero escribe 0 o un monto sobre el de lista).
   const [edicionPrecioNonce, setEdicionPrecioNonce] = React.useState(0);
   const [busqueda, setBusqueda] = React.useState('');
-  const [debouncedBusqueda, setDebouncedBusqueda] = React.useState('');
   const [medioPago, setMedioPago] = React.useState<'efectivo' | 'tarjeta_debito' | 'yape'>('efectivo');
   const [sucursalId, setSucursalId] = React.useState<string>(usuario?.sucursalDefecto ?? '');
   const [codigoCupon, setCodigoCupon] = React.useState<string>(cuponInicial);
@@ -167,11 +151,6 @@ export default function PosPage() {
     }
   }, [tipoDocBusqueda, creandoClienteDoc, docBusquedaLimpio, consultarRuc, consultarDni]);
 
-  React.useEffect(() => {
-    const t = setTimeout(() => setDebouncedBusqueda(busqueda), 200);
-    return () => clearTimeout(t);
-  }, [busqueda]);
-
   const { data: sucursales } = useQuery({
     queryKey: ['sucursales'],
     queryFn: () => obtener<Sucursal[]>('/sucursales'),
@@ -198,18 +177,9 @@ export default function PosPage() {
     setCarrito([]);
   }, [sucursalId]);
 
-  const { data: resultados } = useQuery({
-    queryKey: ['pos-buscar', debouncedBusqueda],
-    queryFn: () =>
-      obtenerPaginado<ProductoBuscable>('/productos', {
-        buscar: debouncedBusqueda,
-        limite: 6,
-      }),
-    enabled: debouncedBusqueda.length >= 2,
-  });
-
-  const agregar = (v: VarianteBuscable, p: ProductoBuscable) => {
-    const precio = precioParaVariante(v, p);
+  const agregar = (v: VarianteEncontrada) => {
+    const p = v.producto;
+    const precio = precioParaVariante(v);
     const stockDisponible = stockEnSucursal(v, sucursalId);
 
     if (precio <= 0) {
@@ -350,7 +320,7 @@ export default function PosPage() {
 
   const cobrar = useMutation({
     mutationFn: () =>
-      postear<{ numero: string }>('/ventas', {
+      postear<{ id: string; numero: string }>('/ventas', {
         sucursalId,
         sesionCajaId: sesionCaja?.id ?? undefined,
         clienteId: cliente?.id ?? undefined,
@@ -364,12 +334,12 @@ export default function PosPage() {
       }),
     onSuccess: data => {
       toast.success(`Venta ${data.numero} registrada`);
-      setCarrito([]);
-      setCuponValidado(null);
-      setCodigoCupon('');
-      setDescuentoManual(0);
-      setCliente(null);
-      setEsNotaDeVenta(false);
+      // La venta egresó stock: refrescamos las vistas que lo muestran.
+      invalidarStock(qc);
+      // En vez de limpiar el POS, redirigimos al detalle de la venta (drawer
+      // export-safe vía query-param, igual que la lista). Al navegar, el POS se
+      // desmonta y vuelve limpio si el cajero regresa.
+      router.push(`/ventas?ver=${data.id}`);
     },
     onError: err => toast.error(mensajeError(err)),
   });
@@ -410,91 +380,34 @@ export default function PosPage() {
           <div className="flex items-center gap-3 rounded-lg border border-[hsl(35_90%_55%/0.4)] bg-[hsl(35_90%_55%/0.08)] px-4 py-3 text-sm">
             <AlertTriangle className="size-4 text-[hsl(35_90%_55%)] shrink-0" />
             <div className="flex-1">
-              <p className="font-medium">No hay sesión de caja abierta</p>
+              <p className="font-medium">No hay caja abierta</p>
               <p className="text-xs text-[hsl(var(--text-muted))]">
-                Las ventas no quedarán asociadas al cierre de caja.{' '}
+                No podés cobrar sin una sesión de caja abierta.{' '}
                 <Link href="/caja" className="underline">Abrir caja</Link>
               </p>
             </div>
           </div>
         )}
 
-        <div className="flex gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[hsl(var(--text-muted))]" />
-            <Input
-              autoFocus
-              data-busqueda
-              data-testid="pos-buscar-producto"
-              placeholder="Buscar producto por nombre, SKU o escanear código de barras…"
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-              className="pl-9 h-12 text-base"
-            />
-          </div>
-          <Button variant="outline" size="lg" className="px-4">
-            <ScanBarcode className="size-4" /> Escanear
-          </Button>
-        </div>
-
-        <AnimatePresence>
-          {debouncedBusqueda.length >= 2 && resultados && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="grid sm:grid-cols-2 gap-3"
-            >
-              {resultados.datos.length === 0 && (
-                <p className="col-span-2 text-sm text-[hsl(var(--text-muted))] py-6 text-center">
-                  Sin coincidencias.
-                </p>
-              )}
-              {resultados.datos.flatMap(p =>
-                p.variantes.map(v => {
-                  const stock = stockEnSucursal(v, sucursalId);
-                  const precio = precioParaVariante(v, p);
-                  const sinStock = stock <= 0;
-                  return (
-                    <button
-                      key={v.id}
-                      data-testid={`pos-resultado-${v.sku}`}
-                      disabled={sinStock}
-                      onClick={() => agregar(v, p)}
-                      className={`text-left p-3 rounded-lg border bg-[hsl(var(--surface))] transition-all ${
-                        sinStock
-                          ? 'border-[hsl(var(--border))] opacity-50 cursor-not-allowed'
-                          : 'border-[hsl(var(--border))] hover:border-[hsl(var(--brand-primary))]/50 hover:bg-[hsl(var(--surface-2))]/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="size-10 rounded-md border border-[hsl(var(--border))]"
-                          style={{ backgroundColor: v.colorHex ?? 'var(--surface-2)' }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{p.nombre}</div>
-                          <div className="text-xs text-[hsl(var(--text-muted))]">
-                            Talla {v.talla} · {v.color} · {formatearMoneda(precio)}
-                          </div>
-                        </div>
-                        <div
-                          className={`text-xs font-mono ${
-                            sinStock
-                              ? 'text-[hsl(var(--brand-danger))]'
-                              : 'text-[hsl(var(--text-muted))]'
-                          }`}
-                        >
-                          {sinStock ? 'sin stock' : `${stock} disp.`}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                }),
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <BuscadorVariantes
+          contexto="venta"
+          value={busqueda}
+          onValueChange={setBusqueda}
+          onSeleccionar={agregar}
+          sucursalId={sucursalId}
+          yaAgregados={new Set(carrito.map(i => i.varianteId))}
+          autoFocus
+          registrarAtajo
+          inputTestId="pos-buscar-producto"
+          resultadoTestId={v => `pos-resultado-${v.sku}`}
+          placeholder="Buscar producto por nombre, SKU o escanear código de barras…"
+          inputClassName="h-12 text-base"
+          acciones={
+            <Button variant="outline" size="lg" className="px-4">
+              <ScanBarcode className="size-4" /> Escanear
+            </Button>
+          }
+        />
 
         <Card className="p-0 overflow-hidden">
           <div className="grid grid-cols-1">
@@ -909,7 +822,7 @@ export default function PosPage() {
             size="xl"
             className="w-full glow-brand"
             data-testid="btn-cobrar-pos"
-            disabled={carrito.length === 0 || cobrar.isPending || !sucursalId || total <= 0 || requiereDni}
+            disabled={carrito.length === 0 || cobrar.isPending || !sucursalId || total <= 0 || requiereDni || sesionCaja === null}
             onClick={() => cobrar.mutate()}
           >
             {cobrar.isPending

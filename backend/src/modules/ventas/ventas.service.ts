@@ -260,15 +260,24 @@ export class VentasService {
         clienteRegistrado = c;
       }
 
-      // ─── Sesión de caja (opcional) ────────────────────────────────────
-      if (dto.sesionCajaId) {
+      // ─── Sesión de caja (OBLIGATORIA) ─────────────────────────────────
+      // Toda operación transaccional debe quedar vinculada a un turno de caja
+      // abierto. El frontend envía sesionCajaId si hay una caja abierta.
+      if (!dto.sesionCajaId) {
+        throw new ErrorConflicto(
+          'No hay una sesión de caja abierta. Abrí la caja para registrar la operación.',
+        );
+      }
+      {
         const sesion = await tx.sesionCaja.findUnique({
           where: { id: dto.sesionCajaId },
           select: { id: true, estado: true, sucursalId: true, cajeroId: true },
         });
         if (!sesion) throw new ErrorNoEncontrado('Sesión de caja no encontrada');
         if (sesion.estado !== 'abierta') {
-          throw new ErrorConflicto('La sesión de caja está cerrada');
+          throw new ErrorConflicto(
+            'No hay una sesión de caja abierta. Abrí la caja para registrar la operación.',
+          );
         }
         if (sesion.sucursalId !== dto.sucursalId) {
           throw new ErrorValidacion(
@@ -712,6 +721,12 @@ export class VentasService {
     if (!dto.monto || dto.monto <= 0) {
       throw new ErrorValidacion('El monto debe ser mayor a 0');
     }
+    // Sesión de caja OBLIGATORIA para cobros a crédito
+    if (!dto.sesionCajaId) {
+      throw new ErrorConflicto(
+        'No hay una sesión de caja abierta. Abrí la caja para registrar la operación.',
+      );
+    }
     const cliente = this.prisma.forTenant(ctx);
     return cliente.$transaction(async tx => {
       const venta = await tx.venta.findFirst({
@@ -733,22 +748,22 @@ export class VentasService {
         throw new ErrorConflicto('La venta ya está totalmente pagada');
       }
 
-      // Validar sesión de caja igual que en crear()
-      if (dto.sesionCajaId) {
-        const sesion = await tx.sesionCaja.findUnique({
-          where: { id: dto.sesionCajaId },
-          select: { id: true, estado: true, sucursalId: true, cajeroId: true },
-        });
-        if (!sesion) throw new ErrorNoEncontrado('Sesión de caja no encontrada');
-        if (sesion.estado !== 'abierta') {
-          throw new ErrorConflicto('La sesión de caja está cerrada');
-        }
-        if (sesion.sucursalId !== venta.sucursalId) {
-          throw new ErrorValidacion('La sesión de caja pertenece a otra sucursal');
-        }
-        if (sesion.cajeroId !== usuarioId) {
-          throw new ErrorValidacion('La sesión de caja pertenece a otro cajero');
-        }
+      // Validar sesión de caja
+      const sesion = await tx.sesionCaja.findUnique({
+        where: { id: dto.sesionCajaId },
+        select: { id: true, estado: true, sucursalId: true, cajeroId: true },
+      });
+      if (!sesion) throw new ErrorNoEncontrado('Sesión de caja no encontrada');
+      if (sesion.estado !== 'abierta') {
+        throw new ErrorConflicto(
+          'No hay una sesión de caja abierta. Abrí la caja para registrar la operación.',
+        );
+      }
+      if (sesion.sucursalId !== venta.sucursalId) {
+        throw new ErrorValidacion('La sesión de caja pertenece a otra sucursal');
+      }
+      if (sesion.cajeroId !== usuarioId) {
+        throw new ErrorValidacion('La sesión de caja pertenece a otro cajero');
       }
 
       const pendiente = Number(venta.total) - Number(venta.totalPagado);
@@ -775,6 +790,23 @@ export class VentasService {
         where: { id: venta.id },
         data: { totalPagado: totalPagadoNuevo, estado: nuevoEstado },
       });
+
+      // MovimientoCaja: solo si el medio de pago es efectivo (cobro de crédito)
+      if (dto.medio === 'efectivo') {
+        await tx.movimientoCaja.create({
+          data: {
+            sesionId: dto.sesionCajaId!,
+            tipo: 'ingreso',
+            categoria: 'cobro_credito',
+            medio: dto.medio as MedioPago,
+            moneda: 'PEN',
+            monto: dto.monto,
+            motivo: `Cobro crédito venta ${venta.numero}`,
+            contraparteTipo: 'cliente',
+            creadoPorId: usuarioId,
+          },
+        });
+      }
 
       return { ventaId: venta.id, pago, estado: nuevoEstado, totalPagado: totalPagadoNuevo };
     });

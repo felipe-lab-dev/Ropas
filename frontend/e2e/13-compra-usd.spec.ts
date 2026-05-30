@@ -45,7 +45,6 @@ test.describe('Compras · moneda USD + tipo de cambio', () => {
 
     await gotoY(page, '/compras/nueva');
     await page.locator('[data-testid="select-proveedor-compra"]').selectOption(proveedor.id);
-    await page.locator('[data-testid="select-sucursal-compra"]').selectOption(producto.sucursalId);
     await fillEstable(page, '[data-testid="input-numero-comprobante-compra"]', numeroComprobante);
 
     await fillEstable(page, '[data-testid="input-buscar-producto-compra"]', producto.sku);
@@ -56,11 +55,11 @@ test.describe('Compras · moneda USD + tipo de cambio', () => {
     await botonAgregar.click();
 
     // Cambiar a USD → dispara autocompletado del TC vía el mock
-    await page.locator('[data-testid="select-moneda-compra"]').selectOption('USD');
+    await page.locator('[data-testid="btn-moneda-USD"]').click();
 
     const campoTc = page.locator('[data-testid="campo-tipo-cambio-compra"]');
     await expect(campoTc).toHaveValue('3.75', { timeout: 8_000 });
-    await expect(page.getByText(/TC SUNAT \(oficial\)/i)).toBeVisible();
+    await expect(page.getByText(/Oficial SUNAT/i)).toBeVisible();
 
     // Equivalente en PEN visible (59 USD * 3.75 = 221.25 → S/)
     await expect(page.locator('[data-testid="equivalente-pen-compra"]')).toContainText('S/');
@@ -99,7 +98,6 @@ test.describe('Compras · moneda USD + tipo de cambio', () => {
     const numeroComprobante = sufijoAleatorio(7);
     await gotoY(page, '/compras/nueva');
     await page.locator('[data-testid="select-proveedor-compra"]').selectOption(proveedor.id);
-    await page.locator('[data-testid="select-sucursal-compra"]').selectOption(producto.sucursalId);
     await fillEstable(page, '[data-testid="input-numero-comprobante-compra"]', numeroComprobante);
     await fillEstable(page, '[data-testid="input-buscar-producto-compra"]', producto.sku);
     const botonAgregar = page
@@ -108,14 +106,14 @@ test.describe('Compras · moneda USD + tipo de cambio', () => {
     await expect(botonAgregar).toBeVisible({ timeout: 8_000 });
     await botonAgregar.click();
 
-    await page.locator('[data-testid="select-moneda-compra"]').selectOption('USD');
+    await page.locator('[data-testid="btn-moneda-USD"]').click();
 
     // Sin TC, el botón Registrar está deshabilitado
     await expect(page.locator('[data-testid="btn-registrar-compra"]')).toBeDisabled();
 
     // Tipear TC manual habilita el registro (marca ámbar "manual")
     await fillEstable(page, '[data-testid="campo-tipo-cambio-compra"]', '3.80');
-    await expect(page.getByText(/TC manual/i)).toBeVisible();
+    await expect(page.getByText(/Manual/i)).toBeVisible();
     await expect(page.locator('[data-testid="btn-registrar-compra"]')).toBeEnabled();
 
     await page.locator('[data-testid="btn-registrar-compra"]').click();

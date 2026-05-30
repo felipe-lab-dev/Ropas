@@ -15,6 +15,8 @@ import { aPayloadApi, type ProveedorFormValues } from '../proveedor-schema';
 interface NuevoProveedorContenidoProps {
   modoModal?: boolean;
   onCerrar?: () => void;
+  /** Notifica el id del proveedor recién creado (ej. para seleccionarlo en Compras). */
+  onCreado?: (id: string) => void;
 }
 
 /**
@@ -24,7 +26,7 @@ interface NuevoProveedorContenidoProps {
  *  - En página standalone: renderiza el header + Card y redirige a /proveedores
  *    tras crear (compat con bookmarks viejos).
  */
-export function NuevoProveedorContenido({ modoModal = false, onCerrar }: NuevoProveedorContenidoProps) {
+export function NuevoProveedorContenido({ modoModal = false, onCerrar, onCreado }: NuevoProveedorContenidoProps) {
   const router = useRouter();
   const qc = useQueryClient();
   const [error, setError] = React.useState<string | null>(null);
@@ -35,8 +37,12 @@ export function NuevoProveedorContenido({ modoModal = false, onCerrar }: NuevoPr
     onSuccess: data => {
       toast.success(`Proveedor "${data?.razonSocial ?? ''}" registrado`);
       qc.invalidateQueries({ queryKey: ['proveedores'] });
-      if (modoModal && onCerrar) onCerrar();
-      else router.push('/proveedores');
+      if (modoModal) {
+        if (onCreado && data?.id) onCreado(data.id);
+        else onCerrar?.();
+      } else {
+        router.push('/proveedores');
+      }
     },
     onError: e => setError(mensajeError(e)),
   });

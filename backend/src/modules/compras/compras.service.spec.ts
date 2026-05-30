@@ -5,7 +5,7 @@
  * moneda original. Prisma ($transaction) e Inventario/Asientos se mockean.
  */
 import { ComprasService } from './compras.service';
-import { ErrorValidacion } from '../../core/errors/errores';
+import { ErrorConflicto, ErrorValidacion } from '../../core/errors/errores';
 import { TenantContext } from '../../core/tenancy/tenant-context';
 
 const ctx = { codigo: 'mi-tienda', schema: 'tenant_mitienda' } as unknown as TenantContext;
@@ -44,6 +44,14 @@ function crearTx() {
     producto: { update: jest.fn().mockResolvedValue({}) },
     movimientoCaja: { create: jest.fn().mockResolvedValue({}) },
     asientoContable: { findMany: jest.fn().mockResolvedValue([]) },
+    sucursal: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'suc-principal' }),
+    },
+    sesionCaja: {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'sess-1', estado: 'abierta', sucursalId: 'suc1',
+      }),
+    },
   };
 }
 
@@ -70,6 +78,7 @@ const dtoBase = {
   fechaEmision: '2026-05-29',
   items: [{ varianteId: 'v1', cantidad: 5, costoUnitario: 10, descuento: 0 }],
   confirmar: true,
+  sesionCajaId: 'sess-1',
 };
 
 describe('ComprasService · crear (moneda)', () => {
@@ -132,6 +141,62 @@ describe('ComprasService · crear (moneda)', () => {
   });
 });
 
+describe('ComprasService · crear (gate sesión de caja)', () => {
+  it('sin sesionCajaId → ErrorConflicto (sesión OBLIGATORIA)', async () => {
+    const { service } = montar();
+    const { sesionCajaId: _omit, ...sinSesion } = dtoBase;
+    await expect(
+      service.crear(sinSesion as never, ctx, 'u1'),
+    ).rejects.toBeInstanceOf(ErrorConflicto);
+  });
+
+  it('sesión de caja cerrada → ErrorConflicto', async () => {
+    const { service, tx } = montar();
+    tx.sesionCaja.findUnique.mockResolvedValue({ id: 'sess-1', estado: 'cerrada', sucursalId: 'suc1' });
+    await expect(
+      service.crear(dtoBase as never, ctx, 'u1'),
+    ).rejects.toBeInstanceOf(ErrorConflicto);
+  });
+
+  it('sesión de otra sucursal → ErrorConflicto', async () => {
+    const { service, tx } = montar();
+    // dtoBase.sucursalId = 'suc1'; la sesión apunta a otra sucursal
+    tx.sesionCaja.findUnique.mockResolvedValue({ id: 'sess-1', estado: 'abierta', sucursalId: 'otra-sucursal' });
+    await expect(
+      service.crear(dtoBase as never, ctx, 'u1'),
+    ).rejects.toBeInstanceOf(ErrorConflicto);
+    expect(tx.compra.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('ComprasService · crear (sucursal 1-tenant-1-sucursal)', () => {
+  it('sin sucursalId: resuelve la sucursal principal y la usa en compra + stock', async () => {
+    const { service, tx, inventario } = montar();
+    const { sucursalId: _omit, ...sinSucursal } = dtoBase;
+    // La sesión debe corresponder a la sucursal principal que se resolverá
+    tx.sesionCaja.findUnique.mockResolvedValue({ id: 'sess-1', estado: 'abierta', sucursalId: 'suc-principal' });
+
+    await service.crear(sinSucursal as never, ctx, 'u1');
+
+    expect(tx.sucursal.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { esPrincipal: true, eliminadoEn: null } }),
+    );
+    expect(tx.compra.create.mock.calls[0][0].data.sucursalId).toBe('suc-principal');
+    expect(inventario.ajustarEnTx.mock.calls[0][1].sucursalId).toBe('suc-principal');
+  });
+
+  it('sin sucursal principal configurada → ErrorValidacion y no crea la compra', async () => {
+    const { service, tx } = montar();
+    tx.sucursal.findFirst.mockResolvedValue(null);
+    const { sucursalId: _omit, ...sinSucursal } = dtoBase;
+
+    await expect(
+      service.crear(sinSucursal as never, ctx, 'u1'),
+    ).rejects.toBeInstanceOf(ErrorValidacion);
+    expect(tx.compra.create).not.toHaveBeenCalled();
+  });
+});
+
 describe('ComprasService · registrarPago (moneda)', () => {
   it('pago de compra USD: PagoCompra en USD, deuda y asiento en PEN', async () => {
     const { service, tx, asientos } = montar();
@@ -139,6 +204,7 @@ describe('ComprasService · registrarPago (moneda)', () => {
       id: 'c1',
       numero: 'C-2026-00001',
       estado: 'recibida',
+      sucursalId: 'suc1',
       moneda: 'USD',
       tipoCambio: 3.75,
       total: 100,
@@ -146,6 +212,7 @@ describe('ComprasService · registrarPago (moneda)', () => {
       proveedorId: 'prov1',
       proveedor: { tipoDocumento: 'ruc', documento: '20123456789', razonSocial: 'X' },
     });
+    tx.sesionCaja.findUnique.mockResolvedValue({ id: 'ses1', estado: 'abierta', sucursalId: 'suc1' });
 
     await service.registrarPago(
       'c1',
@@ -166,5 +233,59 @@ describe('ComprasService · registrarPago (moneda)', () => {
     const asiento = asientos.generarPorPagoCompra.mock.calls[0][1];
     expect(asiento.monto).toBe(187.5);
     expect(asiento.tipoCambio).toBe(3.75);
+  });
+
+  it('registrarPago sin sesionCajaId → ErrorConflicto (sesión OBLIGATORIA)', async () => {
+    const { service } = montar();
+    await expect(
+      service.registrarPago('c1', { medio: 'efectivo', monto: 50 } as never, ctx, 'u1'),
+    ).rejects.toBeInstanceOf(ErrorConflicto);
+  });
+
+  it('registrarPago con sesión cerrada → ErrorConflicto', async () => {
+    const { service, tx } = montar();
+    tx.compra.findFirst.mockResolvedValue({
+      id: 'c1', numero: 'C-1', estado: 'recibida', sucursalId: 'suc1', moneda: 'PEN',
+      tipoCambio: 1, total: 100, totalPagado: 0, proveedorId: 'prov1',
+      proveedor: { tipoDocumento: 'ruc', documento: '20123456789', razonSocial: 'X' },
+    });
+    tx.sesionCaja.findUnique.mockResolvedValue({ id: 'ses1', estado: 'cerrada', sucursalId: 'suc1' });
+    await expect(
+      service.registrarPago('c1', { medio: 'efectivo', monto: 50, sesionCajaId: 'ses1' } as never, ctx, 'u1'),
+    ).rejects.toBeInstanceOf(ErrorConflicto);
+  });
+
+  it('pago en tarjeta NO crea MovimientoCaja (solo efectivo)', async () => {
+    const { service, tx } = montar();
+    tx.compra.findFirst.mockResolvedValue({
+      id: 'c1', numero: 'C-1', estado: 'recibida', sucursalId: 'suc1', moneda: 'PEN',
+      tipoCambio: 1, total: 100, totalPagado: 0, proveedorId: 'prov1',
+      proveedor: { tipoDocumento: 'ruc', documento: '20123456789', razonSocial: 'X' },
+    });
+    tx.sesionCaja.findUnique.mockResolvedValue({ id: 'ses1', estado: 'abierta', sucursalId: 'suc1' });
+    tx.movimientoCaja.create.mockClear();
+
+    await service.registrarPago(
+      'c1',
+      { medio: 'tarjeta_debito', monto: 50, sesionCajaId: 'ses1' } as never,
+      ctx, 'u1',
+    );
+
+    expect(tx.movimientoCaja.create).not.toHaveBeenCalled();
+  });
+
+  it('registrarPago con sesión de otra sucursal → ErrorConflicto', async () => {
+    const { service, tx } = montar();
+    tx.compra.findFirst.mockResolvedValue({
+      id: 'c1', numero: 'C-1', estado: 'recibida', sucursalId: 'suc1', moneda: 'PEN',
+      tipoCambio: 1, total: 100, totalPagado: 0, proveedorId: 'prov1',
+      proveedor: { tipoDocumento: 'ruc', documento: '20123456789', razonSocial: 'X' },
+    });
+    // La sesión pertenece a una sucursal distinta a la de la compra
+    tx.sesionCaja.findUnique.mockResolvedValue({ id: 'ses1', estado: 'abierta', sucursalId: 'otra-sucursal' });
+    await expect(
+      service.registrarPago('c1', { medio: 'efectivo', monto: 50, sesionCajaId: 'ses1' } as never, ctx, 'u1'),
+    ).rejects.toBeInstanceOf(ErrorConflicto);
+    expect(tx.pagoCompra.create).not.toHaveBeenCalled();
   });
 });
