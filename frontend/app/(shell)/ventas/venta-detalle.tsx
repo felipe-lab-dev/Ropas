@@ -340,7 +340,7 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
       icono: CreditCard,
       color: 'hsl(150 55% 50%)',
       titulo: `Pago ${formatearMoneda(p.monto)}`,
-      detalle: `${MEDIO_LABEL[p.medio] ?? p.medio}${p.referencia ? ` · ${p.referencia}` : ''}`,
+      detalle: `${MEDIO_LABEL[p.medio as MedioPago] ?? p.medio}${p.referencia ? ` · ${p.referencia}` : ''}`,
     })),
     ...(venta.notasCredito ?? []).map(nc => ({
       fecha: nc.creadoEn,
@@ -577,7 +577,7 @@ export function VentaDetalle({ ventaId, accionInicial, onAbrirVenta }: VentaDeta
             {venta.pagos.map(p => (
               <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium">{MEDIO_LABEL[p.medio] ?? p.medio}</p>
+                  <p className="text-sm font-medium">{MEDIO_LABEL[p.medio as MedioPago] ?? p.medio}</p>
                   <p className="text-[11px] text-[hsl(var(--text-muted))] font-mono truncate">
                     {p.referencia ? `${p.referencia} · ` : ''}
                     {formatearFecha(p.recibidoEn, 'completa')}
