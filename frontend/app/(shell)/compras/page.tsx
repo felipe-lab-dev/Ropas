@@ -25,6 +25,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { FacetFilter } from '@/components/ui/facet-filter';
 import { EmptyState } from '@/components/ui/empty-state';
 import { EstadoError } from '@/components/ui/error-state';
+import { ReportesBoton } from '@/components/reportes/reportes-boton';
 import { CompraDetalle, type AccionCompra } from './compra-detalle';
 
 interface CompraLista {
@@ -145,6 +146,13 @@ function ComprasContenido() {
             <Button variant="outline" asChild>
               <Link href="/compras/por-pagar"><AlertCircle className="size-4" /> Cuentas por pagar</Link>
             </Button>
+            <ReportesBoton
+              recurso="compras"
+              filtros={{
+                estadoPago: estados.length === 1 ? estados[0] : undefined,
+                buscar: debounced || undefined,
+              }}
+            />
             <Button asChild size="lg">
               <Link href="/compras/nueva"><Plus className="size-4" /> Nueva compra</Link>
             </Button>

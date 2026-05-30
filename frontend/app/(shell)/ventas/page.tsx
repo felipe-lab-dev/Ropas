@@ -32,6 +32,7 @@ import {
   type RentabilidadVenta,
 } from '@/lib/rentabilidad-ui';
 import { VentaDetalle, type AccionVenta } from './venta-detalle';
+import { ReportesBoton } from '@/components/reportes/reportes-boton';
 
 interface VentaLista {
   id: string; numero: string;
@@ -162,9 +163,18 @@ function VentasContenido() {
         titulo="Ventas"
         descripcion="Historial de tickets emitidos."
         acciones={
-          <Button asChild size="lg">
-            <Link href="/pos"><Plus className="size-4" /> Nueva venta</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <ReportesBoton
+              recurso="ventas"
+              filtros={{
+                estado: estadosSeleccionados.length ? estadosSeleccionados.join(',') : undefined,
+                buscar: debounced || undefined,
+              }}
+            />
+            <Button asChild size="lg">
+              <Link href="/pos"><Plus className="size-4" /> Nueva venta</Link>
+            </Button>
+          </div>
         }
       />
 

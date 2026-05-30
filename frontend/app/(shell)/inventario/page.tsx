@@ -40,6 +40,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Pagination } from '@/components/ui/pagination';
 import { EmptyState } from '@/components/ui/empty-state';
 import { IlustracionInventario } from '@/components/ui/empty-illustrations';
+import { ReportesBoton } from '@/components/reportes/reportes-boton';
 import { cn } from '@/lib/utils';
 
 interface Sucursal { id: string; nombre: string; codigo: string }
@@ -113,6 +114,17 @@ export default function InventarioPage() {
       <PageHeader
         titulo="Inventario"
         descripcion="Stock por variante y sucursal. Ajustes, mermas y traslados."
+        acciones={
+          <ReportesBoton
+            recurso="inventario"
+            conRango={false}
+            filtros={{
+              sucursalId: sucursalId || undefined,
+              soloAlertas: soloAlertas ? 'true' : undefined,
+              buscar: debounced || undefined,
+            }}
+          />
+        }
       />
 
       <div className="flex flex-wrap items-end gap-3">

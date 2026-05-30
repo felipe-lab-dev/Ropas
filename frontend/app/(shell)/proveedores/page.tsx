@@ -33,6 +33,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { DataTable, type ColumnaTabla, type TableState } from '@/components/ui/data-table';
 import { usePreferencias } from '@/lib/use-preferencias';
 import { LinkWhatsApp } from '@/components/ui/link-whatsapp';
+import { ReportesBoton } from '@/components/reportes/reportes-boton';
 import { NuevoProveedorContenido } from './nuevo/page';
 import { EditarProveedorCliente } from './editar/editar-cliente';
 import { ProveedorDetalle } from './proveedor-detalle';
@@ -395,9 +396,16 @@ function ProveedoresPageContenido() {
         titulo="Proveedores"
         descripcion="Quiénes te abastecen, sus condiciones de pago y deuda pendiente."
         acciones={
-          <Button size="lg" onClick={abrirNuevo} data-testid="btn-abrir-nuevo-proveedor">
-            <Plus className="size-4" /> Nuevo proveedor
-          </Button>
+          <div className="flex items-center gap-2">
+            <ReportesBoton
+              recurso="proveedores"
+              conRango={false}
+              filtros={{ buscar: debounced || undefined }}
+            />
+            <Button size="lg" onClick={abrirNuevo} data-testid="btn-abrir-nuevo-proveedor">
+              <Plus className="size-4" /> Nuevo proveedor
+            </Button>
+          </div>
         }
       />
 

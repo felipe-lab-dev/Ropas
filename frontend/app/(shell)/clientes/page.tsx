@@ -24,6 +24,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { IlustracionClientes } from '@/components/ui/empty-illustrations';
 import { DataTable, type ColumnaTabla, type TableState } from '@/components/ui/data-table';
 import { usePreferencias } from '@/lib/use-preferencias';
+import { ReportesBoton } from '@/components/reportes/reportes-boton';
 import { ClienteDetalle } from './cliente-detalle';
 
 type Clase = 'AA' | 'A' | 'B' | 'C' | 'D';
@@ -370,6 +371,11 @@ function ClientesContenido() {
                 ? <><Loader2 className="size-4 animate-spin" /> Calculando…</>
                 : <><Zap className="size-4 text-[hsl(var(--brand-primary))]" /> Recalcular clasificación</>}
             </Button>
+            <ReportesBoton
+              recurso="clientes"
+              conRango={false}
+              filtros={{ buscar: debounced || undefined }}
+            />
             <Button asChild size="lg">
               <Link href="/clientes/nuevo"><Plus className="size-4" /> Nuevo cliente</Link>
             </Button>
