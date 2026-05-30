@@ -57,6 +57,10 @@ test.describe('Ventas POS · cobrar', () => {
     expect(match, `Toast no tuvo el formato esperado. Texto: "${texto}"`).toBeTruthy();
     const numero = match![1]!;
 
+    // El POS redirige al detalle de la venta recién creada (drawer ?ver=),
+    // en vez de limpiar el carrito y quedarse en /pos.
+    await expect(page).toHaveURL(/[?&]ver=/, { timeout: 8_000 });
+
     await gotoY(page, '/ventas');
     await page.locator('[data-busqueda]').fill(numero);
     await expect(
