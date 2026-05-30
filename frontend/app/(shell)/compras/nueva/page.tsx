@@ -99,8 +99,7 @@ export default function NuevaCompraPage() {
   });
 
   const listaResultados = (resultados?.datos ?? []) as VarianteBuscable[];
-  // Gatear en `debounced` (no `busqueda`) para no mostrar "Crear nuevo" en el
-  // hueco de ~200ms antes de que la query traiga resultados.
+  // Gatear en `debounced` (no `busqueda`) para alinear con cuándo corre la query.
   const mostrarDropdown = debounced.length >= 2;
 
   const agregarItem = (v: VarianteBuscable) => {
@@ -316,13 +315,24 @@ export default function NuevaCompraPage() {
 
           {/* ── Ítems ─────────────────────────────────────────────────────── */}
           <Card className="p-5 sm:p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-xs uppercase tracking-wider text-[hsl(var(--text-muted))]">Ítems</h3>
-              {items.length > 0 && (
-                <span className="text-[11px] text-[hsl(var(--text-muted))]">
-                  {items.length} {items.length === 1 ? 'producto' : 'productos'}
-                </span>
-              )}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <h3 className="font-semibold text-xs uppercase tracking-wider text-[hsl(var(--text-muted))]">Ítems</h3>
+                {items.length > 0 && (
+                  <span className="text-[11px] text-[hsl(var(--text-muted))]">
+                    · {items.length} {items.length === 1 ? 'producto' : 'productos'}
+                  </span>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-testid="btn-nuevo-producto-compra"
+                onClick={() => setCrearAbierto(true)}
+              >
+                <PackagePlus className="size-4" /> Nuevo producto
+              </Button>
             </div>
 
             <div className="relative">
@@ -334,7 +344,7 @@ export default function NuevaCompraPage() {
                 onChange={e => setBusqueda(e.target.value)}
                 className="pl-9"
               />
-              {mostrarDropdown && (
+              {mostrarDropdown && listaResultados.length > 0 && (
                 <div className="absolute z-20 mt-1 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] shadow-lg max-h-72 overflow-auto">
                   {listaResultados.map(v => (
                     <button
@@ -351,15 +361,6 @@ export default function NuevaCompraPage() {
                       <span className="font-mono text-xs text-[hsl(var(--text-muted))] shrink-0">{v.sku}</span>
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    data-testid="btn-crear-producto-compra"
-                    onClick={() => setCrearAbierto(true)}
-                    className="w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary))]/8 font-medium"
-                  >
-                    <PackagePlus className="size-4" />
-                    Crear «{busqueda}» como producto nuevo
-                  </button>
                 </div>
               )}
             </div>
@@ -369,7 +370,7 @@ export default function NuevaCompraPage() {
                 <Sparkles className="size-6 mx-auto text-[hsl(var(--text-muted))]/50" />
                 <p className="text-sm text-[hsl(var(--text-muted))]">
                   Buscá un producto arriba para agregarlo.<br />
-                  ¿No existe todavía? Creálo en el momento sin salir de acá.
+                  ¿No existe todavía? Usá <span className="font-medium text-[hsl(var(--text))]">Nuevo producto</span> y creálo sin salir de acá.
                 </p>
               </div>
             ) : (
