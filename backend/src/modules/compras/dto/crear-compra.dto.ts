@@ -60,6 +60,8 @@ export class CrearCompraDto {
   @IsOptional() @IsString() notas?: string;
   /** Si true, crea + confirma en un solo paso (ingresa stock + asiento). */
   @IsOptional() confirmar?: boolean;
+  /** ID de la sesión de caja abierta. OBLIGATORIO para vincular la compra al turno actual. */
+  @IsOptional() @IsUUID() sesionCajaId?: string;
 }
 
 export class RegistrarPagoCompraDto {

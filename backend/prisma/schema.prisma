@@ -527,6 +527,9 @@ model NotaCredito {
   subtotal               Decimal           @db.Decimal(12, 2)
   total                  Decimal           @db.Decimal(12, 2)
   restituyeStock         Boolean           @default(true) @map("restituye_stock")
+  medioDevolucion        MedioPago?        @map("medio_devolucion")
+  sesionCajaId           String?           @map("sesion_caja_id") @db.Uuid
+  sesionCaja             SesionCaja?       @relation(fields: [sesionCajaId], references: [id])
   anuladaEn              DateTime?         @map("anulada_en")
   motivoAnulacion        String?           @map("motivo_anulacion") @db.Text
   creadoEn               DateTime          @default(now()) @map("creado_en")
@@ -600,8 +603,10 @@ model SesionCaja {
   abiertaEn     DateTime         @default(now()) @map("abierta_en")
   cerradaEn     DateTime?        @map("cerrada_en")
 
-  ventas      Venta[]
-  movimientos MovimientoCaja[]
+  ventas       Venta[]
+  compras      Compra[]
+  notasCredito NotaCredito[]
+  movimientos  MovimientoCaja[]
 
   @@index([sucursalId, abiertaEn])
   @@map("sesiones_caja")
@@ -786,6 +791,8 @@ model Compra {
   totalPagado       Decimal               @default(0) @map("total_pagado") @db.Decimal(14, 2)
   notas             String?               @db.Text
   usuarioId         String                @map("usuario_id") @db.Uuid
+  sesionCajaId      String?               @map("sesion_caja_id") @db.Uuid
+  sesionCaja        SesionCaja?           @relation(fields: [sesionCajaId], references: [id])
   anuladaEn         DateTime?             @map("anulada_en")
   motivoAnulacion   String?               @map("motivo_anulacion") @db.Text
   creadoEn          DateTime              @default(now()) @map("creado_en")

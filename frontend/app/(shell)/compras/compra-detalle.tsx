@@ -37,6 +37,7 @@ import {
 import { obtener, postear, mensajeError } from '@/lib/api/client';
 import { formatearFecha, formatearMoneda } from '@/lib/utils';
 import { tienePermiso, useSesion } from '@/lib/store/sesion';
+import { useSesionCajaAbierta } from '@/lib/api/hooks/use-sesion-caja-abierta';
 
 export type AccionCompra = 'pago' | 'anular';
 
@@ -144,6 +145,10 @@ export function CompraDetalle({ compraId, accionInicial }: CompraDetalleProps) {
     queryFn: () => obtener<CompraDetalle>(`/compras/${compraId}`),
   });
 
+  // Sesión de caja abierta — requerida para registrar pagos (backend exige sesionCajaId).
+  const sucursalIdCompra = compra?.sucursal?.id;
+  const { data: sesionCaja } = useSesionCajaAbierta(sucursalIdCompra);
+
   const registrarPago = useMutation({
     mutationFn: () =>
       postear<{ estadoPago: string }>(`/compras/${compraId}/pagos`, {
@@ -151,6 +156,7 @@ export function CompraDetalle({ compraId, accionInicial }: CompraDetalleProps) {
         monto: parseFloat(pagoMonto),
         referencia: pagoReferencia.trim() || undefined,
         fechaPago: pagoFecha || undefined,
+        sesionCajaId: sesionCaja?.id,
       }),
     onSuccess: data => {
       toast.success(data.estadoPago === 'pagada' ? 'Compra saldada' : 'Pago registrado');
@@ -452,6 +458,20 @@ export function CompraDetalle({ compraId, accionInicial }: CompraDetalleProps) {
         </ol>
       </Card>
 
+      {/* Aviso de caja cerrada — visible cuando la sesión ya resolvió como null */}
+      {sucursalIdCompra && sesionCaja === null && (
+        <div className="flex items-center gap-3 rounded-lg border border-[hsl(35_90%_55%/0.4)] bg-[hsl(35_90%_55%/0.08)] px-4 py-3 text-sm">
+          <AlertTriangle className="size-4 text-[hsl(35_90%_55%)] shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium">No hay caja abierta</p>
+            <p className="text-xs text-[hsl(var(--text-muted))]">
+              No podés registrar un pago sin una sesión de caja abierta.{' '}
+              <Link href="/caja" className="underline">Abrir caja</Link>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Barra de acciones fija al pie del drawer */}
       <div
         className="no-print sticky bottom-0 -mx-4 sm:-mx-5 -mb-5 mt-1 flex flex-wrap items-center justify-end gap-2 border-t border-[hsl(var(--border))] bg-[hsl(var(--surface))]/95 px-4 sm:px-5 py-3 backdrop-blur"
@@ -464,6 +484,7 @@ export function CompraDetalle({ compraId, accionInicial }: CompraDetalleProps) {
           <Button
             variant="outline"
             size="sm"
+            disabled={sesionCaja === null}
             onClick={() => {
               setPagoMonto(pendiente.toFixed(2));
               setDialogoPago(true);
