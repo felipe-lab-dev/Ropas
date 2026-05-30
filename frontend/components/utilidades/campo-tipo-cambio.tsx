@@ -7,6 +7,12 @@ import { useTipoCambio } from './use-tipo-cambio';
 
 export type FuenteTc = 'oficial' | 'manual';
 
+/** Convierte una fecha ISO (YYYY-MM-DD) a día-mes-año (DD-MM-YYYY). */
+function aDdMmYyyy(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : iso;
+}
+
 interface Props {
   /** Fecha del comprobante (YYYY-MM-DD) usada para pedir el TC de ese día. */
   fecha: string;
@@ -75,7 +81,7 @@ export function CampoTipoCambio({ fecha, valor, fuente, onCambio, testId }: Prop
         ) : valor && fuente === 'oficial' ? (
           <>
             <ShieldCheck className="size-3 text-[hsl(var(--brand-success,142_71%_45%))]" />
-            Oficial SUNAT{oficial ? ` · ${oficial.fecha}` : ''}
+            Oficial SUNAT{oficial ? ` · ${aDdMmYyyy(oficial.fecha)}` : ''}
           </>
         ) : valor && fuente === 'manual' ? (
           <>
