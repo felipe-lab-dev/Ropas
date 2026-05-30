@@ -1,0 +1,65 @@
+# Gate de auditoria en CI — corre los agentes auditores del repo sobre el diff del PR.
+#
+# Usa tu SUSCRIPCION Claude Code (Max) via OAuth token — SIN facturacion de API por token.
+# (Genera el token una vez con `claude setup-token` en tu PC. Puede consumir los limites
+#  de uso de tu plan Max, pero no es un cobro de API aparte.)
+#
+# INERTE hasta que agregues el secret: el step se salta limpio si no existe
+# CLAUDE_CODE_OAUTH_TOKEN, asi que no rompe ningun PR mientras tanto.
+#
+# Para activarlo:
+#   1. En tu PC ejecuta: claude setup-token   -> copia el token que genera.
+#   2. GitHub -> <repo> -> Settings -> Secrets and variables -> Actions -> New repository secret
+#      CLAUDE_CODE_OAUTH_TOKEN = <el token>
+#   3. Abre un PR de prueba y confirma que el gate comenta el veredicto (validar 1 vez).
+#
+# Nota: NO usa la skill global /auditar-pre-pr (vive en claude-memory, no esta en el
+# runner de CI). Usa un prompt inline que replica el gate sobre los .claude/agents/
+# del repo, que si estan commiteados y disponibles en el checkout.
+
+name: Auditar PR (gate de auditoria)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auditar:
+    runs-on: ubuntu-latest
+    # 'secrets' no se puede usar directo en if:, por eso se mapea a env.
+    env:
+      HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # necesario para el git diff vs base
+
+      - name: Gate de auditoria (agentes del repo)
+        if: env.HAS_TOKEN == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Eres un gate de auditoria pre-merge para este repositorio. Es read-only:
+            NO modifiques codigo ni hagas commit, solo audita y comenta el veredicto en el PR.
+
+            Pasos:
+            1. Calcula el diff del PR:
+               git diff --name-only origin/${{ github.base_ref }}...HEAD
+            2. Descubre los auditores del repo: lista .claude/agents/*.md y lee el
+               frontmatter (name + description) de cada uno. La description declara que
+               paths/dominio cubre cada agente. No asumas nombres.
+            3. Mapea cada archivo cambiado a los auditores cuya description cubra ese
+               path/dominio (match por path declarado o por dominio). Ante la duda, incluyelo.
+            4. Por cada auditor relevante, sigue su protocolo sobre SOLO los archivos del
+               diff y recopila bloqueantes y warnings.
+            5. Comenta en el PR un veredicto consolidado y deduplicado:
+               - BLOQUEANTES (archivo:linea - problema - fix)
+               - WARNINGS
+               - Veredicto: BLOQUEADO (si hay >=1 bloqueante) / MERGE con warnings / OK
+            Si no hay auditores que apliquen al diff, dilo y no inventes hallazgos.
+          claude_args: "--max-turns 15"
