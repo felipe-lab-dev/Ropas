@@ -20,7 +20,13 @@ import { FormActions } from '@/components/ui/form-actions';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { IconoCategoria } from '@/components/ui/icono-categoria';
 import { colorCategoria } from '@/lib/color-categoria';
-import { GENEROS, MATERIALES, ICONO_MATERIAL_FALLBACK } from '@/lib/catalogos-producto';
+import {
+  GENEROS,
+  MATERIALES,
+  ICONO_MATERIAL_FALLBACK,
+  TALLAS_SUGERIDAS,
+  COLORES_SUGERIDOS,
+} from '@/lib/catalogos-producto';
 import { obtener, postear, mensajeError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useValidacionForm } from '@/lib/use-validacion-form';
@@ -36,18 +42,6 @@ interface Variante {
   colorHex: string;
   stockInicial: number;
 }
-
-const TALLAS_SUGERIDAS = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const COLORES_SUGERIDOS: Array<{ nombre: string; hex: string }> = [
-  { nombre: 'Negro', hex: '#111111' },
-  { nombre: 'Blanco', hex: '#F8F8F8' },
-  { nombre: 'Gris', hex: '#808080' },
-  { nombre: 'Azul', hex: '#1E40AF' },
-  { nombre: 'Rojo', hex: '#DC2626' },
-  { nombre: 'Verde', hex: '#16A34A' },
-  { nombre: 'Beige', hex: '#D4C5A0' },
-  { nombre: 'Rosa', hex: '#EC4899' },
-];
 
 const VARIANTE_UNICA: Variante = {
   talla: 'Única',

@@ -76,3 +76,25 @@ export const MATERIALES: OpcionIcono[] = [
 
 /** Ícono genérico para un material custom no presente en `MATERIALES`. */
 export const ICONO_MATERIAL_FALLBACK = <Layers className="size-full" />;
+
+/**
+ * Tallas sugeridas para los selectores de variante. Fuente única compartida por
+ * el form de "Nuevo producto" y el mini-selector "Agregar variante" del buscador,
+ * para que el usuario reconozca el mismo set de chips en ambos lados.
+ */
+export const TALLAS_SUGERIDAS: readonly string[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+
+/**
+ * Colores sugeridos (swatches) para los selectores de variante. Mismo criterio
+ * de consistencia que `TALLAS_SUGERIDAS`: una sola fuente para todo el sistema.
+ */
+export const COLORES_SUGERIDOS: Array<{ nombre: string; hex: string }> = [
+  { nombre: 'Negro', hex: '#111111' },
+  { nombre: 'Blanco', hex: '#F8F8F8' },
+  { nombre: 'Gris', hex: '#808080' },
+  { nombre: 'Azul', hex: '#1E40AF' },
+  { nombre: 'Rojo', hex: '#DC2626' },
+  { nombre: 'Verde', hex: '#16A34A' },
+  { nombre: 'Beige', hex: '#D4C5A0' },
+  { nombre: 'Rosa', hex: '#EC4899' },
+];

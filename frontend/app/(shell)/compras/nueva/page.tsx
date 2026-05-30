@@ -3,9 +3,9 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, PackagePlus, Save, Search, Trash2, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, PackagePlus, Plus, Save, Trash2, Sparkles, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,13 +18,14 @@ import { DetalleSheet } from '@/components/ui/sheet';
 import { obtener, obtenerPaginado, postear, mensajeError } from '@/lib/api/client';
 import { formatearMoneda } from '@/lib/utils';
 import { CampoTipoCambio, type FuenteTc } from '@/components/utilidades/campo-tipo-cambio';
+import { BuscadorVariantes, type VarianteEncontrada } from '@/components/productos/buscador-variantes';
+import { NuevaVarianteSheet, type VarianteCreada } from '@/components/productos/nueva-variante-sheet';
 import { NuevoProductoCliente } from '@/app/(shell)/productos/nuevo/nuevo-producto-cliente';
+import { NuevoProveedorContenido } from '@/app/(shell)/proveedores/nuevo/page';
+import { useSesionCajaAbierta } from '@/lib/api/hooks/use-sesion-caja-abierta';
 
+interface Sucursal { id: string; nombre: string }
 interface Proveedor { id: string; razonSocial: string; documento: string; condicionPago: string; diasCredito: number }
-interface VarianteBuscable {
-  id: string; sku: string; talla: string; color: string;
-  producto: { id: string; nombre: string; sku: string; precioCompra?: string | null };
-}
 interface ProductoDetalle {
   id: string; nombre: string; precioCompra?: string | null;
   variantes: Array<{ id: string; sku: string; talla: string; color: string }>;
@@ -32,6 +33,8 @@ interface ProductoDetalle {
 
 interface ItemCompra {
   varianteId: string;
+  productoId: string;
+  productoNombre: string;
   descripcion: string;
   cantidad: number;
   costoUnitario: number;
@@ -42,6 +45,7 @@ const fieldLabel = 'text-xs font-semibold text-[hsl(var(--text-muted))]';
 
 export default function NuevaCompraPage() {
   const router = useRouter();
+  const qc = useQueryClient();
   const [proveedorId, setProveedorId] = React.useState('');
   const [tipoComprobante, setTipoComprobante] = React.useState<'factura' | 'boleta' | 'nota_ingreso' | 'guia_remision' | 'otro'>('factura');
   const [serie, setSerie] = React.useState('F001');
@@ -50,64 +54,48 @@ export default function NuevaCompraPage() {
   const [condicionPago, setCondicionPago] = React.useState<'contado' | 'credito_15' | 'credito_30' | 'credito_60'>('contado');
   const [items, setItems] = React.useState<ItemCompra[]>([]);
   const [busqueda, setBusqueda] = React.useState('');
-  const [debounced, setDebounced] = React.useState('');
   const [notas, setNotas] = React.useState('');
   const [moneda, setMoneda] = React.useState<'PEN' | 'USD'>('PEN');
   const [tipoCambio, setTipoCambio] = React.useState<number | null>(null);
   const [fuenteTc, setFuenteTc] = React.useState<FuenteTc>('oficial');
   const [crearAbierto, setCrearAbierto] = React.useState(false);
+  const [crearProveedorAbierto, setCrearProveedorAbierto] = React.useState(false);
 
-  React.useEffect(() => {
-    const t = setTimeout(() => setDebounced(busqueda), 200);
-    return () => clearTimeout(t);
-  }, [busqueda]);
+  /** Tras crear un proveedor en el aside, refrescamos la lista y lo seleccionamos. */
+  const onProveedorCreado = async (id: string) => {
+    setCrearProveedorAbierto(false);
+    await qc.invalidateQueries({ queryKey: ['proveedores-lista'] });
+    setProveedorId(id);
+  };
 
   const { data: proveedores } = useQuery({
     queryKey: ['proveedores-lista'],
     queryFn: () => obtenerPaginado<Proveedor>('/proveedores', { limite: 200 }),
   });
 
+  // Sucursal principal del tenant (1 tenant = 1 sucursal; el backend la resuelve
+  // igual, pero necesitamos el id para consultar la sesión de caja).
+  const { data: sucursales } = useQuery({
+    queryKey: ['sucursales'],
+    queryFn: () => obtener<Sucursal[]>('/sucursales'),
+  });
+  const sucursalId = sucursales?.[0]?.id;
+
+  const { data: sesionCaja } = useSesionCajaAbierta(sucursalId);
+
   const proveedor = proveedores?.datos.find(p => p.id === proveedorId);
   React.useEffect(() => {
     if (proveedor) setCondicionPago(proveedor.condicionPago as typeof condicionPago);
   }, [proveedor]);
 
-  const { data: resultados } = useQuery({
-    queryKey: ['variantes-busqueda', debounced],
-    enabled: debounced.length >= 2,
-    queryFn: async () => {
-      try {
-        return await obtenerPaginado<VarianteBuscable>('/inventario/buscar-variantes', {
-          buscar: debounced, limite: 8,
-        });
-      } catch {
-        // Fallback: si el endpoint no existe, listar productos y aplanar a variantes
-        type ProductoListado = {
-          id: string; sku: string; nombre: string; precioCompra?: string | null;
-          variantes: Array<{ id: string; sku: string; talla: string; color: string }>;
-        };
-        const r = await obtenerPaginado<ProductoListado>('/productos', { buscar: debounced, limite: 8 });
-        const variantes: VarianteBuscable[] = r.datos.flatMap(p =>
-          (p.variantes ?? []).map(v => ({
-            id: v.id, sku: v.sku, talla: v.talla, color: v.color,
-            producto: { id: p.id, nombre: p.nombre, sku: p.sku, precioCompra: p.precioCompra ?? null },
-          })),
-        );
-        return { ...r, datos: variantes };
-      }
-    },
-  });
-
-  const listaResultados = (resultados?.datos ?? []) as VarianteBuscable[];
-  // Gatear en `debounced` (no `busqueda`) para alinear con cuándo corre la query.
-  const mostrarDropdown = debounced.length >= 2;
-
-  const agregarItem = (v: VarianteBuscable) => {
+  const agregarItem = (v: VarianteEncontrada) => {
     if (items.find(i => i.varianteId === v.id)) return;
     setItems(s => [
       ...s,
       {
         varianteId: v.id,
+        productoId: v.producto.id,
+        productoNombre: v.producto.nombre,
         descripcion: `${v.producto.nombre} · ${v.talla}/${v.color}`,
         cantidad: 1,
         costoUnitario: Number(v.producto.precioCompra ?? 0),
@@ -115,6 +103,37 @@ export default function NuevaCompraPage() {
       },
     ]);
     setBusqueda('');
+  };
+
+  // Producto al que se le está agregando una variante desde una fila de la tabla.
+  const [varianteFilaProducto, setVarianteFilaProducto] =
+    React.useState<{ id: string; nombre: string } | null>(null);
+
+  /**
+   * Variante recién creada desde la fila: la agrega a la compra heredando el
+   * costo de una fila hermana del mismo producto (si existe), porque suele ser
+   * el mismo costo del proveedor para todas las tallas/colores.
+   */
+  const agregarVarianteCreadaEnFila = (variante: VarianteCreada) => {
+    const producto = varianteFilaProducto;
+    if (!producto) return;
+    setItems(prev => {
+      if (prev.find(i => i.varianteId === variante.id)) return prev;
+      const costoHermano = prev.find(i => i.productoId === producto.id)?.costoUnitario ?? 0;
+      return [
+        ...prev,
+        {
+          varianteId: variante.id,
+          productoId: producto.id,
+          productoNombre: producto.nombre,
+          descripcion: `${producto.nombre} · ${variante.talla}/${variante.color}`,
+          cantidad: 1,
+          costoUnitario: costoHermano,
+          descuento: 0,
+        },
+      ];
+    });
+    setVarianteFilaProducto(null);
   };
 
   /** Tras crear un producto en el aside, traemos su detalle y agregamos sus variantes. */
@@ -128,6 +147,8 @@ export default function NuevaCompraPage() {
           .filter(v => !existentes.has(v.id))
           .map(v => ({
             varianteId: v.id,
+            productoId: prod.id,
+            productoNombre: prod.nombre,
             descripcion: `${prod.nombre} · ${v.talla}/${v.color}`,
             cantidad: 1,
             costoUnitario: Number(prod.precioCompra ?? 0),
@@ -174,9 +195,16 @@ export default function NuevaCompraPage() {
         })),
         notas,
         confirmar: true,
+        sesionCajaId: sesionCaja?.id,
       }),
     onSuccess: () => {
       toast.success('Compra registrada — stock e IGV asentados');
+      // La compra ingresó stock: invalidamos las vistas que lo muestran para que
+      // reflejen el nuevo disponible (sin esto quedan con el número viejo hasta
+      // que venza el staleTime global de 30s).
+      void qc.invalidateQueries({ queryKey: ['productos'] });
+      void qc.invalidateQueries({ queryKey: ['stock'] });
+      void qc.invalidateQueries({ queryKey: ['buscar-variantes'] });
       router.push('/compras');
     },
     onError: e => toast.error(mensajeError(e)),
@@ -187,7 +215,8 @@ export default function NuevaCompraPage() {
     serie &&
     numeroComprobante &&
     items.length > 0 &&
-    (moneda === 'PEN' || (tipoCambio !== null && tipoCambio > 0));
+    (moneda === 'PEN' || (tipoCambio !== null && tipoCambio > 0)) &&
+    sesionCaja !== null;
 
   return (
     <div className="space-y-6">
@@ -201,6 +230,19 @@ export default function NuevaCompraPage() {
         }
       />
 
+      {sucursalId && sesionCaja === null && (
+        <div className="flex items-center gap-3 rounded-lg border border-[hsl(35_90%_55%/0.4)] bg-[hsl(35_90%_55%/0.08)] px-4 py-3 text-sm">
+          <AlertTriangle className="size-4 text-[hsl(35_90%_55%)] shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium">No hay caja abierta</p>
+            <p className="text-xs text-[hsl(var(--text-muted))]">
+              No podés registrar una compra sin una sesión de caja abierta.{' '}
+              <Link href="/caja" className="underline">Abrir caja</Link>
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6">
           {/* ── Datos del comprobante ─────────────────────────────────────── */}
@@ -210,7 +252,18 @@ export default function NuevaCompraPage() {
             </h3>
 
             <div className="space-y-1.5">
-              <label className={fieldLabel}>Proveedor *</label>
+              <div className="flex items-center justify-between gap-3">
+                <label className={fieldLabel}>Proveedor *</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-testid="btn-nuevo-proveedor-compra"
+                  onClick={() => setCrearProveedorAbierto(true)}
+                >
+                  <UserPlus className="size-4" /> Nuevo proveedor
+                </Button>
+              </div>
               <Select
                 data-testid="select-proveedor-compra"
                 value={proveedorId}
@@ -335,35 +388,17 @@ export default function NuevaCompraPage() {
               </Button>
             </div>
 
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[hsl(var(--text-muted))]" />
-              <Input
-                data-testid="input-buscar-producto-compra"
-                placeholder="Buscar producto / SKU / variante…"
-                value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-                className="pl-9"
-              />
-              {mostrarDropdown && listaResultados.length > 0 && (
-                <div className="absolute z-20 mt-1 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] shadow-lg max-h-72 overflow-auto">
-                  {listaResultados.map(v => (
-                    <button
-                      key={v.id}
-                      type="button"
-                      data-testid={`btn-agregar-producto-compra-${v.sku ?? v.id}`}
-                      onClick={() => agregarItem(v)}
-                      className="w-full px-3 py-2.5 text-left hover:bg-[hsl(var(--surface-2))] text-sm flex items-center justify-between gap-3 border-b border-[hsl(var(--border))]/50 last:border-0"
-                    >
-                      <span className="min-w-0 truncate">
-                        <span className="font-medium">{v.producto?.nombre}</span>
-                        {v.talla && <span className="text-[hsl(var(--text-muted))]"> · {v.talla}/{v.color}</span>}
-                      </span>
-                      <span className="font-mono text-xs text-[hsl(var(--text-muted))] shrink-0">{v.sku}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <BuscadorVariantes
+              contexto="compra"
+              value={busqueda}
+              onValueChange={setBusqueda}
+              onSeleccionar={agregarItem}
+              yaAgregados={new Set(items.map(i => i.varianteId))}
+              permitirNuevaVariante
+              placeholder="Buscar producto / SKU / variante…"
+              inputTestId="input-buscar-producto-compra"
+              resultadoTestId={v => `btn-agregar-producto-compra-${v.sku ?? v.id}`}
+            />
 
             {items.length === 0 ? (
               <div className="rounded-lg border border-dashed border-[hsl(var(--border))] p-10 text-center space-y-3">
@@ -393,7 +428,17 @@ export default function NuevaCompraPage() {
                       transition={{ duration: 0.18 }}
                       className="grid grid-cols-12 gap-2 items-center px-3 py-2.5 border-t border-[hsl(var(--border))] first:border-0"
                     >
-                      <div className="col-span-12 sm:col-span-5 text-sm font-medium">{it.descripcion}</div>
+                      <div className="col-span-12 sm:col-span-5">
+                        <div className="text-sm font-medium">{it.descripcion}</div>
+                        <button
+                          type="button"
+                          data-testid={`btn-otra-variante-fila-${it.varianteId}`}
+                          onClick={() => setVarianteFilaProducto({ id: it.productoId, nombre: it.productoNombre })}
+                          className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-[hsl(var(--brand-primary))]/40 bg-[hsl(var(--brand-primary))]/10 px-2.5 py-1 text-[11px] font-semibold text-[hsl(var(--brand-primary))] shadow-sm transition-all hover:bg-[hsl(var(--brand-primary))]/20 hover:border-[hsl(var(--brand-primary))]/60"
+                        >
+                          <Plus className="size-3.5" /> Otra talla/color
+                        </button>
+                      </div>
                       <div className="col-span-4 sm:col-span-2">
                         <Input
                           type="number" min={1}
@@ -496,6 +541,34 @@ export default function NuevaCompraPage() {
           </div>
         )}
       </DetalleSheet>
+
+      {/* ── Crear proveedor sin salir de la compra (aside, no modal) ──────── */}
+      <DetalleSheet
+        open={crearProveedorAbierto}
+        onOpenChange={setCrearProveedorAbierto}
+        titulo="Nuevo proveedor"
+        subtitulo="Se selecciona en la compra al guardar"
+        icono={<UserPlus className="size-4" />}
+        ancho="2xl"
+      >
+        {crearProveedorAbierto && (
+          <div className="p-4 sm:p-5" data-testid="aside-nuevo-proveedor-compra">
+            <NuevoProveedorContenido
+              modoModal
+              onCerrar={() => setCrearProveedorAbierto(false)}
+              onCreado={onProveedorCreado}
+            />
+          </div>
+        )}
+      </DetalleSheet>
+
+      {/* ── Agregar talla/color a un producto ya en la compra (desde la fila) ── */}
+      <NuevaVarianteSheet
+        open={varianteFilaProducto !== null}
+        onOpenChange={abierto => { if (!abierto) setVarianteFilaProducto(null); }}
+        producto={varianteFilaProducto}
+        onCreada={agregarVarianteCreadaEnFila}
+      />
     </div>
   );
 }
