@@ -174,6 +174,20 @@ export class ComprasService {
       // deuda del proveedor).
       const { moneda, tipoCambio } = normalizarMoneda(dto);
 
+      // 1-tenant-1-sucursal: la UI no expone selector de sucursal. Si el DTO no
+      // trae sucursalId, se resuelve la principal (mismo patrón que productos).
+      const sucursalId =
+        dto.sucursalId ??
+        (
+          await tx.sucursal.findFirst({
+            where: { esPrincipal: true, eliminadoEn: null },
+            select: { id: true },
+          })
+        )?.id;
+      if (!sucursalId) {
+        throw new ErrorValidacion('No hay sucursal principal configurada');
+      }
+
       const items = dto.items.map(item => {
         const v = variantes.find(x => x.id === item.varianteId)!;
         const subtotal = round2(item.costoUnitario * item.cantidad - (item.descuento ?? 0));
@@ -211,7 +225,7 @@ export class ComprasService {
         data: {
           numero,
           proveedorId: dto.proveedorId,
-          sucursalId: dto.sucursalId,
+          sucursalId,
           tipoComprobante: dto.tipoComprobante as TipoComprobanteCompra,
           serie: dto.serie,
           numeroComprobante: dto.numeroComprobante,
@@ -240,7 +254,7 @@ export class ComprasService {
       for (const item of items) {
         await this.inventario.ajustarEnTx(tx, {
           varianteId: item.varianteId,
-          sucursalId: dto.sucursalId,
+          sucursalId,
           delta: item.cantidad,
           tipo: TipoMovimientoStock.ingreso_compra,
           referenciaTipo: 'Compra',

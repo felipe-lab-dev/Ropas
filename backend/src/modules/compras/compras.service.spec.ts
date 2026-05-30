@@ -44,6 +44,9 @@ function crearTx() {
     producto: { update: jest.fn().mockResolvedValue({}) },
     movimientoCaja: { create: jest.fn().mockResolvedValue({}) },
     asientoContable: { findMany: jest.fn().mockResolvedValue([]) },
+    sucursal: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'suc-principal' }),
+    },
   };
 }
 
@@ -127,6 +130,32 @@ describe('ComprasService · crear (moneda)', () => {
 
     await expect(
       service.crear({ ...dtoBase, moneda: 'USD' } as never, ctx, 'u1'),
+    ).rejects.toBeInstanceOf(ErrorValidacion);
+    expect(tx.compra.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('ComprasService · crear (sucursal 1-tenant-1-sucursal)', () => {
+  it('sin sucursalId: resuelve la sucursal principal y la usa en compra + stock', async () => {
+    const { service, tx, inventario } = montar();
+    const { sucursalId: _omit, ...sinSucursal } = dtoBase;
+
+    await service.crear(sinSucursal as never, ctx, 'u1');
+
+    expect(tx.sucursal.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { esPrincipal: true, eliminadoEn: null } }),
+    );
+    expect(tx.compra.create.mock.calls[0][0].data.sucursalId).toBe('suc-principal');
+    expect(inventario.ajustarEnTx.mock.calls[0][1].sucursalId).toBe('suc-principal');
+  });
+
+  it('sin sucursal principal configurada → ErrorValidacion y no crea la compra', async () => {
+    const { service, tx } = montar();
+    tx.sucursal.findFirst.mockResolvedValue(null);
+    const { sucursalId: _omit, ...sinSucursal } = dtoBase;
+
+    await expect(
+      service.crear(sinSucursal as never, ctx, 'u1'),
     ).rejects.toBeInstanceOf(ErrorValidacion);
     expect(tx.compra.create).not.toHaveBeenCalled();
   });

@@ -73,6 +73,8 @@ interface NuevoProductoClienteProps {
   onCerrar?: () => void;
   /** Notifica el id del producto recién creado (el padre suele abrir "editar"). */
   onCreado?: (id: string) => void;
+  /** Precarga el nombre (ej. el término que el usuario buscaba en Compras). */
+  nombreInicial?: string;
 }
 
 /**
@@ -80,14 +82,14 @@ interface NuevoProductoClienteProps {
  *  - `modoModal`: sin PageHeader; tras crear llama `onCreado(id)` (o `onCerrar`).
  *  - Página standalone (`/productos/nuevo`): header + redirección a editar.
  */
-export function NuevoProductoCliente({ modoModal = false, onCerrar, onCreado }: NuevoProductoClienteProps = {}) {
+export function NuevoProductoCliente({ modoModal = false, onCerrar, onCreado, nombreInicial = '' }: NuevoProductoClienteProps = {}) {
   const router = useRouter();
   const qc = useQueryClient();
 
   const [tab, setTab] = React.useState<TabId>('general');
 
   const [codigo, setCodigo] = React.useState('');
-  const [nombre, setNombre] = React.useState('');
+  const [nombre, setNombre] = React.useState(nombreInicial);
   const [descripcion, setDescripcion] = React.useState('');
   const [categoriaId, setCategoriaId] = React.useState('');
   const [genero, setGenero] = React.useState('mujer');

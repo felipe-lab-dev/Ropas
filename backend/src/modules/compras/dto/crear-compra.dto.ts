@@ -29,7 +29,8 @@ export class CrearCompraItemDto {
 
 export class CrearCompraDto {
   @IsUUID() proveedorId!: string;
-  @IsUUID() sucursalId!: string;
+  /** Opcional: 1-tenant-1-sucursal → si no viene, el service usa la sucursal principal. */
+  @IsOptional() @IsUUID() sucursalId?: string;
 
   @IsEnum(TIPO_COMP) tipoComprobante!: (typeof TIPO_COMP)[number];
   @IsString() serie!: string;
