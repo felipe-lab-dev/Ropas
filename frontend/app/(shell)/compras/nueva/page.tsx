@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { DetalleSheet } from '@/components/ui/sheet';
 import { obtener, obtenerPaginado, postear, mensajeError } from '@/lib/api/client';
+import { invalidarStock } from '@/lib/api/invalidaciones';
 import { formatearMoneda } from '@/lib/utils';
 import { CampoTipoCambio, type FuenteTc } from '@/components/utilidades/campo-tipo-cambio';
 import { BuscadorVariantes, type VarianteEncontrada } from '@/components/productos/buscador-variantes';
@@ -199,12 +200,8 @@ export default function NuevaCompraPage() {
       }),
     onSuccess: () => {
       toast.success('Compra registrada — stock e IGV asentados');
-      // La compra ingresó stock: invalidamos las vistas que lo muestran para que
-      // reflejen el nuevo disponible (sin esto quedan con el número viejo hasta
-      // que venza el staleTime global de 30s).
-      void qc.invalidateQueries({ queryKey: ['productos'] });
-      void qc.invalidateQueries({ queryKey: ['stock'] });
-      void qc.invalidateQueries({ queryKey: ['buscar-variantes'] });
+      // La compra ingresó stock: refrescamos las vistas que lo muestran.
+      invalidarStock(qc);
       router.push('/compras');
     },
     onError: e => toast.error(mensajeError(e)),

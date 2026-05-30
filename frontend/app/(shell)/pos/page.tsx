@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { obtener, obtenerPaginado, postear, mensajeError } from '@/lib/api/client';
+import { invalidarStock } from '@/lib/api/invalidaciones';
 import { formatearMoneda } from '@/lib/utils';
 import { useSesion } from '@/lib/store/sesion';
 import { useConsultaDoc } from '@/components/sunat/use-consulta-doc';
@@ -333,12 +334,8 @@ export default function PosPage() {
       }),
     onSuccess: data => {
       toast.success(`Venta ${data.numero} registrada`);
-      // La venta egresó stock: invalidamos las vistas que lo muestran para que no
-      // queden con el número viejo (staleTime global de 30s + refetchOnWindowFocus
-      // off harían que sigan mostrando el stock previo a la venta).
-      void qc.invalidateQueries({ queryKey: ['productos'] });
-      void qc.invalidateQueries({ queryKey: ['stock'] });
-      void qc.invalidateQueries({ queryKey: ['buscar-variantes'] });
+      // La venta egresó stock: refrescamos las vistas que lo muestran.
+      invalidarStock(qc);
       // En vez de limpiar el POS, redirigimos al detalle de la venta (drawer
       // export-safe vía query-param, igual que la lista). Al navegar, el POS se
       // desmonta y vuelve limpio si el cajero regresa.
